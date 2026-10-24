@@ -1,0 +1,260 @@
+import "server-only";
+import type { RequestContext } from "@mastra/core/request-context";
+import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
+
+import * as instance from "@/mastra/toolkit/instance";
+import { ToolRefusal, withToolErrors } from "@/mastra/toolkit/resolve";
+import {
+  auditPageInputSchema,
+  connectionProviderSchema,
+  dashboardSystemProviderInputSchema,
+  dashboardUsageInputSchema,
+  systemDriverSchema,
+} from "@/server/schema";
+
+import { mcpAccountFromCall } from "../context";
+
+function requireOwner(requestContext: RequestContext | undefined): void {
+  if (!mcpAccountFromCall(requestContext).isOwner) {
+    throw new ToolRefusal("Only the instance owner can read instance stats.");
+  }
+}
+
+const OWNER_NOTE =
+  "Instance-wide and owner only: it covers every user and workspace on this Metis Suite server, not one workspace.";
+
+export const getInstanceStats = createTool({
+  id: "getInstanceStats",
+  description: `Count the users, workspaces, mailboxes, calendars and drives on this Metis Suite server. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceStats();
+    }),
+});
+
+export const getInstanceUsage = createTool({
+  id: "getInstanceUsage",
+  description: `Read AI usage on this server over a time range — calls, tokens and cost by feature, model and day, plus recent calls. ${OWNER_NOTE}`,
+  inputSchema: dashboardUsageInputSchema,
+  execute: async ({ range }, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceUsage(range);
+    }),
+});
+
+export const getInstanceOverview = createTool({
+  id: "getInstanceOverview",
+  description: `Read the server's health at a glance — unavailable accounts, pending and overdue work, recent failures and daily activity. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceOverview();
+    }),
+});
+
+export const getInstanceConnections = createTool({
+  id: "getInstanceConnections",
+  description: `Read the connected accounts on this server by provider and resource, including unavailable ones. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceConnections();
+    }),
+});
+
+export const getInstancePeople = createTool({
+  id: "getInstancePeople",
+  description: `Read the people on this server — user counts, two-factor adoption, pending invites and recent sign-ups. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instancePeople();
+    }),
+});
+
+export const getInstanceWorkspaces = createTool({
+  id: "getInstanceWorkspaces",
+  description: `Read every workspace on this server with its members and attached mailboxes, calendars and drives. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceWorkspaces();
+    }),
+});
+
+export const getInstanceAutomation = createTool({
+  id: "getInstanceAutomation",
+  description: `Read the workflow runner's state on this server — run outcomes, pending snoozes and scheduled sends, and recent runs. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceAutomation();
+    }),
+});
+
+export const getInstanceMcpClients = createTool({
+  id: "getInstanceMcpClients",
+  description: `List every MCP client registered on this server, with its status and how many tools it has on. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceMcpClients();
+    }),
+});
+
+export const getInstanceAuditLog = createTool({
+  id: "getInstanceAuditLog",
+  description: `Read the audit log, newest first, 50 events per page: two-factor disables, MCP client approvals, disconnected accounts, role changes, removed members, invites and deleted workspaces and accounts. Pass nextCursor back as cursor for the next page. ${OWNER_NOTE}`,
+  inputSchema: auditPageInputSchema,
+  execute: async ({ cursor }, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.instanceAuditLog(cursor);
+    }),
+});
+
+const CONFIG_NOTE = `${OWNER_NOTE} Secrets are reported only as set or not set.`;
+
+export const getSystemOverview = createTool({
+  id: "getSystemOverview",
+  description: `Read how this server is configured at a glance — each driver (LLM, phishing detection, mail, cache, workflow runner, database) with its state, each connection provider with its entries and connection counts, and the sign-up mode. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemOverviewView();
+    }),
+});
+
+export const getSystemInstance = createTool({
+  id: "getSystemInstance",
+  description: `Read the server's instance settings — app URL, cookies, sign-up mode, owner, setup code state, legal links and drive relay limits. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemInstanceView();
+    }),
+});
+
+export const getSystemLlm = createTool({
+  id: "getSystemLlm",
+  description: `Read the server's LLM and decision-model configuration — driver, endpoint, models and which decision features are on. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemLlmView();
+    }),
+});
+
+export const getSystemPhishing = createTool({
+  id: "getSystemPhishing",
+  description: `Read the server's phishing-detection configuration. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemPhishingView();
+    }),
+});
+
+export const getSystemMail = createTool({
+  id: "getSystemMail",
+  description: `Read the server's transactional mail configuration — driver, sender addresses and SMTP settings. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemMailView();
+    }),
+});
+
+export const getSystemCache = createTool({
+  id: "getSystemCache",
+  description: `Read the server's cache driver configuration. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemCacheView();
+    }),
+});
+
+export const getSystemRunner = createTool({
+  id: "getSystemRunner",
+  description: `Read the workflow runner's configuration and health — driver, cadence, batch size, concurrency and its latest tick status. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemRunnerView();
+    }),
+});
+
+export const getSystemDatabase = createTool({
+  id: "getSystemDatabase",
+  description: `Read the server's database configuration — driver and the app and agent-memory database addresses. ${CONFIG_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemDatabaseView();
+    }),
+});
+
+export const getSystemProvider = createTool({
+  id: "getSystemProvider",
+  description: `Read one connection provider's configuration — whether it is configured, its OAuth client or server entries, the env vars that set it, and its connection counts. ${CONFIG_NOTE}`,
+  inputSchema: dashboardSystemProviderInputSchema,
+  execute: async ({ provider }, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.systemProviderView(provider);
+    }),
+});
+
+export const runSystemCheck = createTool({
+  id: "runSystemCheck",
+  description: `Run a live health check against one driver (LLM, phishing, mail, cache, runner, database) or every server entry of one connection provider, and report each result with its latency. It connects to those services now. ${OWNER_NOTE}`,
+  inputSchema: z.object({
+    driver: systemDriverSchema
+      .optional()
+      .describe("The driver to check; pass this or provider, not both"),
+    provider: connectionProviderSchema
+      .optional()
+      .describe("The connection provider whose entries to check"),
+  }),
+  execute: async ({ driver, provider }, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      if (driver && !provider) {
+        return instance.systemCheck({ kind: "driver", driver });
+      }
+      if (provider && !driver) {
+        return instance.systemCheck({ kind: "provider", provider });
+      }
+      return { error: "Pass exactly one of driver or provider." };
+    }),
+});
+
+export const getPreflightWarnings = createTool({
+  id: "getPreflightWarnings",
+  description: `Read the warnings the last deploy's preflight run reported — environment values that differ from the stored configuration, servers that failed their probe, LLM and decision-model problems, seeding warnings and newly quarantined connections — with when it ran, the configuration version it checked and whether the owner acknowledged them. When currentVersion differs from the run's configVersion, the configuration changed after the run and some warnings may no longer apply. ${OWNER_NOTE}`,
+  inputSchema: z.object({}),
+  execute: async (_input, { requestContext }) =>
+    withToolErrors(async () => {
+      requireOwner(requestContext);
+      return instance.preflightWarningsView();
+    }),
+});

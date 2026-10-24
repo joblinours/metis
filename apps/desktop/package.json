@@ -1,0 +1,84 @@
+{
+  "name": "metis-suite-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Metis Suite desktop app for a self-hosted Metis instance",
+  "homepage": "https://github.com/trymetis/metis",
+  "author": "Metis Suite",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p . && vite build",
+    "start": "bun run build && electron .",
+    "typecheck": "tsc -p . --noEmit && tsc -p renderer --noEmit",
+    "dist": "bun run build && electron-builder"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@fontsource/dm-mono": "^5.3.0",
+    "@metis/ui": "workspace:*",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.6.0",
+    "electron-builder": "^26.15.3",
+    "lucide-react": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "^8.3.4"
+  },
+  "build": {
+    "appId": "email.trymetis.suite",
+    "productName": "Metis Suite",
+    "icon": "static/icon.png",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableCookieEncryption": true
+    },
+    "files": [
+      "dist/**",
+      "static/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "protocols": [
+      {
+        "name": "Metis Suite",
+        "schemes": [
+          "metis-suite"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg",
+      "identity": "-"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "icon": "icons",
+      "category": "Network;Email",
+      "maintainer": "Metis Suite",
+      "syncDesktopName": true
+    }
+  },
+  "desktopName": "metis-suite-desktop.desktop"
+}

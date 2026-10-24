@@ -1,0 +1,16 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "noImplicitReturns": true
+  },
+  "include": [".blume/.astro/types.d.ts", "**/*"],
+  "exclude": [
+    "node_modules/**/*",
+    "dist/**/*",
+    ".blume/src/**/*",
+    ".blume/node_modules/**/*",
+    ".blume/.cache/**/*",
+    ".blume/astro.config.mjs",
+    ".blume-verify/**/*"
+  ]
+}

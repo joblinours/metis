@@ -1,0 +1,469 @@
+name: metis-e2e
+
+volumes:
+  updater-socket: {}
+
+networks:
+  default:
+    internal: true
+  egress: {}
+  cimd:
+    internal: true
+    ipam:
+      config:
+        - subnet: 11.73.0.0/24
+
+services:
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:latest@sha256:6dd3eb276d9d3604e4a48ac4a999a2e267814732d57d7e94c04ba71482333a67
+    environment:
+      SQLD_AUTH_JWT_KEY: ${SQLD_AUTH_JWT_KEY:?set in e2e/.env.fixture}
+    tmpfs:
+      - /var/lib/sqld:size=512m,mode=1777
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /health HTTP/1.0\r\n\r\n" >&3 && read -r status <&3 && [[ $$status == *" 200 "* ]]'
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  sqld-mastra:
+    image: ghcr.io/tursodatabase/libsql-server:latest@sha256:6dd3eb276d9d3604e4a48ac4a999a2e267814732d57d7e94c04ba71482333a67
+    environment:
+      SQLD_AUTH_JWT_KEY: ${SQLD_AUTH_JWT_KEY:?set in e2e/.env.fixture}
+    tmpfs:
+      - /var/lib/sqld:size=512m,mode=1777
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /health HTTP/1.0\r\n\r\n" >&3 && read -r status <&3 && [[ $$status == *" 200 "* ]]'
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  mail:
+    build:
+      context: .
+      dockerfile: mail/Dockerfile
+    init: true
+    environment:
+      USER_PASSWORD: "{PLAIN}${E2E_IMAP_PASS:?set in e2e/.env.fixture}"
+      E2E_IMAP_USER: ${E2E_IMAP_USER:?set in e2e/.env.fixture}
+      UID_VALIDITY: "1000"
+    tmpfs:
+      - /srv/vmail:size=1g,mode=1777
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
+
+  caldav:
+    build:
+      context: .
+      dockerfile: caldav/Dockerfile
+    tmpfs:
+      - /data:size=256m,mode=1777
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+
+  s3:
+    build:
+      context: .
+      dockerfile: s3/Dockerfile
+    environment:
+      RUSTFS_ACCESS_KEY: e2e-access-key
+      RUSTFS_SECRET_KEY: e2e-secret-key-0001
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_CORS_ALLOWED_ORIGINS: "*"
+    tmpfs:
+      - /data:size=2g,mode=1777
+    mem_limit: 2500m
+    cpus: 1
+    pids_limit: 256
+
+  webdav:
+    build:
+      context: .
+      dockerfile: webdav/Dockerfile
+    tmpfs:
+      - /data:size=2g,mode=1777
+    mem_limit: 2500m
+    cpus: 1
+    pids_limit: 128
+
+  ftp:
+    build:
+      context: .
+      dockerfile: ftp/Dockerfile
+    init: true
+    environment:
+      E2E_FTP_USER: ${E2E_FTP_USER:?set in e2e/.env.fixture}
+      E2E_FTP_PASS: ${E2E_FTP_PASS:?set in e2e/.env.fixture}
+    tmpfs:
+      - /home/files:size=2g,mode=1777
+    mem_limit: 2500m
+    cpus: 1
+    pids_limit: 128
+
+  sftp:
+    build:
+      context: .
+      dockerfile: sftp/Dockerfile
+    init: true
+    environment:
+      E2E_SFTP_USER: ${E2E_SFTP_USER:?set in e2e/.env.fixture}
+      E2E_SFTP_PASS: ${E2E_SFTP_PASS:?set in e2e/.env.fixture}
+      E2E_SFTP_ROOT: ${E2E_SFTP_ROOT:?set in e2e/.env.fixture}
+    tmpfs:
+      - /home/${E2E_SFTP_USER}/${E2E_SFTP_ROOT}:size=2g,mode=1777
+    mem_limit: 2500m
+    cpus: 1
+    pids_limit: 128
+
+  gateway-cloudflare:
+    build:
+      context: ..
+      dockerfile: e2e/gateway-cloudflare/Dockerfile
+    environment:
+      MAIL_DOMAIN: ${E2E_GATEWAY_DOMAIN:?set in e2e/.env.fixture}
+      API_TOKEN: ${E2E_GATEWAY_ADMIN_TOKEN:?set in e2e/.env.fixture}
+      NODE_EXTRA_CA_CERTS: /e2e/tls/ca.crt
+      WRANGLER_SEND_METRICS: "false"
+    tmpfs:
+      - /data:size=256m,mode=1777
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("https://localhost:8787/v1/health").then(r=>process.exit(r.status===401?0:1),()=>process.exit(1))'
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  redis:
+    image: redis:8.2-alpine@sha256:b51665e66f00759be7c3152ad5ac3c66fb2f619c13ef62dea7cc1f9914524635
+    command:
+      ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory-policy", "noeviction"]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  srh:
+    image: hiett/serverless-redis-http:latest@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${E2E_UPSTASH_TOKEN:?set in e2e/.env.fixture}
+      SRH_CONNECTION_STRING: ${E2E_REDIS_URL:?set in e2e/.env.fixture}
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_USER: metis
+      POSTGRES_PASSWORD: ${E2E_RESEND_DB_PASSWORD:?set in e2e/.env.fixture}
+      POSTGRES_DB: resend_gateway
+    tmpfs:
+      - /var/lib/postgresql:size=256m,mode=1777
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "metis", "-d", "resend_gateway"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  resend:
+    build:
+      context: ..
+      dockerfile: e2e/fakes/Dockerfile
+    image: metis-e2e-fakes
+    command: ["resend"]
+    environment:
+      RESEND_API_KEY: ${E2E_RESEND_API_KEY:?set in e2e/.env.fixture}
+      RESEND_DOMAIN: ${E2E_RESEND_DOMAIN:?set in e2e/.env.fixture}
+      RESEND_WEBHOOK_URL: http://gateway-resend:8787/webhooks/resend
+      RESEND_WEBHOOK_SECRET: ${E2E_RESEND_WEBHOOK_SECRET:?set in e2e/.env.fixture}
+    networks:
+      default:
+        aliases:
+          - api.resend.com
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/fakes", "health", "http://127.0.0.1:8080/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  gateway-resend:
+    build:
+      context: ..
+      dockerfile: e2e/gateway-resend/Dockerfile
+    environment:
+      DATABASE_URL: postgres://metis:${E2E_RESEND_DB_PASSWORD:?set in e2e/.env.fixture}@postgres:5432/resend_gateway
+      MAIL_DOMAIN: ${E2E_RESEND_DOMAIN:?set in e2e/.env.fixture}
+      API_TOKEN: ${E2E_RESEND_GATEWAY_ADMIN_TOKEN:?set in e2e/.env.fixture}
+      RESEND_API_KEY: ${E2E_RESEND_API_KEY:?set in e2e/.env.fixture}
+      RESEND_WEBHOOK_SECRET: ${E2E_RESEND_WEBHOOK_SECRET:?set in e2e/.env.fixture}
+      PORT: "8787"
+      NODE_EXTRA_CA_CERTS: /e2e/tls/ca.crt
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    depends_on:
+      postgres:
+        condition: service_healthy
+      resend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - 'fetch("http://127.0.0.1:8787/v1/health").then(r=>process.exit(r.status===401?0:1),()=>process.exit(1))'
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  harness:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile
+    env_file: .env.fixture
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 128
+    networks:
+      - default
+      - egress
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - 'fetch("http://127.0.0.1:8080/health").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))'
+      interval: 3s
+      timeout: 3s
+      retries: 200
+
+  updater:
+    build:
+      context: ..
+      dockerfile: e2e/fakes/Dockerfile
+    image: metis-e2e-fakes
+    command: ["updater"]
+    volumes:
+      - updater-socket:/run/metis-updater
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/fakes", "health", "http://127.0.0.1:8080/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  preflight:
+    build:
+      context: ..
+      dockerfile: preflight.Dockerfile
+    env_file: .env.fixture
+    environment:
+      NODE_EXTRA_CA_CERTS: /etc/metis-e2e/ca.crt
+    volumes:
+      - ./tls/ca.crt:/etc/metis-e2e/ca.crt:ro
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 128
+    depends_on:
+      sqld:
+        condition: service_healthy
+      sqld-mastra:
+        condition: service_healthy
+      mail:
+        condition: service_healthy
+      caldav:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+      webdav:
+        condition: service_healthy
+      ftp:
+        condition: service_healthy
+      sftp:
+        condition: service_healthy
+      gateway-cloudflare:
+        condition: service_healthy
+      gateway-resend:
+        condition: service_healthy
+      proxy:
+        condition: service_started
+
+  worker:
+    build:
+      context: ..
+      target: worker
+    env_file: .env.fixture
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  app:
+    build:
+      context: ..
+      target: runner
+      args:
+        NEXT_BUILD_OUTPUT: standalone
+    env_file: .env.fixture
+    environment:
+      NODE_EXTRA_CA_CERTS: /etc/metis-e2e/ca.crt
+      METIS_UPDATER_SOCKET: /run/metis-updater/updater.sock
+    volumes:
+      - ./tls/ca.crt:/etc/metis-e2e/ca.crt:ro
+      - updater-socket:/run/metis-updater:ro
+    networks:
+      - default
+      - cimd
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 512
+    depends_on:
+      harness:
+        condition: service_healthy
+      mcp-client:
+        condition: service_healthy
+      updater:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("http://127.0.0.1:3000/api/auth/ok").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))'
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  cron:
+    build:
+      context: ..
+      dockerfile: e2e/fakes/Dockerfile
+    image: metis-e2e-fakes
+    command: ["cron"]
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?set in e2e/.env.fixture}
+    mem_limit: 32m
+    cpus: 0.25
+    pids_limit: 32
+    depends_on:
+      app:
+        condition: service_healthy
+
+  mcp-client:
+    build:
+      context: ..
+      dockerfile: e2e/fakes/Dockerfile
+    image: metis-e2e-fakes
+    command: ["mcp-client"]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
+    networks:
+      default:
+        aliases:
+          - mcp-client-private.harness.test
+      cimd:
+        aliases:
+          - mcp-client.harness.test
+    healthcheck:
+      test: ["CMD", "/fakes", "health", "http://127.0.0.1:8080/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  proxy:
+    image: haproxy:3.2.25@sha256:e2b397cdbd612221cf79dec325690139d00a78b4ce4eae065530fbc81e1f6192
+    volumes:
+      - ./proxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./proxy/tls/resend-gateway.pem:/usr/local/etc/haproxy/resend-gateway.pem:ro
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    networks:
+      default:
+        aliases:
+          - imap.localhost
+          - caldav.localhost
+          - s3.localhost
+          - webdav.localhost
+          - ftp.localhost
+          - sftp.localhost
+          - gateway.localhost
+          - resend-gateway.localhost
+      egress: {}
+    ports:
+      - 127.0.0.1:3000:3000
+      - 127.0.0.1:8099:8099
+      - 127.0.0.1:8098:8098
+      - 127.0.0.1:8097:8097
+      - 127.0.0.1:9000:9000
+      - "[::1]:9000:9000"
+      - 127.0.0.1:5232:5232
+      - "[::1]:5232:5232"
+      - 127.0.0.1:6065:6065
+      - "[::1]:6065:6065"
+      - 127.0.0.1:31143:31143
+      - "[::1]:31143:31143"
+      - 127.0.0.1:31587:31587
+      - "[::1]:31587:31587"
+      - 127.0.0.1:2121:2121
+      - "[::1]:2121:2121"
+      - 127.0.0.1:2990:2990
+      - "[::1]:2990:2990"
+      - 127.0.0.1:2222:2222
+      - "[::1]:2222:2222"
+      - 127.0.0.1:8787:8787
+      - "[::1]:8787:8787"
+      - 127.0.0.1:8788:8788
+      - "[::1]:8788:8788"
+      - 127.0.0.1:8079:8079
+      - 127.0.0.1:8096:8096
+      - 127.0.0.1:30000-30019:30000-30019
+      - "[::1]:30000-30019:30000-30019"

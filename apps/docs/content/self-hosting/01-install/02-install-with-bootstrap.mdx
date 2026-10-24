@@ -1,0 +1,168 @@
+---
+title: Install with the bootstrap script
+description: Deploy Metis Suite on an Ubuntu server with one script, then find the setup code for the first account.
+---
+
+In this tutorial you install a complete Metis Suite instance on a fresh Ubuntu server. The bootstrap script installs Docker, generates every secret, picks the newest release and starts the services. By the end, the app is running and you have the setup code that creates the first account.
+
+The stack the script starts has these services:
+
+- **sqld**: the database server. It holds the app database and the AI memory database, in the `metis_sqld` Docker volume.
+- **preflight**: a one-time check that runs before the app starts on every deploy. It prepares the database and checks your settings.
+- **app**: Metis Suite itself.
+- **updater**: applies upgrades and rollbacks that you start from the owner dashboard.
+- **caddy**: serves the app over HTTPS. It runs only once you set a domain.
+
+Everything is installed in `/opt/metis-suite`. Your settings go in `/opt/metis-suite/.env`, which only root can read.
+
+<Steps>
+  <Step title="Decide on the owner email">
+    The owner is the one account that can open the owner dashboard, where you
+    change settings and apply updates. Pick the email address you will sign
+    in with.
+
+    If you leave the owner email empty, the first account can use any email
+    address, and the owner dashboard is turned off for everyone. You can set
+    it later, but that needs an edit to `.env` and a restart.
+
+  </Step>
+
+  <Step title="Download the script">
+    Sign in to the server and download the script:
+
+    ```bash
+    curl -fsSL https://sh.trymetis.email/bootstrap -o bootstrap.sh
+    ```
+
+  </Step>
+
+  <Step title="Run it">
+    Run the script in interactive mode. It asks for anything you have not
+    exported as an environment variable:
+
+    ```bash
+    sudo -E bash bootstrap.sh --interactive
+    ```
+
+    Press Enter to accept a default. The script asks for:
+
+    - **METIS_DOMAIN**: your domain. Leave it blank if DNS does not point at
+      the server yet; you can add it later.
+    - **BETTER_AUTH_URL**: the address people use to reach the app. It
+      defaults to `https://<your domain>`, or to `http://localhost:3000`
+      without a domain.
+    - **BETTER_AUTH_SECRET** and the other secrets: leave them blank and the
+      script generates them.
+    - **METIS_DB_DRIVER**: `sqld` (the default) runs the bundled database
+      server. Choose `turso` only if your databases are hosted on Turso (see
+      below).
+    - **DATABASE_URL** and **MASTRA_DATABASE_URL**: press Enter to use the
+      bundled database server.
+    - **METIS_SETUP_CODE**: leave it blank to generate one.
+    - **METIS_OWNER_EMAIL**: the owner email from step 1.
+
+    The script also generates `METIS_ENCRYPTION_KEY`, which protects every
+    password and token users store when they connect accounts.
+
+    To run without prompts, for example from cloud-init, export the values
+    you want first and run `sudo -E bash bootstrap.sh`. Anything you do not
+    export is generated or left at its default.
+
+  </Step>
+
+  <Step title="Back up the encryption key">
+    Copy `METIS_ENCRYPTION_KEY` from `/opt/metis-suite/.env` to a safe place,
+    such as a password manager.
+
+    :::warning[Losing this key means reconnecting everything]
+    Without the encryption key, the stored passwords and tokens cannot be
+    read. Every user would have to reconnect every mailbox, calendar and
+    drive. Keep a copy somewhere other than the server.
+    :::
+
+  </Step>
+
+  <Step title="Read the summary">
+    When the stack is up, the script prints:
+
+    - The address the app runs at.
+    - Two commands for later: one shows the status of the services, the
+      other follows the app's log.
+    - Without a domain, an SSH tunnel command for reaching the app.
+    - **Create the first account at:** the setup page address.
+    - **Setup code:** the code that creates the first account. It is also
+      kept in `/opt/metis-suite/.env`.
+
+    The status and log commands are:
+
+    ```bash
+    docker compose --project-directory /opt/metis-suite ps
+    docker compose --project-directory /opt/metis-suite logs -f app
+    ```
+
+  </Step>
+
+  <Step title="Open the app">
+    With a domain, open `https://<your domain>/setup`.
+
+    Without a domain, the app listens only on the server itself. Open a
+    tunnel from your own computer:
+
+    ```bash
+    ssh -L 3000:127.0.0.1:3000 <user>@<your server>
+    ```
+
+    Then open `http://localhost:3000/setup` in your browser. Continue with
+    [First run](/self-hosting/install/first-run).
+
+  </Step>
+</Steps>
+
+## Optional settings for the script
+
+Export any of these before you run the script:
+
+| Variable                                                        | What it does                                                                                                                                    | Default                                             |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `METIS_VERSION`                                                 | Installs a specific release, such as `1.2.3`. A leading `v` is ignored.                                                                         | The newest release                                  |
+| `INSTALL_DIR`                                                   | Where the stack and `.env` are installed.                                                                                                       | `/opt/metis-suite`                                  |
+| `APP_PORT`                                                      | The port the app listens on, on `127.0.0.1`. If you change it, also add `APP_PORT=<port>` to `.env` so later `docker compose` commands keep it. | `3000`                                              |
+| `COMPOSE_URL`                                                   | A full URL to download the Compose file from instead.                                                                                           | The Compose file of the release the script installs |
+| `APP_IMAGE`, `PREFLIGHT_IMAGE`, `WORKER_IMAGE`, `UPDATER_IMAGE` | Use these exact images instead of a release.                                                                                                    |                                                     |
+
+Provider, AI, mail, background work, sign-up and legal variables can be exported too. The script copies each one you export into `.env`, and the instance uses it as the starting value for that setting. After the first start, you change those settings in the owner dashboard. See [How configuration works](/self-hosting/configure/how-configuration-works).
+
+## Use Turso instead of the bundled database
+
+To keep both databases on [Turso](https://turso.tech), export these before you run the script:
+
+```bash
+export METIS_DB_DRIVER=turso
+export DATABASE_URL=libsql://<app database>.turso.io
+export DATABASE_AUTH_TOKEN=<token>
+export MASTRA_DATABASE_URL=libsql://<ai memory database>.turso.io
+export MASTRA_DATABASE_AUTH_TOKEN=<token>
+```
+
+The bundled database server then does not start. Both databases must use the same driver.
+
+## Run the script again
+
+You can run the script again at any time, for example to pick up a new Compose file:
+
+- An existing `.env` is kept. In interactive mode the script asks "Re-configure .env? (y/N)" first.
+- Every run pins the release again: the newest one, or the one in `METIS_VERSION`. So running the script also upgrades the app.
+
+:::warning[Do not regenerate .env to start over]
+If you delete `.env`, or answer **y** to "Re-configure .env?", the script generates every secret you have not exported, including a new encryption key. The instance can then no longer read the passwords and tokens users stored, and everyone has to reconnect every account. Edit `.env` instead. Do not answer **y** or delete `.env` unless you first export your saved `METIS_ENCRYPTION_KEY` and `BETTER_AUTH_SECRET`, so the script reuses them.
+:::
+
+## Troubleshooting the install
+
+| Message                                                                      | What to do                                                                                                                           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| "Run as root (or with sudo)"                                                 | Run the script with `sudo -E bash bootstrap.sh`.                                                                                     |
+| "openssl could not generate an Ed25519 key for sqld (OpenSSL 3 is required)" | Install OpenSSL 3, or use a newer Ubuntu release.                                                                                    |
+| "Could not download" the Compose file                                        | Check that the server can reach `sh.trymetis.email`, or point `COMPOSE_URL` at a copy of the Compose file.                           |
+| "sqld did not become healthy"                                                | Look at the database server's log: `docker compose --project-directory /opt/metis-suite logs sqld`.                                  |
+| "The stack did not start"                                                    | Look at the preflight log: `docker compose --project-directory /opt/metis-suite logs preflight`. It names the setting that is wrong. |

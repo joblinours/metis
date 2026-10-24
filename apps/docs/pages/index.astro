@@ -1,0 +1,217 @@
+---
+import PageLayout from "blume/components/layout/PageLayout.astro";
+import data from "blume:data";
+
+const { config } = data;
+const product = config.logo?.text || config.title;
+
+const features = [
+  {
+    title: "Mail",
+    blurb: "Read, search, label, snooze and schedule mail across every mailbox.",
+    href: "/guide/mail/read-your-mail",
+    image: "mail/inbox",
+    alt: "The inbox with an open message",
+  },
+  {
+    title: "Calendar",
+    blurb: "See your week, create events and choose which calendars show.",
+    href: "/guide/calendar/views-and-navigation",
+    image: "calendar/week-view",
+    alt: "The calendar in Week view",
+  },
+  {
+    title: "Drive",
+    blurb: "Browse, preview, upload and organize files on every drive you connect.",
+    href: "/guide/drive/browse-your-files",
+    image: "drive/explorer-list",
+    alt: "A drive listing its folders and files",
+  },
+  {
+    title: "AI assistant",
+    blurb: "Ask about your mail, calendar and files, and approve what it does.",
+    href: "/guide/assistant/how-ai-works",
+    image: "assistant/stored-conversation",
+    alt: "A conversation with the Workspace Assistant",
+  },
+  {
+    title: "Workflows",
+    blurb: "Label, file and act on mail automatically, on a schedule or as it arrives.",
+    href: "/guide/workflows/how-workflows-work",
+    image: "workflows/workflows-page",
+    alt: "A workflow on the canvas",
+  },
+  {
+    title: "Workspaces",
+    blurb: "Group mailboxes, calendars and drives, and invite the people you work with.",
+    href: "/guide/workspaces/about-workspaces",
+    image: "workspaces/general-settings",
+    alt: "The settings of a workspace",
+  },
+];
+
+const startHere = [
+  {
+    title: "Sign in for the first time",
+    href: "/guide/get-started/sign-in-for-the-first-time",
+  },
+  {
+    title: "Find your way around",
+    href: "/guide/get-started/find-your-way-around",
+  },
+  {
+    title: "Connect your first mailbox",
+    href: "/guide/get-started/connect-your-first-mailbox",
+  },
+];
+
+const selfHosting = [
+  {
+    title: "Install",
+    blurb: "Requirements, the install script and Docker Compose.",
+    href: "/self-hosting/install/requirements",
+  },
+  {
+    title: "Configure",
+    blurb: "Sign-in providers, AI models, outgoing mail and more.",
+    href: "/self-hosting/configure/how-configuration-works",
+  },
+  {
+    title: "Operate",
+    blurb: "The owner dashboard, updates, health checks and backups.",
+    href: "/self-hosting/operate/owner-dashboard",
+  },
+  {
+    title: "Mail gateways",
+    blurb: "Receive mail through Cloudflare Email or Resend.",
+    href: "/self-hosting/mail-gateways/what-is-a-gateway-mailbox",
+  },
+];
+---
+
+<PageLayout
+  site={{ title: config.title, description: config.description }}
+  logo={config.logo}
+  banner={config.banner}
+  analytics={config.analytics}
+  navigation={data.navigation}
+  favicon={config.favicon}
+  fontCssVars={data.fontCssVars}
+  themeMode={config.theme.mode}
+  searchEnabled={config.search.enabled}
+  siteUrl={config.site}
+  ogEnabled={config.og.enabled}
+  page={{ title: config.title, description: config.description, route: "/" }}
+>
+  <section class="mx-auto grid max-w-6xl items-center gap-12 px-6 pt-16 pb-12 lg:grid-cols-[5fr_7fr]">
+    <div class="flex flex-col gap-6">
+      <h1 class="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+        Learn {product}, then run it yourself
+      </h1>
+      <p class="text-lg text-muted-foreground">
+        {product} brings your email, calendars and files into one place. It works with Gmail,
+        Outlook, Zoho and any IMAP mailbox, and its AI assistant helps you read, sort and act on
+        your mail.
+      </p>
+      <div class="flex flex-wrap gap-3">
+        <a
+          href="/guide"
+          class="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground no-underline hover:opacity-90"
+        >
+          Read the User Guide
+        </a>
+        <a
+          href="/self-hosting"
+          class="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground no-underline hover:bg-muted"
+        >
+          Host it yourself
+        </a>
+      </div>
+    </div>
+    <div class="overflow-hidden rounded-xl border border-border shadow-lg">
+      <img
+        src="/images/mail/inbox.png"
+        alt="The inbox with an open message and its summary"
+        class="block w-full dark:hidden"
+      />
+      <img
+        src="/images/mail/inbox-dark.png"
+        alt="The inbox with an open message and its summary"
+        class="hidden w-full dark:block"
+      />
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-6 py-12">
+    <h2 class="mb-2 text-2xl font-semibold tracking-tight text-foreground">What you can do</h2>
+    <p class="mb-8 text-muted-foreground">
+      Each guide walks through one part of the app, step by step.
+    </p>
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {features.map((feature) => (
+        <a
+          href={feature.href}
+          class="group flex flex-col overflow-hidden rounded-xl border border-border no-underline transition-colors hover:border-accent"
+        >
+          <div class="aspect-video overflow-hidden border-b border-border">
+            <img
+              src={`/images/${feature.image}.png`}
+              alt={feature.alt}
+              class="block h-full w-full object-cover object-left-top dark:hidden"
+            />
+            <img
+              src={`/images/${feature.image}-dark.png`}
+              alt={feature.alt}
+              class="hidden h-full w-full object-cover object-left-top dark:block"
+            />
+          </div>
+          <div class="flex flex-col gap-1 p-4">
+            <span class="font-medium text-foreground group-hover:text-accent">{feature.title}</span>
+            <span class="text-sm text-muted-foreground">{feature.blurb}</span>
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="mx-auto grid max-w-6xl gap-10 px-6 py-12 pb-24 lg:grid-cols-2">
+    <div>
+      <h2 class="mb-2 text-2xl font-semibold tracking-tight text-foreground">Start here</h2>
+      <p class="mb-6 text-muted-foreground">New to {product}? These three pages get you set up.</p>
+      <ol class="flex flex-col gap-3">
+        {startHere.map((step, index) => (
+          <li>
+            <a
+              href={step.href}
+              class="flex items-center gap-4 rounded-xl border border-border p-4 text-foreground no-underline transition-colors hover:border-accent"
+            >
+              <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+                {index + 1}
+              </span>
+              <span class="font-medium">{step.title}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </div>
+    <div>
+      <h2 class="mb-2 text-2xl font-semibold tracking-tight text-foreground">
+        Run your own instance
+      </h2>
+      <p class="mb-6 text-muted-foreground">
+        The Self-Hosting Guide is for the admins who install and run {product}.
+      </p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        {selfHosting.map((item) => (
+          <a
+            href={item.href}
+            class="flex flex-col gap-1 rounded-xl border border-border p-4 no-underline transition-colors hover:border-accent"
+          >
+            <span class="font-medium text-foreground">{item.title}</span>
+            <span class="text-sm text-muted-foreground">{item.blurb}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</PageLayout>

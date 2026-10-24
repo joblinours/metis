@@ -1,0 +1,11 @@
+---
+title: Mail gateways
+description: Give people mailboxes on your own domain through a Cloudflare Email or Resend gateway.
+---
+
+A mail gateway lets people on your instance use addresses on your own domain without a mail server. You run the gateway, register it in the owner dashboard, and give each person a token for their address.
+
+- [What is a gateway mailbox](/self-hosting/mail-gateways/what-is-a-gateway-mailbox): how gateways work and what to expect from them.
+- [Set up the Cloudflare Email gateway](/self-hosting/mail-gateways/cloudflare-email): a Cloudflare Worker for one domain.
+- [Set up the Resend gateway](/self-hosting/mail-gateways/resend): a small service for one domain, on Resend and Postgres.
+- [Mailbox tokens](/self-hosting/mail-gateways/mailbox-tokens): create, list and revoke the tokens people connect with.

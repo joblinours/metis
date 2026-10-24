@@ -1,0 +1,247 @@
+[
+  {
+    "name": "workspaces/create-workspace-dialog",
+    "path": "{workspace}/settings/general",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> role=button[name=/^New workspace$/]"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> role=button[name=/^New workspace$/]"
+      },
+      { "waitFor": "role=dialog[name=\"Create a workspace\"]" },
+      {
+        "fill": "role=dialog[name=\"Create a workspace\"] >> role=textbox[name=/^Name$/]",
+        "value": "Acme Support"
+      }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "workspaces/workspace-menu",
+    "viewport": { "width": 960, "height": 480 },
+    "path": "{workspace}/settings/general",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> button[aria-label$=\" menu\"]"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> button[aria-label$=\" menu\"]"
+      },
+      { "waitFor": "role=menuitem[name=/^All workspaces$/]" }
+    ]
+  },
+  {
+    "name": "workspaces/account-menu",
+    "viewport": { "width": 960, "height": 480 },
+    "path": "{workspace}/settings/general",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> button[aria-haspopup=\"menu\"]:not([aria-label$=\" menu\"])"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> button[aria-haspopup=\"menu\"]:not([aria-label$=\" menu\"])"
+      },
+      { "waitFor": "role=menuitem[name=/^Connections$/]" }
+    ]
+  },
+  {
+    "name": "workspaces/workspaces-list",
+    "viewport": { "width": 1440, "height": 520 },
+    "path": "/settings/workspaces",
+    "steps": [
+      { "waitFor": "main >> text=Every workspace you belong to" },
+      { "waitFor": "main >> text=/^Default$/" }
+    ]
+  },
+  {
+    "name": "workspaces/mailboxes-settings",
+    "viewport": { "width": 1440, "height": 260 },
+    "path": "{workspace}/settings/mailboxes",
+    "steps": [
+      { "waitFor": "main >> text=Mailboxes in this workspace" },
+      { "waitFor": "main >> role=button[name=/^Remove$/]" }
+    ]
+  },
+  {
+    "name": "workspaces/add-mailbox-dialog",
+    "path": "{workspace}/settings/mailboxes",
+    "steps": [
+      { "waitFor": "main >> role=button[name=/^Remove$/]" },
+      { "click": "main >> role=button[name=/Add mailbox$/]" },
+      { "waitFor": "role=dialog[name=\"Add a mailbox\"]" },
+      { "wait": 300 }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "workspaces/connect-mailbox-providers",
+    "path": "{workspace}/settings/mailboxes",
+    "steps": [
+      { "waitFor": "main >> role=button[name=/^Remove$/]" },
+      { "click": "main >> role=button[name=/Add mailbox$/]" },
+      { "waitFor": "role=dialog[name=\"Add a mailbox\"]" },
+      { "click": "role=dialog >> role=button[name=/^Connect a new mailbox$/]" },
+      { "waitFor": "role=dialog >> role=heading[name=/Connect a mailbox$/]" },
+      { "wait": 400 }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "workspaces/imap-login-form",
+    "path": "{workspace}/settings/mailboxes",
+    "steps": [
+      { "waitFor": "main >> role=button[name=/^Remove$/]" },
+      { "click": "main >> role=button[name=/Add mailbox$/]" },
+      { "waitFor": "role=dialog[name=\"Add a mailbox\"]" },
+      { "click": "role=dialog >> role=button[name=/^Connect a new mailbox$/]" },
+      { "waitFor": "role=dialog >> role=button[name=/^Harness Mail$/]" },
+      { "wait": 400 },
+      { "click": "role=dialog >> role=button[name=/^Harness Mail$/]" },
+      { "waitFor": "role=dialog >> text=SMTP uses a different login" },
+      { "wait": 400 }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "workspaces/calendar-selection",
+    "path": "{workspace}/settings/calendars",
+    "steps": [
+      { "waitFor": "main >> role=button[name=/^Show calendars$/]" },
+      { "click": "main >> role=button[name=/^Show calendars$/]" },
+      { "waitFor": "main >> role=switch[name=/^Show .+ in this workspace$/]" }
+    ],
+    "element": "main div:has(> div > button[aria-label=\"Hide calendars\"])"
+  },
+  {
+    "name": "workspaces/drive-folders",
+    "path": "{workspace}/settings/drives",
+    "steps": [
+      { "waitFor": "main >> role=button[name=/^Choose folders$/]" },
+      { "click": "main >> role=button[name=/^Choose folders$/]" },
+      {
+        "waitFor": "main >> text=Pick the top-level folders this workspace can see"
+      }
+    ],
+    "element": "main div:has(> div > button[aria-label=\"Hide folders\"])"
+  },
+  {
+    "name": "workspaces/general-settings",
+    "clip": { "x": 0, "y": 0, "width": 1440, "height": 430 },
+    "path": "{workspace}/settings/general",
+    "steps": [
+      { "waitFor": "main >> text=/^Members of /" },
+      { "waitFor": "main >> role=link[name=/^Manage members$/]" },
+      {
+        "waitFor": "main >> section:has(h2:text-matches(\"^Members of \")) >> li"
+      }
+    ]
+  },
+  {
+    "name": "workspaces/members-page",
+    "path": "{workspace}/members",
+    "steps": [
+      { "waitFor": "main >> role=list[name=\"Members\"] >> role=link" },
+      { "waitFor": "main >> role=button[name=/^Invite$/]" }
+    ],
+    "element": "main"
+  },
+  {
+    "name": "workspaces/member-profile",
+    "path": "{workspace}/members",
+    "steps": [
+      { "waitFor": "main >> role=list[name=\"Members\"] >> role=link" },
+      { "click": "main >> role=list[name=\"Members\"] >> role=link" },
+      {
+        "waitFor": "main >> role=button[name=\"Search everything with this person\"]"
+      },
+      {
+        "waitFor": "main section:has(> h3:has-text(\"Recent mail with them\")) > :is(ul, p)"
+      },
+      {
+        "waitFor": "main section:has(> h3:has-text(\"Upcoming events with them\")) > :is(ul, p)"
+      },
+      { "wait": 300 }
+    ],
+    "element": "main"
+  },
+  {
+    "name": "workspaces/invite-dialog",
+    "path": "{workspace}/members",
+    "steps": [
+      { "waitFor": "main >> role=button[name=/^Invite$/]" },
+      { "click": "main >> role=button[name=/^Invite$/]" },
+      { "waitFor": "role=dialog[name=/^Invite to /]" },
+      {
+        "fill": "role=dialog >> input[placeholder=\"teammate@example.com\"]",
+        "value": "sam@example.com"
+      }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "workspaces/ai-and-privacy",
+    "path": "{workspace}/settings/general",
+    "steps": [
+      {
+        "waitFor": "main >> section:has(h2:text-is(\"AI & privacy\")) >> text=AI features"
+      },
+      { "scroll": "main >> section:has(h2:text-is(\"AI & privacy\"))" }
+    ],
+    "element": "main >> section:has(h2:text-is(\"AI & privacy\"))"
+  },
+  {
+    "name": "workspaces/appearance",
+    "path": "{workspace}/settings/general",
+    "steps": [
+      { "waitFor": "main >> role=button[name=/^Blue$/]" },
+      { "scroll": "main >> section:has(h2:text-is(\"Appearance\"))" }
+    ],
+    "element": "main >> section:has(h2:text-is(\"Appearance\"))"
+  },
+  {
+    "name": "workspaces/connections",
+    "path": "/settings/connections",
+    "steps": [{ "waitFor": "main >> button[aria-label^=\"Disconnect \"]" }]
+  },
+  {
+    "name": "workspaces/in-workspaces-dialog",
+    "path": "/settings/mailboxes",
+    "steps": [
+      {
+        "waitFor": "main >> button:not([disabled]):text-matches(\"^In \\\\d+ workspaces?$\")"
+      },
+      {
+        "click": "main >> button:not([disabled]):text-matches(\"^In \\\\d+ workspaces?$\")"
+      },
+      {
+        "waitFor": "role=dialog >> text=is set up separately in each workspace"
+      },
+      { "wait": 300 }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "workspaces/keyboard-shortcuts-help",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      { "waitFor": "role=navigation[name=\"App navigation\"]" },
+      { "wait": 500 },
+      { "press": "?" },
+      { "waitFor": "role=heading[level=2][name=\"Keyboard shortcuts\"]" },
+      {
+        "click": "role=dialog >> role=heading[level=2][name=\"Keyboard shortcuts\"]"
+      }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "get-started/first-inbox",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      { "waitFor": "role=button[name=/^Compose$/]" },
+      { "waitFor": "role=button[name=/^Switch mailbox$/]" },
+      { "wait": 500 }
+    ]
+  }
+]

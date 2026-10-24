@@ -1,0 +1,83 @@
+# Workflow engine — the runtime and its transports
+
+The one durable background runtime: `runWorkflowTick()`, the three transports that wake it (`bullmq`, `cron`, `internal`), how a tick claims and drains work, and what each mode needs to run.
+Paths are relative to `apps/web/`.
+See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [workflow-runs.md](workflow-runs.md), [dashboard.md](dashboard.md), [configuration.md](configuration.md), [deployment.md](deployment.md).
+
+## Code map
+
+| Concern                      | Where                                                                                                                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The tick                     | `src/workflow/tick.ts` → `runWorkflowTick`, `mutationReserve`                                                                                                                               |
+| Driver registry and contract | `src/services/workflow-runner/registry.ts` → `getWorkflowRunner`, `buildWorkflowRunner` · `types.ts` → `WorkflowRunnerDriver` · `index.ts`                                                  |
+| Transports                   | `src/services/workflow-runner/drivers/bullmq.ts` → `createBullmqDriver` · `drivers/cron.ts` → `createCronDriver` · `drivers/internal.ts` → `createInternalDriver`                           |
+| One wrapper for every tick   | `src/services/workflow-runner/tick.ts` → `runTick`                                                                                                                                          |
+| Cron endpoint                | `src/app/api/workflows/tick/route.ts` (`maxDuration`) → `src/services/workflow-runner/webhook.ts` → `handleTickRequest` · budget cap `src/config/schema.ts` → `CRON_TICK_ROUTE_MAX_SECONDS` |
+| In-process runner            | `src/services/workflow-runner/in-process.ts` → `startInProcessRunner`, `syncInProcessRunner` · started from `src/instrumentation.ts`, switched by `src/config/watch.ts`                     |
+| BullMQ worker process        | `scripts/workflow-worker.ts` (bundled to `workflow-worker.mjs` in the `worker` image)                                                                                                       |
+| Failure reporting            | `src/workflow/diagnostics.ts` → `tickFailure`, `formatTickFailure`, `errorCode` · type `TickFailure` in `src/workflow/runtime.ts`                                                           |
+| Tick bookkeeping and claims  | `src/workflow/store.ts` → `recordTick`, `claimDiscovery`, `claimRuns`, `CLAIM_SLICES` · table `workflowTick`                                                                                |
+| Discovery                    | `src/workflow/triggers.ts` → `discoverTrigger` ([workflow-graph.md](workflow-graph.md))                                                                                                     |
+| System workflows             | `src/workflow/builtins/system.ts` → `ensureSystemWorkflows` (called at the start of every tick)                                                                                             |
+
+## Rules
+
+### One runtime
+
+- **There is exactly one background runtime, and `runWorkflowTick()` is it.** Every driver calls the same tick; only what wakes it differs.
+- **A web process runs a timer only while the stored driver is `internal`**; web requests only queue work in the database.
+- **The driver, its tuning, the Redis URL and the cron secret come from the config snapshot**, so switching drivers needs no redeploy as long as the processes the target needs exist ([configuration.md](configuration.md)).
+  - Batch size, concurrency, budget and cadence are read per tick (`runTick` reads `getInstanceConfig()`).
+  - The cron route checks the driver and secret per request.
+- **Two transports ticking at once during a switch is safe**: claims are leased and occurrences are unique, so overlap only costs a redundant tick.
+- **Redis only wakes the tick.** Definitions, schedules, occurrences, run ownership, retries and history live in the app database in every mode, so a cron or internal deployment needs no Redis and a Redis outage loses no work. Due times are persisted, never enqueued.
+
+### Transports
+
+- **A driver connects to nothing until `start()`.** The BullMQ queue, worker and Redis connection are built there, and only `scripts/workflow-worker.ts` calls it.
+- **The BullMQ Job Scheduler is one stable scheduler that only produces tick jobs** (`upsertJobScheduler`, `every: cadenceSec * 1000`); schedules and payloads stay in the database.
+- **The in-process runner runs at most once per process.** Its timer, active tick and signal listeners live on `globalThis` symbols, so a dev reload or a second `start()` reuses them.
+- **The in-process runner adds its `SIGTERM` / `SIGINT` listeners beside Next's own.**
+  - They abort the active tick, and Next still decides when the process exits.
+  - When its own listener is the only one (`process.listenerCount(signal)`, as with a custom server or `NEXT_MANUAL_SIG_HANDLE`), it re-raises the signal once the tick has stopped, so the default exit still happens.
+- **The cron endpoint compares `X-Metis-Secret` in constant time, answers 404 unless `cron` is the selected driver, and awaits the tick before responding.**
+- **Under `cron`, the tick budget is capped below the tick route's `maxDuration`** (`CRON_TICK_ROUTE_MAX_SECONDS`), so a tick always answers before the host kills the request.
+
+### Draining
+
+- **Cadence gates discovery, not recovery.** `workflow_tick` holds the cadence claim (`claimDiscovery`), so an early tick still drains ready runs without rescanning every trigger.
+- **Every claim mints a new fencing token that every completion, retry and release must match.** Runs are claimed with a bounded `UPDATE … WHERE id IN (SELECT … LIMIT n) RETURNING`, because SQLite has no `SKIP LOCKED`; the sub-select runs under the statement's own write lock.
+- **Claims are fair across categories** (`CLAIM_SLICES`: one-shots, user, system). Each gets a share of the batch, and the slice order rotates every claim so a batch of one still serves every category; leftover capacity goes by due time.
+- **A tick finishes every claimed run before it surfaces a failure.**
+  - `drain()` runs the batch across `concurrency` workers; a worker whose run throws stops taking new work.
+  - The tick awaits every other worker and only then rethrows the first error, so the caller (cron's response, the BullMQ job) never reports failure while sibling runs still execute untracked.
+- **A worker that reaches the deadline releases its remaining runs (`releaseRun`)** instead of starting them.
+- **The tick budget bounds provider mutations two ways.**
+  - A mutation is not started inside the reserve at the end of the budget (`mutationReserve`); the run is re-queued with its attempt restored.
+  - A mutation that still overruns settles as `unknown`, never awaited past the host limit or re-queued while possibly in flight ([workflow-runs.md](workflow-runs.md)).
+  - Reads that overrun are retried.
+- **A tick failure is recorded as stage + error code only**, because a `DrizzleQueryError` message carries the query's params.
+  - `formatTickFailure`'s `"<stage> failed: <code>"` is what `workflow_tick.last_error`, the log line and the cron response carry.
+  - `errorCode` walks the `cause` chain for `code`.
+
+## How it works
+
+- **A tick.** `runTick` stamps an invocation id and logs one logfmt `[workflow-runner] tick` line, then `runWorkflowTick`:
+  - ensures the system workflows;
+  - takes the cadence claim and, when it wins, discovers due triggers;
+  - closes stranded cancels, expires retained outputs and finishes pending send resolutions ([workflow-runs.md](workflow-runs.md));
+  - claims and drains ready runs within the tick budget;
+  - stamps `workflow_tick` (`recordTick`), which the dashboard's runner health reads ([dashboard.md](dashboard.md)).
+- **`bullmq`.** The worker process runs the Job Scheduler and consumes its tick jobs; web and worker share the same database and encryption key.
+  - `scripts/workflow-worker.ts` loads the snapshot and polls it with a timer that keeps the process alive; while the driver is anything else it logs that it is idle and waits.
+  - On a runner change it stops the current queue and worker, then starts new ones when `bullmq` is selected, which re-upserts the scheduler with the new cadence.
+  - It exits non-zero on a failed start or readiness check.
+- **`cron`.** An external scheduler POSTs `/api/workflows/tick` with `X-Metis-Secret` at least as often as the cadence.
+- **`internal`.** `startInProcessRunner()` (called from `instrumentation.ts` outside the build phase) runs one tick at start, then one per cadence on an `unref()`'d timer, skipping an interval while a tick is still running.
+  - On a runner change, `syncInProcessRunner()` stops the timer (aborting the active tick) and starts a new one if the driver is still `internal`, so a cadence change restarts it; the two are serialized per process.
+- **Work cut off by a process exit** is recovered by lease expiry, exactly as for a killed worker.
+- **What each driver needs to run.** The root stack runs the app only ([deployment.md](deployment.md)); the operator procedure is `README.md` → "Operating the runner".
+  - `internal` (the default) needs the app process to run continuously (`next start` / the runner image); on known serverless hosts a save refuses it and seeding stores it with a warning (`validateInstanceConfig` in `src/config/sections.ts`).
+  - `bullmq` needs the published worker image and a Redis with `noeviction`, which the operator runs wherever they like and points at through the stored Redis URL. The worker needs only the minimal boot variables ([configuration.md](configuration.md)).
+  - `cron` needs an external scheduler (cron-job.org, Vercel cron, …) calling the tick route with the stored secret.
+  - Selecting `bullmq` without a running worker means nothing ticks: work queues in the database, nothing fails, and the runner shows `never` or `delayed`.

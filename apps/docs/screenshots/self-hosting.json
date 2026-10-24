@@ -1,0 +1,160 @@
+[
+  {
+    "name": "self-hosting/dashboard-overview",
+    "path": "/dashboard",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Overview\"]" },
+      { "waitFor": "text=Accounts on this instance" },
+      { "waitFor": "text=AI tokens, last 7 days" }
+    ]
+  },
+  {
+    "name": "self-hosting/dashboard-system",
+    "path": "/dashboard/system",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"System\"]" },
+      { "waitFor": "main >> text=Workflow runner" },
+      { "waitFor": "main >> text=SFTP" }
+    ]
+  },
+  {
+    "name": "self-hosting/dashboard-instance",
+    "path": "/dashboard/system/instance",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Instance\"]" },
+      { "waitFor": "main >> text=/^Configuration version \\d+\\./" },
+      { "waitFor": "role=spinbutton[name=\"Max transfer size (MB)\"]" }
+    ],
+    "element": "main"
+  },
+  {
+    "name": "self-hosting/dashboard-save-bar",
+    "viewport": { "width": 1440, "height": 1200 },
+    "path": "/dashboard/system/instance",
+    "steps": [
+      { "waitFor": "role=spinbutton[name=\"Max transfer size (MB)\"]" },
+      {
+        "fill": "role=spinbutton[name=\"Max transfer size (MB)\"]",
+        "value": "300"
+      },
+      { "waitFor": "text=1 unsaved change" },
+      { "scroll": "role=spinbutton[name=/Max transfer size \\(MB\\)/]" }
+    ]
+  },
+  {
+    "name": "self-hosting/dashboard-history",
+    "path": "/dashboard/system/history",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"History\"]" },
+      { "waitFor": "main >> role=cell[name=/Current$/]" }
+    ],
+    "element": "main"
+  },
+  {
+    "name": "self-hosting/provider-google",
+    "path": "/dashboard/system/providers/google",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Google\"]" },
+      { "waitFor": "main >> text=Redirect URI" }
+    ],
+    "element": "main"
+  },
+  {
+    "name": "self-hosting/provider-imap",
+    "path": "/dashboard/system/providers/imap",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"IMAP\"]" },
+      { "waitFor": "main >> text=IMAP host" }
+    ],
+    "element": "main"
+  },
+  {
+    "name": "self-hosting/dashboard-updates",
+    "element": "main",
+    "path": "/dashboard/system/updates",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Updates\"]" },
+      { "waitFor": "main >> text=Running release" },
+      { "waitFor": "main >> role=button[name=\"Upgrade\"s]" }
+    ]
+  },
+  {
+    "name": "self-hosting/upgrade-dialog",
+    "path": "/dashboard/system/updates",
+    "steps": [
+      { "waitFor": "main >> role=button[name=\"Upgrade\"s]" },
+      { "click": "main >> role=button[name=\"Upgrade\"s]" },
+      { "waitFor": "role=alertdialog[name=\"Upgrade to 1.2.0\"]" },
+      { "wait": 300 }
+    ],
+    "element": "role=alertdialog"
+  },
+  {
+    "name": "self-hosting/dashboard-automation",
+    "path": "/dashboard/automation",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Automation\"]" },
+      { "waitFor": "main >> text=Last successful tick" },
+      { "waitFor": "main >> text=Recent runs" }
+    ]
+  },
+  {
+    "name": "self-hosting/driver-llm",
+    "path": "/dashboard/system/drivers/llm",
+    "fullPage": true,
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"LLM\"]" },
+      { "waitFor": "main >> text=Decision model" },
+      { "waitFor": "role=combobox[name=\"Driver\"]" }
+    ]
+  },
+  {
+    "name": "self-hosting/driver-mail-smtp",
+    "path": "/dashboard/system/drivers/mail",
+    "viewport": { "width": 1440, "height": 960 },
+    "steps": [
+      { "waitFor": "role=combobox[name=\"Driver\"]" },
+      { "click": "role=combobox[name=\"Driver\"]" },
+      { "click": "role=option[name=\"smtp\"s]" },
+      { "waitFor": "role=textbox[name=/^SMTP host/]" },
+      {
+        "fill": "role=textbox[name=/^From\\s*optional/]",
+        "value": "Metis Suite <noreply@example.com>"
+      },
+      {
+        "fill": "role=textbox[name=/^SMTP host/]",
+        "value": "smtp.example.com"
+      },
+      { "click": "role=heading[level=1][name=\"Mail\"]" }
+    ]
+  },
+  {
+    "name": "self-hosting/driver-runner",
+    "path": "/dashboard/system/drivers/runner",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Workflow runner\"]" },
+      { "waitFor": "main >> text=Last tick" },
+      { "waitFor": "role=spinbutton[name=\"Cadence (seconds)\"]" }
+    ]
+  },
+  {
+    "name": "self-hosting/deploy-checks",
+    "element": "main",
+    "path": "/dashboard/system/preflight",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Deploy checks\"]" },
+      { "waitFor": "main >> text=/^(Last run|No preflight run yet)$/" }
+    ]
+  },
+  {
+    "name": "self-hosting/ai-usage",
+    "path": "/dashboard/usage",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"AI usage\"]" },
+      { "click": "role=button[name=\"90 days\"]" },
+      { "waitFor": "role=img[name=\"Input and output tokens per day\"]" },
+      { "wait": 600 }
+    ],
+    "element": ["main h1", "main table"]
+  }
+]

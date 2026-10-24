@@ -1,0 +1,273 @@
+@import "./tokens.css";
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@source "../**/*.{ts,tsx}";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --red-dot: #b83427;
+  --green-dot: #27ae60;
+  --destructive-text: #86261d;
+
+  --label-action-required: #961f12;
+  --label-work: #21577c;
+  --label-transactions: #155e34;
+  --label-updates: #2f46b2;
+  --label-newsletter: #565247;
+  --label-promotional: #693091;
+  --label-social: #205b5b;
+
+  --label-custom-red: #8f1d12;
+  --label-custom-orange: #743d0d;
+  --label-custom-yellow: #5a4905;
+  --label-custom-green: #135630;
+  --label-custom-teal: #0c5547;
+  --label-custom-blue: #154f76;
+  --label-custom-purple: #68377c;
+  --label-custom-navy: #384e65;
+  --label-custom-gray: #424e4f;
+  --label-custom-amber: #614714;
+
+  --label-action-required-mark: #de2e1b;
+  --label-work-mark: #2e7aaf;
+  --label-transactions-mark: #1e8549;
+  --label-updates-mark: #566cd2;
+  --label-newsletter-mark: #7a7464;
+  --label-promotional-mark: #9856c7;
+  --label-social-mark: #2d8080;
+
+  --label-custom-red-mark: #de2e1b;
+  --label-custom-orange-mark: #b25e14;
+  --label-custom-yellow-mark: #8b7108;
+  --label-custom-green-mark: #1e8549;
+  --label-custom-teal-mark: #12836c;
+  --label-custom-blue-mark: #207ab6;
+  --label-custom-purple-mark: #9b59b6;
+  --label-custom-navy-mark: #34495e;
+  --label-custom-gray-mark: #657879;
+  --label-custom-amber-mark: #956d1f;
+
+  --destructive-muted: #6b4844;
+  --destructive-disabled: #c7c4c0;
+  --destructive-disabled-foreground: #52514f;
+
+  --status-success: #145a31;
+  --status-danger: #961f12;
+
+  --provider-microsoft: #1e4f71;
+  --provider-zoho: #931214;
+  --provider-neutral: #4f4f4f;
+
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand);
+  --primary-foreground: var(--bg-base);
+  --secondary: var(--bg-panel);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-panel);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--bg-hover);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--red-dot);
+  --destructive-foreground: #e8e4d8;
+  --input: var(--border);
+  --ring: var(--brand);
+
+  --chart-1: var(--brand);
+  --chart-2: var(--green-dot);
+  --chart-3: var(--red-dot);
+  --chart-4: var(--text-secondary);
+  --chart-5: var(--text-muted);
+
+  --sidebar: var(--bg-panel);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--bg-base);
+  --sidebar-accent: var(--bg-hover);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--brand);
+
+  --radius: 0.5rem;
+}
+
+.dark,
+html.dark {
+  --destructive-text: #db9790;
+
+  --label-action-required: #f08c82;
+  --label-work: #90c1e2;
+  --label-transactions: #2ecd71;
+  --label-updates: #a4b0e7;
+  --label-newsletter: #bcb8ad;
+  --label-promotional: #c29cde;
+  --label-social: #5bc6c6;
+
+  --label-custom-red: #f4aaa2;
+  --label-custom-orange: #efae74;
+  --label-custom-yellow: #e1b70d;
+  --label-custom-green: #40d47f;
+  --label-custom-teal: #1dd3af;
+  --label-custom-blue: #8cc5eb;
+  --label-custom-purple: #d1b3de;
+  --label-custom-navy: #aec0d2;
+  --label-custom-gray: #b5c0c1;
+  --label-custom-amber: #dfb768;
+
+  --label-action-required-mark: #e74c3c;
+  --label-work-mark: #5ba3d4;
+  --label-transactions-mark: #27ae60;
+  --label-updates-mark: #6c7fd8;
+  --label-newsletter-mark: #9a9484;
+  --label-promotional-mark: #b07ed4;
+  --label-social-mark: #3aa6a6;
+
+  --label-custom-red-mark: #e74c3c;
+  --label-custom-orange-mark: #e67e22;
+  --label-custom-yellow-mark: #f1c40f;
+  --label-custom-green-mark: #27ae60;
+  --label-custom-teal-mark: #1abc9c;
+  --label-custom-blue-mark: #3498db;
+  --label-custom-purple-mark: #a76cbe;
+  --label-custom-navy-mark: #6386a9;
+  --label-custom-gray-mark: #95a5a6;
+  --label-custom-amber-mark: #c8922a;
+
+  --destructive-muted: #be9d9a;
+  --destructive-disabled: #393837;
+  --destructive-disabled-foreground: #a3a19d;
+
+  --status-success: #2ecf72;
+  --status-danger: #f2a098;
+
+  --provider-microsoft: #96c4e3;
+  --provider-zoho: #f4a8a8;
+  --provider-neutral: #b7b7b7;
+}
+
+@theme inline {
+  --font-sans: var(--font-dm-sans, system-ui, sans-serif);
+  --font-serif: var(--font-cormorant, Georgia, serif);
+  --font-mono: var(--font-dm-mono, monospace);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-text: var(--destructive-text);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-brand: var(--brand);
+  --color-brand-text: var(--brand-text);
+  --color-status-success: var(--status-success);
+  --color-status-danger: var(--status-danger);
+  --color-destructive-muted: var(--destructive-muted);
+  --color-destructive-disabled: var(--destructive-disabled);
+  --color-destructive-disabled-foreground: var(--destructive-disabled-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-glow: var(--brand-glow);
+  --color-surface: var(--bg-surface);
+  --color-panel: var(--bg-panel);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
+  --color-selected: var(--bg-selected);
+  --color-border-soft: var(--border-soft);
+  --color-faint: var(--text-faint);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  html,
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.font-serif-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.3px;
+}
+
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
+      [type="color"]
+    ),
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px;
+  }
+}

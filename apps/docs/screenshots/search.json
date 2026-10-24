@@ -1,0 +1,132 @@
+[
+  {
+    "name": "search/dialog",
+    "path": "{workspace}/workflow",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=searchbox[name=\"Search this workspace\"]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=group[name=\"Commands\"]"
+      },
+      { "wait": 400 }
+    ],
+    "element": "role=dialog[name=\"Search\"]"
+  },
+  {
+    "name": "search/results",
+    "path": "{workspace}/workflow",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "type": "role=dialog[name=\"Search\"] >> role=searchbox[name=\"Search this workspace\"]",
+        "text": "type:mail kickoff"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=option[name=/Rebrand kickoff/]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=complementary[name=\"Preview\"] >> role=heading[name=/Rebrand kickoff/]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=complementary[name=\"Preview\"] >> p"
+      },
+      { "wait": 400 }
+    ],
+    "element": "role=dialog[name=\"Search\"]"
+  },
+  {
+    "name": "search/actions",
+    "path": "{workspace}/workflow",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "type": "role=dialog[name=\"Search\"] >> role=searchbox[name=\"Search this workspace\"]",
+        "text": "type:mail kickoff"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=option[name=/Rebrand kickoff/]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=complementary[name=\"Preview\"] >> p"
+      },
+      { "press": "ControlOrMeta+Enter" },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=button[name=\"Back to results\"]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=option[name=/^Reply$/]"
+      },
+      { "wait": 400 }
+    ],
+    "element": "role=dialog[name=\"Search\"]"
+  },
+  {
+    "name": "search/autocomplete",
+    "path": "{workspace}/workflow",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "type": "role=dialog[name=\"Search\"] >> role=searchbox[name=\"Search this workspace\"]",
+        "text": "mail-fo"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=group[name=\"Suggestions\"] >> role=option[name=/^mail-folder:/]"
+      },
+      { "wait": 600 }
+    ],
+    "element": "role=dialog[name=\"Search\"]"
+  },
+  {
+    "name": "search/save-search",
+    "path": "{workspace}/workflow",
+    "steps": [
+      {
+        "waitFor": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "click": "role=navigation[name=\"App navigation\"] >> role=button[name=/^Search$/]"
+      },
+      {
+        "type": "role=dialog[name=\"Search\"] >> role=searchbox[name=\"Search this workspace\"]",
+        "text": "type:mail kickoff"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Search\"] >> role=button[name=\"Save this search\"]"
+      },
+      {
+        "click": "role=dialog[name=\"Search\"] >> role=button[name=\"Save this search\"]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Save this search\"] >> role=textbox[name=\"Name\"]"
+      },
+      {
+        "fill": "role=dialog[name=\"Save this search\"] >> role=textbox[name=\"Name\"]",
+        "value": "Kickoff mail"
+      },
+      { "wait": 300 }
+    ],
+    "element": "role=dialog[name=\"Save this search\"]"
+  }
+]

@@ -1,0 +1,246 @@
+[
+  {
+    "name": "drive/explorer-list",
+    "viewport": { "width": 1440, "height": 480 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [{ "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" }]
+  },
+  {
+    "name": "drive/explorer-grid",
+    "viewport": { "width": 1440, "height": 480 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "click": "[aria-label=\"Switch to grid\"]" },
+      { "waitFor": "[aria-label=\"Switch to list\"]" }
+    ]
+  },
+  {
+    "name": "drive/switcher",
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "click": "[aria-label=\"Switch drive\"]" },
+      { "waitFor": "role=menuitem[name=\"Add drive\"]" }
+    ],
+    "element": ["[aria-label=\"Switch drive\"]", "role=menu"]
+  },
+  {
+    "name": "drive/sidebar",
+    "clip": { "x": 0, "y": 0, "width": 760, "height": 220 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"preview\"]" },
+      { "dblclick": "section[aria-label=\"Files\"] [title=\"preview\"]" },
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"docs\"]" },
+      { "goto": "{workspace}/d/{drive:s3}" },
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      {
+        "waitFor": "aside:has([aria-label=\"Switch drive\"]) >> role=button[name=\"Rebrand\"s]"
+      }
+    ]
+  },
+  {
+    "name": "drive/all-drives",
+    "viewport": { "width": 1440, "height": 480 },
+    "path": "{workspace}/d/{drive:all}",
+    "steps": [{ "waitFor": "section[aria-label=\"Files\"] button[title]" }]
+  },
+  {
+    "name": "drive/all-drives-picker",
+    "path": "{workspace}/d/{drive:all}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] button[title]" },
+      { "click": "role=button[name=\"New folder\"s]" },
+      { "waitFor": "role=dialog >> text=Choose the folder to create it in." },
+      { "wait": 800 }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "drive/search",
+    "viewport": { "width": 1440, "height": 480 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"rebrand\"]" },
+      {
+        "fill": "input[placeholder=\"Search this drive\"]",
+        "value": "welcome"
+      },
+      { "wait": 2000 },
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" }
+    ]
+  },
+  {
+    "name": "drive/new-folder-dialog",
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "click": "role=button[name=\"New folder\"s]" },
+      { "waitFor": "role=dialog[name=\"New folder\"]" }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "drive/file-menu",
+    "viewport": { "width": 1024, "height": 440 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "click": "[aria-label=\"Actions for welcome.txt\"]" },
+      { "waitFor": "role=menuitem[name=\"Download\"]" }
+    ]
+  },
+  {
+    "name": "drive/folder-menu",
+    "viewport": { "width": 1024, "height": 440 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"preview\"]" },
+      { "click": "[aria-label=\"Actions for preview\"]" },
+      { "waitFor": "role=menuitem[name=\"Pin to sidebar\"]" }
+    ]
+  },
+  {
+    "name": "drive/rename-dialog",
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "click": "[aria-label=\"Actions for welcome.txt\"]" },
+      { "click": "role=menuitem[name=\"Rename\"s]" },
+      { "waitFor": "role=dialog[name=\"Rename\"]" }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "drive/delete-dialog",
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "click": "[aria-label=\"Actions for welcome.txt\"]" },
+      { "click": "role=menuitem[name=\"Delete\"s]" },
+      { "waitFor": "role=alertdialog[name=\"Delete welcome.txt?\"]" }
+    ],
+    "element": "role=alertdialog"
+  },
+  {
+    "name": "drive/preview-pdf",
+    "viewport": { "width": 1440, "height": 420 },
+    "element": "aside[aria-label=\"Preview of three-pages.pdf\"]",
+    "path": "{workspace}/d/{drive:s3}/preview%2Fdocs%2F",
+    "steps": [
+      {
+        "waitFor": "section[aria-label=\"Files\"] [title=\"three-pages.pdf\"]"
+      },
+      {
+        "dblclick": "section[aria-label=\"Files\"] [title=\"three-pages.pdf\"]"
+      },
+      {
+        "waitFor": "aside[aria-label=\"Preview of three-pages.pdf\"] [aria-label=\"Next page\"]:not([disabled])"
+      },
+      { "wait": 2000 }
+    ]
+  },
+  {
+    "name": "drive/preview-table",
+    "viewport": { "width": 1920, "height": 640 },
+    "element": "aside[aria-label=\"Preview of people.csv\"]",
+    "path": "{workspace}/d/{drive:s3}/preview%2Fdata%2F",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"people.csv\"]" },
+      { "dblclick": "section[aria-label=\"Files\"] [title=\"people.csv\"]" },
+      { "waitFor": "aside[aria-label=\"Preview of people.csv\"] table" },
+      { "wait": 800 }
+    ]
+  },
+  {
+    "name": "drive/preview-fallback",
+    "viewport": { "width": 1440, "height": 480 },
+    "path": "{workspace}/d/{drive:s3}/preview%2Ffallback%2F",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"slides.pptx\"]" },
+      { "dblclick": "section[aria-label=\"Files\"] [title=\"slides.pptx\"]" },
+      {
+        "waitFor": "aside[aria-label=\"Preview of slides.pptx\"] >> text=There is no preview for this file type."
+      }
+    ],
+    "element": "aside[aria-label=\"Preview of slides.pptx\"]"
+  },
+  {
+    "name": "drive/restricted-drive",
+    "viewport": { "width": 1440, "height": 480 },
+    "path": "{workspace}/d/{drive:ftp}",
+    "steps": [{ "waitFor": "section[aria-label=\"Files\"] [title=\"rebrand\"]" }]
+  },
+  {
+    "name": "drive/folder-restriction-settings",
+    "path": "{workspace}/settings/drives",
+    "steps": [
+      { "waitFor": "[aria-label=\"Choose folders\"]" },
+      { "click": "[aria-label=\"Choose folders\"]" },
+      { "waitFor": "text=Pick the top-level folders this workspace can see." },
+      { "waitFor": "role=button[name=\"Save\"s]" },
+      { "wait": 500 }
+    ]
+  },
+  {
+    "name": "drive/add-drive-dialog",
+    "path": "{workspace}/settings/drives",
+    "steps": [
+      { "waitFor": "role=button[name=\"Add drive\"s]" },
+      { "click": "role=button[name=\"Add drive\"s]" },
+      { "waitFor": "role=dialog[name=\"Add a drive\"]" },
+      { "wait": 500 }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "drive/drive-ai",
+    "viewport": { "width": 1440, "height": 560 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "click": "role=button[name=\"Drive AI\"s]" },
+      { "waitFor": "text=Ask about these files" },
+      { "wait": 500 }
+    ]
+  },
+  {
+    "name": "drive/shortcuts-help",
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"welcome.txt\"]" },
+      { "press": "?" },
+      { "waitFor": "role=dialog >> text=Keyboard shortcuts" },
+      { "click": "role=dialog >> role=heading[name=\"Keyboard shortcuts\"]" }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "drive/recent-folders",
+    "clip": { "x": 0, "y": 0, "width": 760, "height": 240 },
+    "path": "{workspace}/d/{drive:s3}",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"preview\"]" },
+      { "dblclick": "section[aria-label=\"Files\"] [title=\"preview\"]" },
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"docs\"]" },
+      { "dblclick": "section[aria-label=\"Files\"] [title=\"docs\"]" },
+      {
+        "waitFor": "section[aria-label=\"Files\"] [title=\"three-pages.pdf\"]"
+      },
+      { "waitFor": "aside:has([aria-label=\"Switch drive\"]) >> text=Recent" }
+    ]
+  },
+  {
+    "name": "drive/preview-zip",
+    "path": "{workspace}/d/{drive:s3}/preview%2Farchive%2F",
+    "steps": [
+      { "waitFor": "section[aria-label=\"Files\"] [title=\"bundle.zip\"]" },
+      { "dblclick": "section[aria-label=\"Files\"] [title=\"bundle.zip\"]" },
+      {
+        "waitFor": "aside[aria-label=\"Preview of bundle.zip\"] >> text=readme.txt"
+      }
+    ],
+    "element": "aside[aria-label=\"Preview of bundle.zip\"]"
+  }
+]

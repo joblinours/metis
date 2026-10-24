@@ -1,0 +1,29 @@
+---
+title: Backups
+description: Where your instance keeps its data and secrets, so you know what to back up.
+---
+
+Metis Suite has no built-in backup or restore. Back up the data below with the tools you already use for Docker volumes and files on your server.
+
+Most mail, events and files are not stored by Metis Suite at all. They stay with the provider or server each user connected, such as Gmail, Outlook or your IMAP server. Your instance keeps the accounts, the connections and their credentials, the settings, and what people create in the app.
+
+## What lives where
+
+With the Compose stack installed in `/opt/metis-suite`:
+
+| What                                        | Where                                  | Why it matters                                                                                                                       |
+| ------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| The settings file, with every secret        | `/opt/metis-suite/.env`                | Holds the encryption key, the app secret, the database credentials and the release pins.                                             |
+| The app database and the AI memory database | The `metis_sqld` Docker volume         | Accounts, workspaces, connections, settings and their history, workflows, scheduled mail, the audit log, and the assistant's memory. |
+| HTTPS certificates                          | The `metis_caddy_data` Docker volume   | Caddy gets a new certificate if this is lost, so it is optional.                                                                     |
+| Updater state                               | `/opt/metis-suite/.updater-state.json` | The last upgrade or rollback and the previous release.                                                                               |
+
+If your databases are on Turso, they live there instead of in the `metis_sqld` volume.
+
+:::warning[The encryption key and the database belong together]
+The passwords and tokens in the database can be read only with the `METIS_ENCRYPTION_KEY` that was in use when they were stored. A database backup without its key is not enough to bring connections back: every user would have to reconnect every mailbox, calendar and drive. Keep a copy of `.env`, or at least the key, with every database backup, and store it somewhere other than the server.
+:::
+
+## Mailbox gateways
+
+If you run a Cloudflare Email or Resend gateway, it keeps its mail in its own storage, separate from your instance. Back it up there. See [Mail gateways](/self-hosting/mail-gateways).

@@ -1,0 +1,95 @@
+# metis-resend-mail — Resend backend for Metis Suite
+
+A gateway per domain that receives mail through Resend's inbound webhook,
+stores parsed messages in Postgres and raw MIME + attachments in object storage
+(or Postgres), sends through `POST https://api.resend.com/emails`, and exposes
+the same REST API Metis Suite's Cloudflare provider speaks (`/v1/*`). Metis
+talks to this gateway, never to Resend.
+
+**Why a gateway and not a direct integration.** Resend has exactly two API key
+permissions: `sending_access` (which can only send) and `full_access` (which is
+account-wide and can mint keys and delete domains). Reading inbound mail needs
+`full_access`, so a per-mailbox credential that reads mail cannot exist at
+Resend. Keeping that key here means Metis stores only a gateway-minted token
+scoped to one address, exactly as it does for Cloudflare. Resend also deletes
+inbound mail after **30 days**, so this gateway copies bodies, attachments and
+raw MIME at ingest — it is the archive, not a cache.
+
+**One deployment serves many mailboxes.** Receiving on a Resend domain is a
+catch-all: every address at the domain arrives in one account-wide stream. This
+gateway routes each message by its envelope recipient (`received_for`, falling
+back to `to`) and **drops mail for addresses that have no token** — minting a
+token is what brings an address into existence. Every API token is scoped to
+one address; the `API_TOKEN` env var is the **admin token**, which can mint and
+revoke mailbox tokens (`/v1/tokens`) but never read mail.
+
+Known-degraded by design, like the IMAP and Cloudflare providers: search is SQL
+`ILIKE`, threading is synthesized from `References`, folders are app-level
+state, and only mail received after setup exists — there is no history import.
+
+## Prerequisites
+
+- A Resend account with the domain verified and **receiving enabled**
+  (`capabilities.receiving`), plus the inbound `MX` record on the domain at the
+  lowest priority. A domain with existing MX records should use a subdomain.
+- A `full_access` Resend API key.
+- A Postgres database. It can be the same one Metis uses — set `DB_SCHEMA` to
+  keep these tables out of Metis's `public` schema.
+
+## Configuration
+
+| Variable                                                  | Required | Purpose                                                                                                                                                                                             |
+| --------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                            | yes      | Postgres connection string. May be Metis's own.                                                                                                                                                     |
+| `DB_SCHEMA`                                               | no       | Schema for this gateway's tables. Defaults to `public`.                                                                                                                                             |
+| `MAIL_DOMAIN`                                             | yes      | The domain this deployment serves.                                                                                                                                                                  |
+| `API_TOKEN`                                               | yes      | Admin token for `/v1/tokens`. `openssl rand -hex 32`.                                                                                                                                               |
+| `RESEND_API_KEY`                                          | yes      | A `full_access` key. Never leaves this service.                                                                                                                                                     |
+| `RESEND_WEBHOOK_SECRET`                                   | no       | Svix `whsec_…` signing secret. Without it `/webhooks/resend` returns 503 and nothing is ingested.                                                                                                   |
+| `PORT`                                                    | no       | Defaults to `8787`.                                                                                                                                                                                 |
+| `POLL_INTERVAL_SEC`                                       | no       | Seconds between catch-up polls of `GET /emails/receiving`. `0` (default) disables it. Use it for local development, where Resend cannot reach the webhook, and as a backstop for missed deliveries. |
+| `BLOB_ENDPOINT` `BLOB_BUCKET` `BLOB_KEY_ID` `BLOB_SECRET` | no       | S3-compatible object storage (R2, S3, MinIO) for raw MIME and attachments. Set all four or none — with none, blobs go in a Postgres `bytea` column.                                                 |
+| `BLOB_REGION`                                             | no       | Defaults to `auto` (correct for R2).                                                                                                                                                                |
+
+## Setup
+
+```sh
+bun install                  # from the repository root
+cd apps/gateway-resend
+
+DATABASE_URL=... DB_SCHEMA=resend_gw bun run db:apply
+```
+
+Run it with Docker, built from the repository root because the image needs
+the shared `@metis/gateway-contract` package
+(`docker build -f apps/gateway-resend/Dockerfile -t metis-resend . && docker run --env-file apps/gateway-resend/.env -p 8787:8787 metis-resend`),
+`bun run start`, or as a single serverless function that exports
+`handleRequest` from `src/app.ts`.
+
+Then in the Resend dashboard add a webhook pointing at
+`https://<gateway>/webhooks/resend` subscribed to `email.received`, and copy
+its `whsec_…` secret into `RESEND_WEBHOOK_SECRET`.
+
+## Minting a mailbox token
+
+```sh
+ADMIN_TOKEN=... bun run token https://... create you@yourdomain.com
+ADMIN_TOKEN=... bun run token https://... list
+ADMIN_TOKEN=... bun run token https://... revoke you@yourdomain.com
+```
+
+The token is shown once. Hand it to the person who owns that address; they
+paste it into Metis when connecting the mailbox.
+
+## API
+
+`/v1/*` is the contract `apps/web/src/mail/providers/gateway-client.ts` speaks,
+shared with the Cloudflare Worker. Its types, routes and helpers live once in
+`packages/gateway-contract`; this service only supplies the Postgres and blob
+store behind them, Resend sending, and the webhook. `GET /v1/health` echoes `{ ok, backend: "resend",
+domain, address }`; Metis's `verify()` cross-checks the echoed domain and token
+address against the configured server entry and the address being connected.
+
+`POST /webhooks/resend` is the only unauthenticated route — it is verified by
+Svix signature instead, and is idempotent per Resend email id, because
+webhook retries carry no attempt marker.

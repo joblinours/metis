@@ -1,0 +1,95 @@
+{
+  "name": "Ana Silva",
+  "email": "ana@harness.test",
+  "password": "ana-account-password-0001",
+  "workspaceSlug": "ana-silva-s-workspace",
+  "mailboxSlug": "ana",
+  "calendarSlug": "ana",
+  "driveSlugs": {
+    "s3": "ana",
+    "s3Relay": "ana-harness",
+    "webdav": "ana-harness-test",
+    "ftps": "ana-2",
+    "ftp": "ana-3",
+    "ftpsImplicit": "ana-4",
+    "sftp": "ana-5"
+  },
+  "totpURI": "otpauth://totp/Metis%20Suite:ana%40harness.test?secret=MRYDMWTKGFWHEZ2RMIZDMZZVNZLUUZKCKVZFSQ2MHBEFUZTTNNFQ&issuer=Metis+Suite&digits=6&period=30",
+  "backupCodes": [
+    "E3i5D-ppdPc",
+    "LaVyA-aXlvI",
+    "QVAbh-vX036",
+    "usiUl-KeCNP",
+    "R7sFC-Zn3KI",
+    "YGt9u-s1E15",
+    "CoW7z-lIheR",
+    "DXKIu-iC9D2",
+    "WLCli-CxLmx",
+    "aRJN0-6PLU3"
+  ],
+  "mcpClients": {
+    "reads": {
+      "clientId": "GnQBHfJixTGQrLWSiKFGdNqLzctCLEsx",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJHblFCSGZKaXhUR1FyTFdTaUtGR2ROcUx6Y3RDTEVzeCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.zUae4TrqUknZtA6EvWt5l2C7hcOuLMgPrwVQeeXil357v-6fXuUfXQ7pUxfOdqy2-oIUznHfCjHFutr4uIdZCQ"
+    },
+    "mail": {
+      "clientId": "CkmEBTGrwZVKpxhqZupPVdFUycGMFgsz",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJDa21FQlRHcndaVktweGhxWnVwUFZkRlV5Y0dNRmdzeiIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.KA6QncabJPSU9Q16Jncok-pLl0P2wEDg9Nzgt66V4UfvqH4yLbBBi_0-huRnpEw4FkCbRra85zKteJXzR6lWAg"
+    },
+    "inbox": {
+      "clientId": "GqCBunCYvnVKFCtAYKhJytAsBRDudbUK",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJHcUNCdW5DWXZuVktGQ3RBWUtoSnl0QXNCUkR1ZGJVSyIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.vjpBX3EDyW_B-Kwo_xIAdSsIFiny8wSIT_GoGN4kT6BjwYmg-w8FCRQHKpkXYED5yhV1ZClZQ2tHzvKOAi6VCA"
+    },
+    "labels": {
+      "clientId": "pXELCCPcHKcVCRKEcHNjSaCvyVtiaZce",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJwWEVMQ0NQY0hLY1ZDUktFY0hOalNhQ3Z5VnRpYVpjZSIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.XPQzplQ0fYQWm2nbUJbI_CXaLqDVFY0uf3nft1iOps8_xfT1Rdxd2IPn_YHbQFEbl1PqpgX9p2josOukXRm8CQ"
+    },
+    "drive": {
+      "clientId": "tkPfqWzFaRRppGoCdshpzJKiVoBhtTZs",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJ0a1BmcVd6RmFSUnBwR29DZHNocHpKS2lWb0JodFRacyIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.MNPyVzhrjRbp9_CKzgzySpzZBUOi1g58_9sx5i9H9kgY-THmCJQMY8Wa2lUasc9wRBfP9CNAum8twUC4aioDDA"
+    },
+    "calendar": {
+      "clientId": "cmuHXMyEbtKfcOyydpLurdBMjDyTLvCu",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJjbXVIWE15RWJ0S2ZjT3l5ZHBMdXJkQk1qRHlUTHZDdSIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.k-za18niqo2DGyJETylR6QBHa67sAViNBz07OTpYKTYKkC3BbeVeUgk1zKade1DmW5x1Y9QIw-TkPB0S_SlVDQ"
+    },
+    "workflows": {
+      "clientId": "lklLKLhpCfrPCTxllVpyhJxDzQCpIxYP",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJsa2xMS0xocENmclBDVHhsbFZweWhKeER6UUNwSXhZUCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.Eb_rnJSboR6-oBv_m-IggBi1qBIloAWYLUtjHDECBVaU2eVgcg6nUDProv_wqOpj9xSemx3OJjb_1tbikT8OAg"
+    },
+    "account": {
+      "clientId": "szuzwRZzhOCRPFRvVxaFRWJwFdGXjPZk",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJzenV6d1JaemhPQ1JQRlJ2VnhhRlJXSndGZEdYalBaayIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.AnSk_thUu5Apy2GL1dev78L3yOD1JjeeZoPW6b77XWtLVxCz73fQ_rAw4cVUyvBcXV7c4c-NOYGHkCsvPvdXCw"
+    },
+    "checks-1": {
+      "clientId": "xOgUXeVFsCCohCpFYptUbJGPcJxQXJvK",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJ4T2dVWGVWRnNDQ29oQ3BGWXB0VWJKR1BjSnhRWEp2SyIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.ML0FlYW3FxCJU6u4cd8KMIEv5blDQUsloAZyEUdbTJ8-nf8GQhfau7eQbPKExKwymvh_ZJ7jyvT-rtGVi_JhDQ"
+    },
+    "checks-2": {
+      "clientId": "lPcTjMpqlcCPeDWwcOHxAoXEKeXjnSrx",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJsUGNUak1wcWxjQ1BlRFd3Y09IeEFvWEVLZVhqblNyeCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.raqJquBfa87ls8nwsTFgsggd3MXunpV2X0KJa_3du1dK-cGDXHCL61qTco-7iCHLxs3rfwJzeEjBthYWm0EXDA"
+    },
+    "checks-3": {
+      "clientId": "HykBTUugfLpCpdiUZIZXJAJaDlEEPTBz",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJIeWtCVFV1Z2ZMcENwZGlVWklaWEpBSmFEbEVFUFRCeiIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.IzlL8S_8HIoF0y0e7KDag6RF0t1O9VZNdBT2sE-vItXfHTsXhlSgk6iLzhbYeGQGy8ximPYBRchTN3EVmseLAw"
+    },
+    "checks-4": {
+      "clientId": "UVnDSaaLmJDdgOYShEXRwzBtDgkOBFqb",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJVVm5EU2FhTG1KRGRnT1lTaEVYUnd6QnREZ2tPQkZxYiIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ._QfBCNchaX9NoIygvjHrf7sseF6y6tSPprPFo-yCwmAbBH3wRrK2_cYlLHqpb43YYQVN97PuXe0iqlw-UMDcBA"
+    },
+    "defaults": {
+      "clientId": "VDxlgjNPHIhRmyidPZUsenwUkoSEloNC",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI3Zjc2NTU2OC04YzBkLTU2Y2UtOGI4OS0xMDUxMjZmZWZlZGYiLCJhenAiOiJWRHhsZ2pOUEhJaFJteWlkUFpVc2Vud1Vrb1NFbG9OQyIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.1nOF2wB8b3UjEvHQ_RZ1XjeGKb7mq4ATGVS9SJfrKualU93qQERWe8TB6mHmXJ4KopXKC_b_O3Et934YaPXAAQ"
+    }
+  },
+  "member": {
+    "name": "Cy Reyes",
+    "email": "cy@harness.test",
+    "password": "cy-account-password-0001",
+    "workspaceSlug": "cy-reyes-s-workspace",
+    "totpURI": "otpauth://totp/Metis%20Suite:cy%40harness.test?secret=JM3XU23ZIFQWUMSOLJDXM6DNLEWXON2OOBYFE3DRGJHUC2RUINRQ&issuer=Metis+Suite&digits=6&period=30",
+    "mcpClient": {
+      "clientId": "oVrFWdGAULHRfJWTRqrpKgJYOvNrcCbL",
+      "token": "eyJhbGciOiJFZERTQSIsImtpZCI6IkJmZUFaellrVHVvT3cxQndGNXNMWk5qcGROSGF3R2oxIn0.eyJzdWIiOiI5YTUyMDg5Mi0zMjhmLTViNjItOTQ0ZC00YzI3NTdmOWJkZDgiLCJhenAiOiJvVnJGV2RHQVVMSFJmSldUUnFycEtnSllPdk5yY0NiTCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvYXV0aCIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9hcGkvbWNwIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MjM0ODczMSwiZXhwIjoyMTA3NzA4NzMxfQ.0h9ys6jm3oTWfG_o4EfTbx6IwvAcDOw4M7_2eNOI_a4dyrYfV3a8g6O-Stv6SALPy2tMGTM5J4DB1___nQ9tAw"
+    }
+  }
+}

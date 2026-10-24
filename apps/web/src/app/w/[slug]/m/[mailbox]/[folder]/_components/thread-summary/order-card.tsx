@@ -1,0 +1,52 @@
+import { Badge } from "@metis/ui/components/badge";
+import { ShoppingBag } from "lucide-react";
+
+import type { SummaryCardProps } from "@/mail/summary-catalog";
+
+import { Actions, CardLink, CardShell, Title } from "./card-parts";
+import { formatMoney } from "./format";
+
+export function OrderCard({ props }: { props: SummaryCardProps<"Order"> }) {
+  const total = formatMoney(props.total);
+  return (
+    <CardShell
+      icon={ShoppingBag}
+      label="Order"
+      aside={props.status ? <Badge variant="outline">{props.status}</Badge> : null}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <Title>{props.merchant}</Title>
+        {total && <span className="text-[14px] font-medium text-foreground">{total}</span>}
+      </div>
+      {props.orderNumber && (
+        <p className="font-mono text-[11px] text-faint">#{props.orderNumber}</p>
+      )}
+      {props.items.length > 0 && (
+        <ul className="mt-2 space-y-0.5">
+          {props.items.map((item) => {
+            const price = formatMoney(item.price);
+            return (
+              <li
+                key={`${item.name}-${item.quantity}`}
+                className="flex justify-between gap-3 text-[12px] text-muted-foreground"
+              >
+                <span className="min-w-0 truncate">
+                  {item.quantity && item.quantity > 1 ? `${item.quantity} × ` : ""}
+                  {item.name}
+                </span>
+                {price && <span className="shrink-0">{price}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {props.orderUrl && (
+        <Actions>
+          <CardLink href={props.orderUrl} intent="primary">
+            View order
+          </CardLink>
+        </Actions>
+      )}
+    </CardShell>
+  );
+}

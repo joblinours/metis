@@ -1,0 +1,43 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "globalEnv": [
+    "ANTHROPIC_API_KEY",
+    "BACKEND_URL",
+    "BETTER_AUTH_*",
+    "CONSOLE_MAIL_*",
+    "CRON_SECRET",
+    "DATABASE_*",
+    "GOOGLE_CLIENT_*",
+    "MAIL_FROM*",
+    "MASTRA_DATABASE_*",
+    "METIS_*",
+    "MICROSOFT_CLIENT_*",
+    "NEXT_BUILD_OUTPUT",
+    "NEXT_PUBLIC_SITE_URL",
+    "OPENAI_API_KEY",
+    "RESEND_API_KEY",
+    "SKIP_ENV_VALIDATION",
+    "SMTP_*",
+    "SQLD_AUTH_JWT_KEY",
+    "ZOHO_*"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

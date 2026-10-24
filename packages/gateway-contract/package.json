@@ -1,0 +1,27 @@
+{
+  "name": "@metis/gateway-contract",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "bin": {
+    "metis-gateway-token": "./src/token-cli.ts"
+  },
+  "type": "module",
+  "exports": {
+    "./wire": "./src/wire.ts",
+    "./text": "./src/text.ts",
+    "./router": "./src/router.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,43 @@
+---
+title: Upload files
+description: Add one or many files to a drive with the Upload button or by dragging them in, and the limits that can stop an upload.
+---
+
+You can upload files into the folder you have open, one file or many at once.
+
+## Upload with the button
+
+1. Open the folder you want the files in.
+2. Click **Upload** in the toolbar, or press <kbd>d</kbd> then <kbd>u</kbd>.
+3. Choose one or more files and confirm.
+
+## Upload by dragging
+
+Drag files from your computer onto the file area. The area shows "Drop to upload here". Let go to upload the files into the folder you have open.
+
+## Follow the progress
+
+Metis uploads the files one at a time. A bar above the files shows "Uploading" with the file name and a percentage. On some drive types the bar stays at the start and fills only when the file is done (see [Drive types](/guide/drive/drive-types)).
+
+When the upload finishes, you see "Uploaded" with the file name, or "Uploaded 3 files" for several files, and the files appear in the folder.
+
+:::note[If one file fails]
+When a file in a batch fails, Metis stops there. The files after it are not uploaded. Reload the page to see which files arrived, then upload the rest again.
+:::
+
+## When an upload fails
+
+The message tells you why. The common ones:
+
+| Message                                                  | What it means                                                                                                                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Files over N MB cannot be transferred for this drive"   | Some drives send files through your Metis server, which has a size limit for them. Your administrator sets that limit. The number in the message is that limit. |
+| "Too many transfers are running. Wait for one to finish" | You have too many uploads or downloads running on these drives. Wait for one to finish, then try again.                                                         |
+| "This link is invalid or has expired"                    | Metis could not accept the upload. Try again. If it keeps happening, tell your administrator.                                                                   |
+| "Upload failed"                                          | Something else went wrong. The message may include more detail from the drive.                                                                                  |
+
+If an upload to a WebDAV, FTP or SFTP drive fails, Metis removes the partial file. If a file with that name was already there, check it after the failure.
+
+## Upload from All drives
+
+At the top level of [All drives](/guide/drive/all-drives), Metis first asks which drive and folder the files should go to.

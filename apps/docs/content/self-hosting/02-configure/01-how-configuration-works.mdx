@@ -1,0 +1,96 @@
+---
+title: How configuration works
+description: Which settings live in the environment, which ones the owner changes in the dashboard, and how the optional config file fits in.
+---
+
+Metis Suite has two kinds of settings. Knowing which is which tells you where to make a change.
+
+## Settings fixed at startup
+
+These live only in the environment (the `.env` file) or in the optional config file. The app reads them when it starts, so a change needs a restart:
+
+- The app address and its secret: `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`.
+- The encryption key: `METIS_ENCRYPTION_KEY`.
+- The first-run settings: `METIS_SETUP_CODE`, `METIS_OWNER_EMAIL`.
+- The source code link: `METIS_SOURCE_URL`.
+- How long the audit log keeps events: `METIS_AUDIT_RETENTION_DAYS`. It cannot be changed in the dashboard.
+- The databases: `METIS_DB_DRIVER`, `DATABASE_URL`, `MASTRA_DATABASE_URL` and their tokens.
+- The drive relay secret: `METIS_DRIVE_RELAY_SECRET`.
+
+To change one with the Compose stack, edit `/opt/metis-suite/.env` and run:
+
+```bash
+sudo docker compose --project-directory /opt/metis-suite up -d
+```
+
+## Settings the owner changes in the dashboard
+
+Everything else is stored in the database and changed by the owner under **Dashboard**, **System**:
+
+- Sign-in providers and server lists.
+- The AI model (LLM), the decision model and phishing detection.
+- Outgoing email.
+- The cache.
+- The workflow runner.
+- Sign-up, legal consent, drive transfer limits and the mail image proxy.
+
+The first time preflight runs, it stores these settings. Each one takes its value from the environment or the config file if you set it there, and from its default otherwise. The defaults are: AI, the decision model and phishing detection off, outgoing email written to the server log, an in-memory cache, background work inside the app, invite-only sign-up, the mail image proxy off, and no providers.
+
+After an update that adds the decision model and mail image proxy to the dashboard, the next preflight stores them the same way, from the environment, the config file or the default. **History** lists this as a **Seed** version.
+
+Once preflight has stored a setting, the environment no longer changes it. If a value in the environment later differs from the stored one, the stored value is used and the dashboard shows a warning under **Deploy checks**. Change the setting in the dashboard, or remove it from the environment.
+
+## Saving a change in the dashboard
+
+Each **System** page edits its own settings:
+
+1. Change a field. A bar at the bottom shows how many changes are not saved yet, with **Reset** and **Save changes**.
+2. Click **Save changes** and enter a code from your authenticator app. Backup codes work too.
+3. The changed settings are checked against the real service before anything is stored. If a check fails, you see **Check failed** and "Nothing was saved."
+4. If the check passes, you see "Saved as version N". The line at the top of the page says that every process picks up a change within 30 seconds.
+
+Every saved change becomes a new version of the configuration. You can compare any two versions and restore an older one under **System**, **History**. See [Owner dashboard](/self-hosting/operate/owner-dashboard).
+
+Secrets such as API keys and passwords are never shown again after you save them. The page shows **Set** or **Not set**. Leave a secret field empty to keep the stored value.
+
+## The optional config file
+
+Instead of environment variables, you can put settings in a YAML, JSON or TOML file. The app looks for, in order:
+
+1. The file named in `METIS_CONFIG_PATH`. If that file does not exist, the app refuses to start.
+2. `metis.config.yaml`, `.yml`, `.json` or `.toml` in the app's working folder.
+3. `/etc/metis/config.yaml`, `.yml`, `.json` or `.toml`.
+
+The file and the environment work key by key. When both set the same setting, the environment wins. An empty variable counts as not set.
+
+The file uses nested sections instead of variable names. For example, this YAML file turns on open sign-up, sets the legal links and sets up outgoing email over SMTP:
+
+```yaml
+app:
+  signupDisabled: false
+legal:
+  termsUrl: https://example.com/terms
+  privacyUrl: https://example.com/privacy
+mailer:
+  driver: smtp
+  mailFrom: Metis Suite <noreply@example.com>
+  host: smtp.example.com
+  port: 465
+  user: noreply@example.com
+  pass: your-smtp-password
+  secure: true
+```
+
+As with the environment, settings that the dashboard manages are read from the file only once, the first time preflight runs.
+
+:::note
+The Compose stack does not mount a config file into its containers. With the Compose stack, use `.env`.
+:::
+
+## When a setting is wrong
+
+The app checks every setting when it starts. A setting with a wrong value stops it from starting, and the error names the setting. With the Compose stack, the preflight log shows it:
+
+```bash
+sudo docker compose --project-directory /opt/metis-suite logs preflight
+```

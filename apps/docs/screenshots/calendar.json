@@ -1,0 +1,246 @@
+[
+  {
+    "name": "calendar/week-view",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      {
+        "click": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      {
+        "click": "role=menuitem[name=/^Week/]"
+      },
+      {
+        "waitFor": "role=button[name=/^Design review 3pm \\S 4pm$/]"
+      }
+    ]
+  },
+  {
+    "name": "calendar/month-view",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      {
+        "click": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      {
+        "click": "role=menuitem[name=/^Month/]"
+      },
+      {
+        "waitFor": "role=button[name=\"3pm Design review\"]"
+      }
+    ]
+  },
+  {
+    "name": "calendar/schedule-view",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      {
+        "click": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      {
+        "click": "role=menuitem[name=/^Schedule/]"
+      },
+      {
+        "waitFor": "role=button[name=/Design review/]"
+      },
+      {
+        "hover": "role=banner >> role=heading[level=1]"
+      }
+    ]
+  },
+  {
+    "name": "calendar/new-event-dialog",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=complementary[name=\"Calendars\"] >> role=button[name=\"Create\"]"
+      },
+      {
+        "click": "role=complementary[name=\"Calendars\"] >> role=button[name=\"Create\"]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"New event\"]"
+      },
+      {
+        "fill": "role=dialog[name=\"New event\"] >> role=textbox[name=\"Event title\"]",
+        "value": "Project check-in"
+      },
+      {
+        "fill": "role=dialog[name=\"New event\"] >> role=textbox[name=\"Guest 1\"]",
+        "value": "sam@example.com"
+      },
+      {
+        "fill": "role=dialog[name=\"New event\"] >> role=textbox[name=\"Location\"]",
+        "value": "Room 4"
+      },
+      {
+        "fill": "role=dialog[name=\"New event\"] >> role=textbox[name=\"Description\"]",
+        "value": "Review the launch checklist."
+      },
+      {
+        "click": "role=dialog[name=\"New event\"] >> role=combobox[name=\"Calendar\"]"
+      },
+      {
+        "click": "role=listbox >> role=option[name=\"Work · ana@harness.test\"]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"New event\"] >> role=combobox[name=\"Calendar\"] >> text=Work"
+      }
+    ],
+    "element": "role=dialog[name=\"New event\"]"
+  },
+  {
+    "name": "calendar/event-details",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=button[name=/^Design review 3pm \\S 4pm$/]"
+      },
+      {
+        "click": "role=button[name=/^Design review 3pm \\S 4pm$/]"
+      },
+      {
+        "waitFor": "role=dialog >> role=heading[name=\"Design review\"]"
+      }
+    ],
+    "element": "role=dialog"
+  },
+  {
+    "name": "calendar/delete-event",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=button[name=/^Design review 3pm \\S 4pm$/]"
+      },
+      {
+        "click": "role=button[name=/^Design review 3pm \\S 4pm$/]"
+      },
+      {
+        "waitFor": "role=dialog >> role=heading[name=\"Design review\"]"
+      },
+      {
+        "click": "role=dialog >> role=button[name=\"Delete event\"]"
+      },
+      {
+        "waitFor": "role=alertdialog[name=\"Delete Design review?\"]"
+      }
+    ],
+    "element": "role=alertdialog"
+  },
+  {
+    "name": "calendar/sidebar-hidden-calendar",
+    "clip": { "x": 0, "y": 0, "width": 960, "height": 460 },
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=complementary[name=\"Calendars\"] >> role=checkbox[name=\"Show Work\"]"
+      },
+      {
+        "click": "role=complementary[name=\"Calendars\"] >> role=checkbox[name=\"Show Work\"]"
+      },
+      {
+        "hover": "role=banner >> role=heading[level=1]"
+      }
+    ]
+  },
+  {
+    "name": "calendar/workspace-calendars",
+    "viewport": { "width": 1440, "height": 440 },
+    "path": "{workspace}/settings/calendars",
+    "steps": [
+      {
+        "waitFor": "role=button[name=\"Show calendars\"]"
+      },
+      {
+        "click": "role=button[name=\"Show calendars\"]"
+      },
+      {
+        "waitFor": "role=switch[name=\"Toggle every calendar\"]"
+      }
+    ]
+  },
+  {
+    "name": "calendar/calendar-ai",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=button[name=/^Design review 3pm \\S 4pm$/]"
+      },
+      {
+        "click": "role=banner >> role=button[name=\"Calendar AI\"]"
+      },
+      {
+        "waitFor": "role=textbox[name=\"Ask about your calendar…\"]"
+      }
+    ]
+  },
+  {
+    "name": "calendar/keyboard-shortcuts",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=banner >> role=heading[level=1]"
+      },
+      {
+        "click": "role=banner >> role=heading[level=1]"
+      },
+      {
+        "press": "?"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Keyboard shortcuts\"]"
+      },
+      {
+        "click": "role=dialog[name=\"Keyboard shortcuts\"] >> role=heading[name=\"Keyboard shortcuts\"]"
+      }
+    ],
+    "element": "role=dialog[name=\"Keyboard shortcuts\"]"
+  },
+  {
+    "name": "calendar/edit-event-dialog",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      { "waitFor": "role=button[name=/^Design review 3pm \\S 4pm$/]" },
+      { "click": "role=button[name=/^Design review 3pm \\S 4pm$/]" },
+      { "click": "role=dialog >> role=button[name=\"Edit event\"]" },
+      { "waitFor": "role=dialog[name=\"Edit event\"]" },
+      { "wait": 300 }
+    ],
+    "element": "role=dialog[name=\"Edit event\"]"
+  },
+  {
+    "name": "calendar/year-view",
+    "path": "{workspace}/c/{calendar}",
+    "seededWeek": true,
+    "steps": [
+      {
+        "waitFor": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      {
+        "click": "role=banner >> role=button[name=/^(Day|Week|Month|Year|Schedule)$/]"
+      },
+      { "click": "role=menuitem[name=/^Year/]" },
+      { "waitFor": "role=banner >> role=button[name=/^Year$/]" },
+      { "hover": "role=banner >> role=heading[level=1]" },
+      { "wait": 800 }
+    ]
+  }
+]

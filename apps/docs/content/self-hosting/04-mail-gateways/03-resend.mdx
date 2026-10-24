@@ -1,0 +1,101 @@
+---
+title: Set up the Resend gateway
+description: Run a gateway that receives mail through Resend, keeps it in your own database, and sends through Resend.
+---
+
+The Resend gateway is a small service you run for one domain. It receives mail through Resend's inbound webhook and sends through Resend. It stores messages in Postgres, with raw mail and attachments in S3-compatible storage or in Postgres. Resend deletes received mail after 30 days, so the gateway keeps its own permanent copy.
+
+Mail for an address with no mailbox token is dropped. Creating a token for an address is what turns it on.
+
+## Before you start
+
+- A Resend account with your domain verified and receiving turned on, including Resend's inbound MX record on the domain. If the domain already has MX records, use a subdomain.
+- A Resend API key with full access. It stays inside the gateway.
+- A Postgres database. You can share one with other apps: set `DB_SCHEMA` to keep the gateway's tables apart.
+- [Bun](https://bun.sh) and a copy of the Metis Suite source code:
+
+```bash
+git clone https://github.com/trymetis/metis.git
+cd metis
+bun install
+cd apps/gateway-resend
+```
+
+No ready-made image of the gateway is published. You build or run it yourself.
+
+## Run the gateway
+
+<Steps>
+  <Step title="Create the tables">
+    ```bash
+    DATABASE_URL=postgres://... DB_SCHEMA=resend_gw bun run db:apply
+    ```
+  </Step>
+
+  <Step title="Set its variables">
+    Write the gateway's settings to `apps/gateway-resend/.env`. Use the
+    same `DB_SCHEMA` you used in step 1.
+
+    | Variable | Required | What it is |
+    | --- | --- | --- |
+    | `DATABASE_URL` | yes | The Postgres connection string. |
+    | `DB_SCHEMA` | no | The schema for the gateway's tables. Default `public`. |
+    | `MAIL_DOMAIN` | yes | The domain this gateway serves. |
+    | `API_TOKEN` | yes | The admin token, for example from `openssl rand -hex 32`. |
+    | `RESEND_API_KEY` | yes | Your full-access Resend key. |
+    | `RESEND_WEBHOOK_SECRET` | yes, in practice | The webhook's signing secret (next step). Without it, the webhook refuses deliveries, and only the catch-up check (`POLL_INTERVAL_SEC`) receives mail. |
+    | `PORT` | no | Default `8787`. |
+    | `POLL_INTERVAL_SEC` | no | Seconds between catch-up checks for received mail. `0` (the default) turns them off. Useful when Resend cannot reach the webhook, and as a backstop. |
+    | `BLOB_ENDPOINT`, `BLOB_BUCKET`, `BLOB_KEY_ID`, `BLOB_SECRET` | no | S3-compatible storage (such as R2 or S3) for raw mail and attachments. Set all four or none. With none, they are stored in Postgres. |
+    | `BLOB_REGION` | no | Default `auto`, which suits R2. |
+
+  </Step>
+
+  <Step title="Start it">
+    Use any one of these:
+
+    - Docker, built from the root of the source code:
+
+      ```bash
+      docker build -f apps/gateway-resend/Dockerfile -t metis-resend .
+      docker run --env-file apps/gateway-resend/.env -p 8787:8787 metis-resend
+      ```
+
+    - Bun, from `apps/gateway-resend`: `bun run start`.
+    - A serverless function host.
+
+    Serve it over `https://` on an address Resend and your Metis Suite
+    instance can both reach.
+
+  </Step>
+
+  <Step title="Add the webhook in Resend">
+    In the Resend dashboard, add a webhook for the `email.received` event,
+    pointing at `https://<your gateway>/webhooks/resend`. Copy its signing
+    secret, which starts with `whsec_`, into `RESEND_WEBHOOK_SECRET`, and
+    restart the gateway.
+  </Step>
+
+  <Step title="Register it in Metis Suite">
+    Open **Dashboard**, **System**, **Resend** under **Providers**. Click
+    **Add server** and fill in:
+
+    - **Name**: what users see in the connect dialog.
+    - **Domain**: your domain, such as `example.com`.
+    - **Gateway endpoint**: the gateway's `https://` address.
+
+    Click **Save changes** and enter your authenticator code.
+
+    You can also set the starting list before the first start:
+
+    ```bash
+    METIS_RESEND_SERVERS=[{"name":"Example Mail","domain":"example.com","endpoint":"https://metis-resend-mail.example.com"}]
+    ```
+
+  </Step>
+
+  <Step title="Create mailbox tokens">
+    Create a token for each address. Until you do, mail for that address is
+    dropped. See [Mailbox tokens](/self-hosting/mail-gateways/mailbox-tokens).
+  </Step>
+</Steps>

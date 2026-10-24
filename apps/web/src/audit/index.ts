@@ -1,0 +1,171 @@
+import "server-only";
+import { and, desc, eq, lt, or, type SQL } from "drizzle-orm";
+
+import { db } from "@/db";
+import { auditEvent, user, workspace } from "@/db/schema";
+import type { AuditEvent, AuditEventPage } from "@/server/schema";
+import { getClientIp } from "@/services/rate-limit";
+import type { AuditAction, AuditDetail, AuditResourceKind, AuditVia } from "@/types/audit";
+
+export interface AuditActor {
+  userId: string;
+  email?: string;
+  via: AuditVia;
+  mcpClientId?: string;
+  headers?: Headers;
+}
+
+export interface AuditEventInput {
+  action: AuditAction;
+  workspaceId?: string | null;
+  workspaceName?: string;
+  targetUserId?: string | null;
+  targetLabel?: string | null;
+  resourceKind?: AuditResourceKind;
+  detail?: AuditDetail;
+}
+
+export function appActor(
+  appUser: { userId: string; user: { email: string } },
+  headers: Headers,
+): AuditActor {
+  return {
+    userId: appUser.userId,
+    email: appUser.user.email,
+    via: "app",
+    headers,
+  };
+}
+
+const USER_AGENT_MAX = 512;
+
+function requestIp(headers: Headers | undefined): string | null {
+  if (!headers) return null;
+  const ip = getClientIp(headers);
+  return ip === "unknown" ? null : ip;
+}
+
+async function userEmail(userId: string | null | undefined) {
+  if (!userId) return null;
+  const [row] = await db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return row ?? null;
+}
+
+async function workspaceRow(workspaceId: string | null | undefined) {
+  if (!workspaceId) return null;
+  const [row] = await db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function recordAuditEvent(by: AuditActor, event: AuditEventInput): Promise<void> {
+  try {
+    const [actor, ws, target] = await Promise.all([
+      userEmail(by.userId),
+      workspaceRow(event.workspaceId),
+      userEmail(event.targetUserId),
+    ]);
+    await db.insert(auditEvent).values({
+      id: crypto.randomUUID(),
+      createdAt: new Date(),
+      action: event.action,
+      via: by.via,
+      mcpClientId: by.mcpClientId ?? null,
+      actorUserId: actor?.id ?? null,
+      actorEmail: actor?.email ?? by.email ?? "",
+      workspaceId: ws?.id ?? null,
+      workspaceName: ws?.name ?? event.workspaceName ?? null,
+      targetUserId: target?.id ?? null,
+      targetLabel: event.targetLabel ?? target?.email ?? null,
+      resourceKind: event.resourceKind ?? null,
+      detail: event.detail ?? {},
+      ip: requestIp(by.headers),
+      userAgent: by.headers?.get("user-agent")?.slice(0, USER_AGENT_MAX) ?? null,
+    });
+  } catch (err) {
+    console.error(`[audit] failed to record ${event.action}`, err);
+  }
+}
+
+export const AUDIT_PAGE_SIZE = 50;
+
+function parseCursor(cursor: string | undefined): SQL | undefined {
+  if (!cursor) return undefined;
+  const dot = cursor.indexOf(".");
+  const ms = Number(cursor.slice(0, dot));
+  const id = cursor.slice(dot + 1);
+  if (dot < 1 || !Number.isFinite(ms) || !id) return undefined;
+  const at = new Date(ms);
+  return or(lt(auditEvent.createdAt, at), and(eq(auditEvent.createdAt, at), lt(auditEvent.id, id)));
+}
+
+type AuditRow = typeof auditEvent.$inferSelect;
+
+function toView(row: AuditRow, withNetwork: boolean): AuditEvent {
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    action: row.action,
+    via: row.via,
+    mcpClientId: row.mcpClientId,
+    actorEmail: row.actorEmail,
+    workspaceName: row.workspaceName,
+    targetLabel: row.targetLabel,
+    resourceKind: row.resourceKind,
+    detail: row.detail,
+    ip: withNetwork ? row.ip : null,
+    userAgent: withNetwork ? row.userAgent : null,
+  };
+}
+
+async function listPage(
+  scope: SQL | undefined,
+  cursor: string | undefined,
+  withNetwork: boolean,
+): Promise<AuditEventPage> {
+  const rows = await db
+    .select()
+    .from(auditEvent)
+    .where(and(scope, parseCursor(cursor)))
+    .orderBy(desc(auditEvent.createdAt), desc(auditEvent.id))
+    .limit(AUDIT_PAGE_SIZE + 1);
+  const page = rows.slice(0, AUDIT_PAGE_SIZE);
+  const last = page.at(-1);
+  return {
+    events: page.map((row) => toView(row, withNetwork)),
+    nextCursor:
+      rows.length > AUDIT_PAGE_SIZE && last ? `${last.createdAt.getTime()}.${last.id}` : null,
+  };
+}
+
+function userScope(userId: string): SQL | undefined {
+  return or(eq(auditEvent.actorUserId, userId), eq(auditEvent.targetUserId, userId));
+}
+
+export function listUserAuditEvents(userId: string, cursor?: string) {
+  return listPage(userScope(userId), cursor, true);
+}
+
+export function listWorkspaceAuditEvents(workspaceId: string, cursor?: string) {
+  return listPage(eq(auditEvent.workspaceId, workspaceId), cursor, false);
+}
+
+export function listInstanceAuditEvents(cursor?: string) {
+  return listPage(undefined, cursor, true);
+}
+
+export async function exportUserAuditEvents(userId: string): Promise<AuditEvent[]> {
+  const rows = await db
+    .select()
+    .from(auditEvent)
+    .where(userScope(userId))
+    .orderBy(desc(auditEvent.createdAt), desc(auditEvent.id));
+  return rows.map((row) => toView(row, true));
+}

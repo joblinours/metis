@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package metis.updater.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/trymetis/metis/apps/updater/gen/metis/updater/v1;updaterv1";
+
+service UpdaterService {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc StartUpgrade(StartUpgradeRequest) returns (StartUpgradeResponse);
+  rpc GetUpgrade(GetUpgradeRequest) returns (GetUpgradeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc Rollback(RollbackRequest) returns (RollbackResponse);
+}
+
+message Release {
+  string version = 1;
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  string current_version = 1;
+  repeated Release releases = 2;
+  string rollback_version = 3;
+}
+
+message StartUpgradeRequest {
+  string version = 1;
+}
+
+message StartUpgradeResponse {
+  Upgrade upgrade = 1;
+}
+
+message GetUpgradeRequest {}
+
+message GetUpgradeResponse {
+  Upgrade upgrade = 1;
+}
+
+message RollbackRequest {}
+
+message RollbackResponse {
+  Upgrade upgrade = 1;
+}
+
+enum UpgradeKind {
+  UPGRADE_KIND_UNSPECIFIED = 0;
+  UPGRADE_KIND_UPGRADE = 1;
+  UPGRADE_KIND_ROLLBACK = 2;
+}
+
+enum UpgradeState {
+  UPGRADE_STATE_UNSPECIFIED = 0;
+  UPGRADE_STATE_RUNNING = 1;
+  UPGRADE_STATE_SUCCEEDED = 2;
+  UPGRADE_STATE_FAILED = 3;
+  UPGRADE_STATE_ROLLBACK_FAILED = 4;
+}
+
+enum UpgradeStep {
+  UPGRADE_STEP_UNSPECIFIED = 0;
+  UPGRADE_STEP_PULL = 1;
+  UPGRADE_STEP_PREFLIGHT = 2;
+  UPGRADE_STEP_SWITCH = 3;
+  UPGRADE_STEP_READY = 4;
+  UPGRADE_STEP_RESTORE = 5;
+}
+
+message Upgrade {
+  string id = 1;
+  UpgradeKind kind = 2;
+  string from_version = 3;
+  string to_version = 4;
+  UpgradeState state = 5;
+  UpgradeStep step = 6;
+  bool restored = 7;
+  string error = 8;
+  google.protobuf.Timestamp started_at = 9;
+  google.protobuf.Timestamp finished_at = 10;
+}

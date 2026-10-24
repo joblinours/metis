@@ -1,0 +1,109 @@
+name: Docker images
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'app-v')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      latest: ${{ steps.release.outputs.latest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the tag matches the web app version
+        id: release
+        run: .github/scripts/release-version.sh app-v apps/web/package.json .version
+
+  build:
+    name: ${{ matrix.image }}
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - {
+              image: app,
+              file: Dockerfile,
+              target: runner,
+              suffix: "",
+              build-args: NEXT_BUILD_OUTPUT=standalone,
+            }
+          - {
+              image: preflight,
+              file: preflight.Dockerfile,
+              target: "",
+              suffix: -preflight,
+              build-args: "",
+            }
+          - {
+              image: worker,
+              file: Dockerfile,
+              target: worker,
+              suffix: -worker,
+              build-args: NEXT_BUILD_OUTPUT=standalone,
+            }
+          - { image: updater, file: Dockerfile, target: updater, suffix: -updater, build-args: "" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Image tags
+        id: tags
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          LATEST: ${{ needs.release.outputs.latest }}
+          SUFFIX: ${{ matrix.suffix }}
+        run: .github/scripts/image-tags.sh
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+  publish:
+    needs: [release, build]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Collect the published files
+        run: |
+          mkdir out
+          cp bootstrap.sh out/bootstrap
+          cp compose.yml out/compose.yml
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SH_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SH_R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.SH_R2_BUCKET }}
+          VERSION: ${{ needs.release.outputs.version }}
+          LATEST: ${{ needs.release.outputs.latest }}
+        run: .github/scripts/r2-upload.sh out "v$VERSION/" "" bootstrap compose.yml

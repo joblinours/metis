@@ -1,0 +1,8 @@
+@import "@metis/ui/globals.css";
+
+@source "./";
+
+:root {
+  --font-dm-sans: "DM Sans Variable";
+  --font-dm-mono: "DM Mono";
+}

@@ -1,0 +1,28 @@
+import { test } from "../fixtures";
+import accountSpecs from "./accounts.spec";
+import calendarSpecs from "./calendar.spec";
+import dashboardSpecs from "./dashboard.spec";
+import decisionSpecs from "./decision.spec";
+import driveSpecs from "./drives.spec";
+import mailFilterSpecs from "./mail-filters.spec";
+import mailSpecs from "./mail.spec";
+import mcpConformanceSpecs from "./mcp-conformance.spec";
+import mcpSpecs from "./mcp.spec";
+import memberSpecs from "./members.spec";
+import settingsSpecs from "./settings.spec";
+import updateSpecs from "./updates.spec";
+import workflowSpecs from "./workflows.spec";
+
+test.describe("workflows", workflowSpecs);
+test.describe("decision", decisionSpecs);
+test.describe("mcp-conformance", mcpConformanceSpecs);
+test.describe("mcp", mcpSpecs);
+test.describe("drives", driveSpecs);
+test.describe("calendar", calendarSpecs);
+test.describe("mail", mailSpecs);
+test.describe("accounts", accountSpecs);
+test.describe("members", memberSpecs);
+test.describe("settings", settingsSpecs);
+test.describe("dashboard", dashboardSpecs);
+test.describe("updates", updateSpecs);
+test.describe("mail filters", mailFilterSpecs);

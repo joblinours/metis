@@ -1,0 +1,29 @@
+{
+  "name": "@metis/gateway-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create metis-suite",
+    "db:apply": "wrangler d1 execute metis-suite --remote --file=schema.sql",
+    "r2:create": "wrangler r2 bucket create metis-suite-raw",
+    "secret": "wrangler secret put API_TOKEN",
+    "setup": "bun run setup.ts",
+    "token": "metis-gateway-token",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit"
+  },
+  "dependencies": {
+    "@metis/gateway-contract": "workspace:*",
+    "postal-mime": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261007.1",
+    "@types/node": "catalog:",
+    "cloudflare": "^7.3.0",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "wrangler": "^4.148.0"
+  }
+}

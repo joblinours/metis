@@ -1,0 +1,145 @@
+[
+  {
+    "name": "get-started/app-rail",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [{ "waitFor": "nav[aria-label='App navigation']" }]
+  },
+  {
+    "name": "get-started/user-menu",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      { "waitFor": "nav[aria-label='App navigation'] button.rounded-full" },
+      { "click": "nav[aria-label='App navigation'] button.rounded-full" },
+      { "waitFor": "[role='menuitem']:has-text('Sign out')" }
+    ],
+    "element": [
+      "nav[aria-label='App navigation'] button.rounded-full",
+      "[role='menu']:has-text('Sign out')"
+    ]
+  },
+  {
+    "name": "get-started/settings",
+    "path": "/settings/account",
+    "steps": [{ "waitFor": "aside[aria-label='Settings'] a:has-text('Security')" }],
+    "element": ["aside[aria-label='Settings']", "main h2"]
+  },
+  {
+    "name": "account/sign-in",
+    "viewport": { "width": 800, "height": 600 },
+    "path": "/",
+    "signedOut": true,
+    "steps": [{ "waitFor": "button:has-text('Email me a magic link')" }]
+  },
+  {
+    "name": "account/forgot-password",
+    "viewport": { "width": 800, "height": 460 },
+    "path": "/forgot-password",
+    "signedOut": true,
+    "steps": [{ "waitFor": "button:has-text('Send reset link')" }]
+  },
+  {
+    "name": "account/workspaces",
+    "viewport": { "width": 1060, "height": 540 },
+    "path": "/settings/workspaces",
+    "steps": [{ "waitFor": "main :text-is('Default')" }]
+  },
+  {
+    "name": "account/account",
+    "viewport": { "width": 1060, "height": 540 },
+    "path": "/settings/account",
+    "steps": [{ "waitFor": "main :text-is('This device')" }]
+  },
+  {
+    "name": "account/data-export",
+    "path": "/settings/account",
+    "steps": [
+      { "waitFor": "main h2:text-is('Export your data')" },
+      { "scroll": "main h2:text-is('Export your data')" }
+    ],
+    "element": "section:has(h2:text-is('Export your data'))"
+  },
+  {
+    "name": "account/security",
+    "path": "/settings/security",
+    "steps": [{ "waitFor": "main h2:has-text('Regenerate backup codes')" }]
+  },
+  {
+    "name": "account/sign-in-alerts",
+    "path": "/settings/security",
+    "steps": [
+      { "waitFor": "main h2:text-is('Sign-in alerts')" },
+      { "waitFor": "main [role=switch][aria-checked=true]" },
+      { "scroll": "main h2:text-is('Sign-in alerts')" }
+    ],
+    "element": "section:has(h2:text-is('Sign-in alerts'))"
+  },
+  {
+    "name": "account/delete-account",
+    "path": "/settings/security",
+    "steps": [
+      { "waitFor": "main h2:text-is('Delete account')" },
+      { "scroll": "main h2:text-is('Delete account')" }
+    ],
+    "element": "section:has(h2:text-is('Delete account'))"
+  },
+  {
+    "name": "account/privacy",
+    "viewport": { "width": 1060, "height": 540 },
+    "path": "/settings/privacy",
+    "steps": [{ "waitFor": "main :text-is('Clean tracking from links')" }]
+  },
+  {
+    "name": "account/invites",
+    "viewport": { "width": 1060, "height": 540 },
+    "path": "/settings/invites",
+    "steps": [{ "waitFor": "main h2:has-text('Invite someone')" }]
+  },
+  {
+    "name": "account/two-factor-code",
+    "viewport": { "width": 800, "height": 600 },
+    "path": "/",
+    "signedOut": true,
+    "steps": [
+      {
+        "fill": "role=main >> role=textbox[name=\"Email address\"]",
+        "value": "ana@harness.test"
+      },
+      {
+        "fill": "role=main >> role=textbox[name=\"Password\"]",
+        "value": "ana-account-password-0001"
+      },
+      { "click": "role=main >> role=button[name=\"Sign in\"s]" },
+      { "waitFor": "role=heading[name=\"Two-factor authentication\"]" }
+    ]
+  },
+  {
+    "name": "account/magic-link-sent",
+    "viewport": { "width": 800, "height": 600 },
+    "path": "/",
+    "signedOut": true,
+    "steps": [
+      {
+        "fill": "role=main >> role=textbox[name=\"Email address\"]",
+        "value": "you@example.com"
+      },
+      { "click": "role=button[name=\"Email me a magic link\"]" },
+      { "waitFor": "text=Check your email" }
+    ]
+  },
+  {
+    "name": "account/add-device-qr",
+    "path": "/settings/security",
+    "steps": [
+      { "waitFor": "main h2:text-is('Add another device')" },
+      {
+        "fill": "section:has(h2:text-is('Add another device')) input[placeholder='Account password']",
+        "value": "ana-account-password-0001"
+      },
+      {
+        "click": "section:has(h2:text-is('Add another device')) button:has-text('Show QR code')"
+      },
+      { "waitFor": "role=img[name=\"QR code for your authenticator app\"]" }
+    ],
+    "element": "section:has(h2:text-is('Add another device'))"
+  }
+]

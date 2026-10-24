@@ -1,0 +1,24 @@
+{
+  "name": "@metis/docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "blume dev",
+    "build": "blume build",
+    "typecheck": "blume check",
+    "validate": "blume validate --strict",
+    "doctor": "blume doctor",
+    "screenshots": "node scripts/screenshots.ts"
+  },
+  "dependencies": {
+    "blume": "^1.7.3"
+  },
+  "devDependencies": {
+    "@astrojs/compiler-rs": "^0.5.2",
+    "@playwright/test": "catalog:",
+    "astro": "^7.2.0",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "zod": "catalog:"
+  }
+}

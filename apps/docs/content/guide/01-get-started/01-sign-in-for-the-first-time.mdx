@@ -1,0 +1,110 @@
+---
+title: Sign in for the first time
+description: Create your Metis Suite account, set up two-factor authentication and open your first workspace.
+---
+
+In this tutorial you will create your Metis Suite account, protect it with two-factor authentication, and open your first workspace.
+
+You need two things before you start:
+
+- **A way in.** This is an invite email from someone who already uses Metis Suite. If you are the first person on a new instance, it is the setup link and setup code from whoever installed it.
+- **An authenticator app on your phone**, such as Google Authenticator, 1Password or Authy. Two-factor authentication is required for every account, so you cannot skip this part.
+
+:::note[What is an instance?]
+An instance is one Metis Suite server, run by your company, your team or yourself. Everyone on an instance signs in at the same web address. Your administrator is the person who runs it.
+:::
+
+<Steps>
+  <Step title="Create your account">
+    How you create your account depends on how you got here. Pick the tab that matches.
+
+    <Tabs>
+      <Tab title="I was invited">
+        Open the invite email. Its subject says that someone invited you to Metis Suite. Click **Create your account** in the email.
+
+        The page **Create your account** opens. Your **Email address** is already filled in and cannot be changed. Enter your **Name** and a **Password** (at least 8 characters). If your instance has terms, tick the box to agree to them. Then click **Create account**.
+
+        You do not need to verify your email. The invite already proves the address is yours.
+
+        If you see **Invite unavailable** with "This invite link is no longer valid", the invite has expired, was already used or was revoked. Invites last 7 days. Ask the person who invited you to send a new one.
+      </Tab>
+      <Tab title="I have a setup code">
+        Open the setup link your administrator gave you. The page **Set up Metis Suite** says "Create the first account on this instance."
+
+        Fill in the form:
+
+        - **Setup code**: paste the setup code your administrator gave you.
+        - **Name**: your name.
+        - **Email address**: the address you will sign in with. If your administrator chose the owner's address in advance, it is already filled in and cannot be changed.
+        - **Password**: at least 8 characters.
+
+        If your instance has terms, tick the box to agree to them. Then click **Create account**.
+
+        The setup code works only once. As soon as the first account exists, the setup page stops accepting codes. If you see "That setup code isn't valid", check that you copied the whole code. If the setup link takes you to the sign-in page, or you see "This instance has already been set up", someone has already created the first account. Ask them to invite you.
+      </Tab>
+    </Tabs>
+
+    Either way, Metis Suite creates your account and a personal workspace named after you, such as "Ana's workspace". Then it takes you straight to two-factor setup.
+
+  </Step>
+
+  <Step title="Confirm your password">
+    The page **Set up two-factor authentication** opens. It says "Required to protect your Metis Suite account."
+
+    Two-factor authentication means that signing in needs two things: your password and a six-digit code from your phone. Someone who steals your password still cannot get in without your phone.
+
+    Enter the password you just chose and click **Continue**.
+
+    Until you finish this setup, every page in Metis Suite brings you back here.
+
+  </Step>
+
+  <Step title="Scan the QR code">
+    Open your authenticator app on your phone and add a new account. Point the camera at the QR code on the screen.
+
+    If you cannot scan it, click **Can't scan? Show manual key** and type the key into your app instead.
+
+    Your app now shows a six-digit code for Metis Suite. The code keeps changing, so always use the one it shows right now.
+
+  </Step>
+
+  <Step title="Save your backup codes">
+    Below the QR code is a card called **Save these backup codes**. Backup codes let you sign in if you lose your phone. Each one works only once.
+
+    Click **Download .txt** to save them as a file, or **Copy** to paste them somewhere safe, such as a password manager. Do not keep them only on the same phone as your authenticator app.
+
+    When they are saved, click **I've saved my backup codes, continue**.
+
+    :::warning[If you lose your phone]
+    Your backup codes are your way back in if you lose your phone. If you lose both, you cannot get back into your account, and there is no recovery inside Metis Suite. Keep your backup codes safe.
+    :::
+
+  </Step>
+
+  <Step title="Enter a code to finish">
+    Type the six-digit code your authenticator app shows right now, then click **Verify and enable**.
+
+    If you see "Invalid code", wait for your app to show a new code and try again. You can click **Back** to see the QR code again.
+
+    When it works, you see **Two-factor enabled**, and Metis Suite takes you into your workspace.
+
+  </Step>
+
+  <Step title="Look around your first workspace">
+    A workspace is where your mailboxes, calendars and drives live. Your personal workspace is your default, which means signing in always takes you there.
+
+    A new workspace is empty, so you see the page **Nothing in this workspace yet**. It offers an **Add mailbox** button. You can also add a calendar or drive from the settings menu. If you already belong to another workspace, switch to it instead.
+
+    From now on, signing in opens the inbox of your first mailbox. If the workspace has no mailbox, it opens your calendar, and if there is no calendar either, your drive.
+
+  </Step>
+</Steps>
+
+## Next time you sign in
+
+Go to your instance's web address, enter your email and password, and click **Sign in**. Then enter the code from your authenticator app. [Sign in](/guide/account/sign-in) covers this, plus magic links and backup codes.
+
+## Next steps
+
+- [Find your way around](/guide/get-started/find-your-way-around) shows you the main parts of the screen.
+- [Connect your first mailbox](/guide/get-started/connect-your-first-mailbox) brings your email into Metis Suite.

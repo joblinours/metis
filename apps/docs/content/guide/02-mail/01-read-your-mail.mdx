@@ -1,0 +1,184 @@
+---
+title: Read your mail
+description: Find your way around mail, switch mailboxes, open conversations and save attachments to a drive.
+---
+
+Mail is where you read and answer email from every mailbox in your workspace. This page shows you how the screen is laid out, how to move between folders and mailboxes, and how to open messages and their attachments.
+
+When you open mail in a workspace, Metis Suite starts in the Inbox of the first mailbox. If your workspace has no mailbox yet, you see a card that helps you attach one instead. See [Workspaces](/guide/workspaces) to add a mailbox.
+
+## The mail screen
+
+Mail has three columns:
+
+1. **Folders** on the left.
+2. **The message list** in the middle.
+3. **The reading pane** on the right, which shows the message you open.
+
+When no message is open, the list fills the space. You can drag the edge of each column to make it wider or narrower, and Metis Suite remembers the widths. The **Mail AI** panel can open as a fourth column on the right (see [AI help in mail](/guide/mail/ai-help)).
+
+<img
+  src="/images/mail/inbox.png"
+  alt="The inbox with the folder sidebar, the message list and an open message"
+  class="dark:hidden"
+/>
+<img
+  src="/images/mail/inbox-dark.png"
+  alt="The inbox with the folder sidebar, the message list and an open message"
+  class="hidden dark:block"
+/>
+
+On a phone, the screen works one column at a time:
+
+- Tap **Open sidebar** to see your folders.
+- Opening a message replaces the list. Tap **Back** to return to it.
+- The composer fills the whole screen.
+
+## Folders
+
+The sidebar lists, from top to bottom:
+
+1. The mailbox switcher.
+2. The **Compose** button.
+3. The **Mailboxes** section: **Inbox**, **Sent**, **Drafts**, **Starred**, **Trash**, **Read later**, **Snoozed**, **Scheduled**, **Subscriptions**, **Archive** and **Spam**.
+4. The **Labels** section: the eight built-in labels, then any custom labels.
+
+**Scheduled** shows a badge with the number of messages waiting to be sent.
+
+<img
+  src="/images/mail/folders-sidebar.png"
+  alt="The folder sidebar with the Mailboxes and Labels sections"
+  class="dark:hidden"
+/>
+<img
+  src="/images/mail/folders-sidebar-dark.png"
+  alt="The folder sidebar with the Mailboxes and Labels sections"
+  class="hidden dark:block"
+/>
+
+Some folders have their own pages:
+
+- **Read later** and **Snoozed**: see [Snooze and read later](/guide/mail/snooze-and-read-later).
+- **Scheduled**: see [Schedule a send](/guide/mail/schedule-a-send).
+- **Subscriptions**: see [Unsubscribe from mailing lists](/guide/mail/unsubscribe).
+- Clicking a label lists every message with that label, from every folder: see [Find and filter mail](/guide/mail/find-and-filter-mail).
+
+## Switch mailbox
+
+The button at the top of the sidebar shows the mailbox you are in. Click it to open the **Switch mailbox** menu. Each mailbox shows its color mark, provider and address, with a check next to the active one.
+
+- Pick a mailbox to switch to it. You stay in the same folder.
+- **Manage mailboxes** opens your workspace settings, where you add and remove mailboxes.
+
+<img
+  src="/images/mail/switch-mailbox.png"
+  alt="The Switch mailbox menu with the current mailbox checked and Manage mailboxes"
+  class="dark:hidden"
+/>
+<img
+  src="/images/mail/switch-mailbox-dark.png"
+  alt="The Switch mailbox menu with the current mailbox checked and Manage mailboxes"
+  class="hidden dark:block"
+/>
+
+### All inboxes
+
+When your workspace has more than one mailbox, the first item in the menu is **All inboxes** ("Every mailbox in this workspace"). It merges every mailbox into one view.
+
+- Every folder, action and shortcut works in All inboxes.
+- Each message row shows a chip naming its mailbox, so you can tell them apart.
+- If one mailbox fails to load, the others still show, and a banner names the mailbox that could not load.
+
+## The message list
+
+The heading shows the folder name. Under it are the search box, a row of tabs and the list of messages.
+
+Each row shows:
+
+- a checkbox to select the message
+- the sender
+- a star
+- a count when the conversation has more than one message
+- the date
+- the subject and the first words of the message
+- chips for the mailbox (in All inboxes only), the label, and the provider (**Gmail**, **Outlook**, **Zoho** or **Mail**)
+
+Unread messages are tinted and have a colored bar on the left. Messages in the same conversation are grouped into one row that shows the latest message.
+
+The list loads more messages as you scroll down, and shows "end of list" when there are no more. It also checks for new mail on its own about once a minute, and again when you come back to the browser tab. You never need to reload the page. This check does not update the **Unread** or **Starred** tab or a label filter. They refresh when you switch to them from another list. Opening or closing a message does not refresh them.
+
+If a folder has nothing in it, you see **No emails** and a note such as "Your inbox is empty" on the **All** tab, or "Nothing in this filter" on any other tab. With a label filter on, the note follows the tab that is underlined. If the folder has more mail to check, a **Load more** button shows under the note. Click it to check the next batch. On **Unread**, **Starred** or a label filter, grey loading placeholders may show while it checks. See [Find and filter mail](/guide/mail/find-and-filter-mail#tabs).
+
+## Open a message
+
+Click a row, or move to it with the keyboard and press Enter or Space. Opening a message marks it as read.
+
+The reading pane shows:
+
+- the subject, which stays at the top while you scroll
+- the sender's name and address
+- a recipients line, such as **To:** with the first two names. Click it to see the full **To** and **Cc** lists.
+- the date
+- the message itself
+
+A long message is cut short with **Show full message**. Click it to read the rest, and **Show less** to fold it again.
+
+Use **Prev** and **Next** in the toolbar to move through the list without going back to it. **Back** closes the message.
+
+When nothing is open, the pane says **Select a message to read**.
+
+:::note
+Messages in **Trash** show a banner about when they are deleted for good. Gmail, Outlook and Zoho Mail delete them after 30 days. For other mail servers, your mail server decides. Click **Restore** to move a message back to your Inbox.
+:::
+
+## Read a conversation
+
+When a conversation has more than one message, the earlier messages appear as small cards above the open one. Each card shows the sender, the date and the first words. Click a card to expand it and read that message with its own attachments.
+
+## Download an attachment
+
+Attachments are listed below the message under a heading such as **2 attachments**. Each file shows as a card with a paperclip, its name and its size. Clicking the card itself does nothing. Two buttons sit on the right of each card:
+
+- **Download** (the down arrow) saves the file to your computer under its original name.
+- **Save to Drive** (the hard drive with a down arrow) copies the file into a drive. See the next section.
+
+To download a file, click **Download** on its card. The arrow turns into a spinner while the file downloads. If the download fails, a message tells you why, or says "Couldn't download (file)".
+
+## Save an attachment to a drive
+
+You can copy an attachment straight into one of your drives without downloading it first. You need at least one drive that you can see in this workspace. If you have none, or Metis Suite cannot read your drives, the dialog says "Could not read your drives".
+
+<Steps>
+  <Step title="Click Save to Drive on the attachment">
+    It is the second button on the card. A dialog opens: "Choose the folder to save (file name)
+    into."
+  </Step>
+  <Step title="Pick a drive and a folder">
+    Start from **Drives**. Each drive is named after its server or provider and its account email.
+    Click a drive to open it, then click your way into the folder you want. Files show dimmed, and
+    you cannot pick them. Click any name in the path above the list, such as **Drives**, to go back
+    up.
+  </Step>
+  <Step title="Click Save here">
+    **Save here** works as soon as you open a drive, so you can save at the top level of a drive or
+    in any folder inside it. It stays off while you are at **Drives**. If the drive has a [folder
+    restriction](/guide/drive/folder-restrictions) in this workspace, open one of its folders first.
+    Saving at the top level of a restricted drive fails with "We couldn't find that." Click
+    **Cancel** to close the dialog without saving.
+  </Step>
+</Steps>
+
+<img
+  src="/images/mail/save-to-drive.png"
+  alt="The Save to Drive dialog listing the workspace's drives"
+  class="dark:hidden"
+/>
+<img
+  src="/images/mail/save-to-drive-dark.png"
+  alt="The Save to Drive dialog listing the workspace's drives"
+  class="hidden dark:block"
+/>
+
+The dialog closes at once, and the **Save to Drive** button on the card shows a spinner while the file copies. A message confirms it in the form "Saved (file) to (folder)". When you save at the top level of a drive, the folder part is the drive's name, such as "Google Drive · you@example.com".
+
+If the save fails, you see the reason, or "Could not save that attachment".

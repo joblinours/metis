@@ -1,0 +1,162 @@
+name: Desktop apps
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'desktop-v')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      latest: ${{ steps.release.outputs.latest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the tag matches the desktop app version
+        id: release
+        run: .github/scripts/release-version.sh desktop-v apps/desktop/package.json .version
+
+  build:
+    name: ${{ matrix.target }}
+    needs: release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - {
+              os: macos-latest,
+              target: aarch64-apple-darwin,
+              platform: --mac dmg,
+              arch: --arm64,
+              exts: dmg,
+            }
+          - {
+              os: macos-latest,
+              target: x86_64-apple-darwin,
+              platform: --mac dmg,
+              arch: --x64,
+              exts: dmg,
+            }
+          - {
+              os: windows-latest,
+              target: x86_64-pc-windows-msvc,
+              platform: --win nsis,
+              arch: --x64,
+              exts: exe,
+            }
+          - {
+              os: windows-latest,
+              target: aarch64-pc-windows-msvc,
+              platform: --win nsis,
+              arch: --arm64,
+              exts: exe,
+            }
+          - {
+              os: ubuntu-latest,
+              target: x86_64-unknown-linux-gnu,
+              platform: --linux deb rpm,
+              arch: --x64,
+              exts: deb rpm,
+            }
+          - {
+              os: ubuntu-latest,
+              target: aarch64-unknown-linux-gnu,
+              platform: --linux deb rpm,
+              arch: --arm64,
+              exts: deb rpm,
+            }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install rpmbuild
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build the shell
+        run: bun run --cwd apps/desktop build
+
+      - name: Package
+        working-directory: apps/desktop
+        env:
+          SIGN_MACOS: ${{ vars.SIGN_MACOS }}
+          SIGN_WINDOWS: ${{ vars.SIGN_WINDOWS }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          args=(${{ matrix.platform }} ${{ matrix.arch }} --publish never -c.artifactName='metis-suite-${{ matrix.target }}.${ext}')
+          case "$RUNNER_OS" in
+            macOS) sign="$SIGN_MACOS" ;;
+            Windows) sign="$SIGN_WINDOWS" ;;
+            *) sign=false ;;
+          esac
+          if [ "$sign" = true ]; then
+            args+=(-c.forceCodeSigning=true)
+            if [ "$RUNNER_OS" = macOS ]; then args+=(-c.mac.identity="$APPLE_TEAM_ID"); fi
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
+          fi
+          bunx electron-builder "${args[@]}"
+
+      - name: Collect the published files
+        run: |
+          mkdir out
+          for ext in ${{ matrix.exts }}; do
+            mv "apps/desktop/release/metis-suite-${{ matrix.target }}.$ext" out/
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-${{ matrix.target }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    needs: [release, build]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: desktop-*
+          path: out
+          merge-multiple: true
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DOWNLOADS_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DOWNLOADS_R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.DOWNLOADS_R2_BUCKET }}
+          VERSION: ${{ needs.release.outputs.version }}
+          LATEST: ${{ needs.release.outputs.latest }}
+        run: |
+          .github/scripts/r2-upload.sh out "desktop/v$VERSION/" desktop/latest/ \
+            metis-suite-aarch64-apple-darwin.dmg \
+            metis-suite-x86_64-apple-darwin.dmg \
+            metis-suite-x86_64-pc-windows-msvc.exe \
+            metis-suite-aarch64-pc-windows-msvc.exe \
+            metis-suite-x86_64-unknown-linux-gnu.deb \
+            metis-suite-aarch64-unknown-linux-gnu.deb \
+            metis-suite-x86_64-unknown-linux-gnu.rpm \
+            metis-suite-aarch64-unknown-linux-gnu.rpm

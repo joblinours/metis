@@ -1,0 +1,485 @@
+[
+  {
+    "name": "mail/inbox",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      },
+      {
+        "waitFor": "text=TL;DR"
+      }
+    ]
+  },
+  {
+    "name": "mail/folders-sidebar",
+    "clip": { "x": 0, "y": 0, "width": 640, "height": 900 },
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "waitFor": "role=complementary[name=\"Folders\"]"
+      }
+    ]
+  },
+  {
+    "name": "mail/save-to-drive",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=/^Invitation: Rebrand review/"
+      },
+      {
+        "waitFor": "main h2:has-text(\"Invitation: Rebrand review\")"
+      },
+      {
+        "click": "role=button[name=\"Save invite.ics to a drive\"]"
+      },
+      {
+        "waitFor": "role=dialog[name=\"Save to Drive\"] >> role=button[name=/ · /]"
+      }
+    ],
+    "element": "role=dialog[name=\"Save to Drive\"]"
+  },
+  {
+    "name": "mail/search-results",
+    "viewport": { "width": 1440, "height": 320 },
+    "element": "div:has(> div > div > h1:text-is(\"Inbox\"))",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "fill": "role=textbox[name=\"Search emails\"]",
+        "value": "A-42"
+      },
+      {
+        "press": "Enter"
+      },
+      {
+        "waitFor": "main [aria-roledescription=\"draggable\"] >> text=\"Your order A-42 has shipped\""
+      },
+      {
+        "click": "role=heading[level=1][name=\"Inbox\"]"
+      },
+      {
+        "wait": 800
+      }
+    ]
+  },
+  {
+    "name": "mail/change-label-menu",
+    "viewport": { "width": 1440, "height": 440 },
+    "element": "div:has(> div > button[title=\"Previous message\"])",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      },
+      {
+        "click": "div:has(> button[title=\"Previous message\"]) >> role=button[name=\"Change label\"]"
+      },
+      {
+        "waitFor": "role=menu[name=\"Change label\"]"
+      }
+    ]
+  },
+  {
+    "name": "mail/add-label",
+    "viewport": { "width": 1440, "height": 1040 },
+    "clip": { "x": 0, "y": 520, "width": 300, "height": 520 },
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=complementary[name=\"Folders\"] >> role=button[name=\"Add custom label\"]"
+      },
+      {
+        "fill": "role=complementary[name=\"Folders\"] >> role=textbox[name=\"Label name\"]",
+        "value": "Invoices"
+      }
+    ]
+  },
+  {
+    "name": "mail/composer",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=complementary[name=\"Folders\"] >> role=button[name=/^Compose$/]"
+      },
+      {
+        "waitFor": "[aria-modal=\"true\"]:has([aria-label=\"Close compose\"])"
+      },
+      {
+        "fill": "role=combobox[name=\"To recipients\"]",
+        "value": "alex@example.com"
+      },
+      {
+        "press": "Enter"
+      },
+      {
+        "fill": "role=textbox[name=\"Subject line…\"]",
+        "value": "Quarterly report"
+      },
+      {
+        "fill": "[aria-modal=\"true\"]:has([aria-label=\"Close compose\"]) [contenteditable=\"true\"]",
+        "value": "Hi Alex, here is the quarterly report we talked about."
+      },
+      {
+        "click": "[aria-modal=\"true\"]:has([aria-label=\"Close compose\"]) >> role=button[name=/^Cc$/]"
+      },
+      {
+        "waitFor": "role=combobox[name=\"Cc recipients\"]"
+      }
+    ],
+    "element": "[aria-modal=\"true\"]:has([aria-label=\"Close compose\"])"
+  },
+  {
+    "name": "mail/reply-footer",
+    "element": "div:has(> div > button[title=\"Previous message\"])",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      },
+      {
+        "click": "role=button[name=\"Reply 3 smart replies\"]"
+      },
+      {
+        "waitFor": "role=textbox[name=\"Reply text\"]"
+      },
+      {
+        "wait": 600
+      }
+    ]
+  },
+  {
+    "name": "mail/schedule-menu",
+    "viewport": { "width": 820, "height": 820 },
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=complementary[name=\"Folders\"] >> role=button[name=/^Compose$/]"
+      },
+      {
+        "waitFor": "[aria-modal=\"true\"]:has([aria-label=\"Close compose\"])"
+      },
+      {
+        "fill": "role=combobox[name=\"To recipients\"]",
+        "value": "alex@example.com"
+      },
+      {
+        "press": "Enter"
+      },
+      {
+        "fill": "role=textbox[name=\"Subject line…\"]",
+        "value": "Quarterly report"
+      },
+      {
+        "fill": "[aria-modal=\"true\"]:has([aria-label=\"Close compose\"]) [contenteditable=\"true\"]",
+        "value": "Hi Alex, here is the quarterly report we talked about."
+      },
+      {
+        "click": "[aria-modal=\"true\"]:has([aria-label=\"Close compose\"]) >> role=button[name=\"Schedule send\"]"
+      },
+      {
+        "waitFor": "role=menu[name=\"Schedule send\"]"
+      }
+    ]
+  },
+  {
+    "name": "mail/scheduled-folder",
+    "viewport": { "width": 1440, "height": 280 },
+    "element": "div:has(> div > h1:text-is(\"Scheduled\"))",
+    "path": "{workspace}/m/{mailbox}/scheduled",
+    "steps": [
+      {
+        "waitFor": "role=heading[level=2][name=/^Pending/]"
+      }
+    ]
+  },
+  {
+    "name": "mail/snooze-menu",
+    "viewport": { "width": 1440, "height": 360 },
+    "element": "div:has(> div > button[title=\"Previous message\"])",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      },
+      {
+        "click": "div:has(> button[title=\"Previous message\"]) >> role=button[name=/^Snooze/]"
+      },
+      {
+        "waitFor": "role=menu[name=\"Snooze\"]"
+      }
+    ]
+  },
+  {
+    "name": "mail/message-toolbar",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      }
+    ],
+    "element": "div:has(> button[title=\"Previous message\"])"
+  },
+  {
+    "name": "mail/bulk-actions",
+    "viewport": { "width": 1440, "height": 660 },
+    "element": "div:has(> div > div > h1:text-is(\"Inbox\"))",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"]:has-text(\"Your order A-42 has shipped\") >> role=button[name=/^Select$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"]:has-text(\"This week at the shop\") >> role=button[name=/^Select$/]"
+      },
+      {
+        "waitFor": "text=\"2 selected\""
+      }
+    ]
+  },
+  {
+    "name": "mail/subscriptions",
+    "path": "{workspace}/m/{mailbox}/subscriptions",
+    "steps": [
+      {
+        "waitFor": "text=/found in your latest/"
+      }
+    ],
+    "element": "div:has(> div > h1:text-is(\"Subscriptions\"))"
+  },
+  {
+    "name": "mail/blocked-images",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"This week at the shop\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"This week at the shop\")"
+      },
+      {
+        "waitFor": "role=alert >> text=/remote images? blocked/"
+      }
+    ],
+    "element": "main [role=\"alert\"]:has-text(\"remote image\")"
+  },
+  {
+    "name": "mail/tracker-badge",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"This week at the shop\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"This week at the shop\")"
+      },
+      {
+        "click": "role=button[name=/^Blocked \\d+ trackers?/]"
+      },
+      {
+        "waitFor": "text=Removed before the message was shown"
+      }
+    ],
+    "element": "[data-slot=\"popover-content\"]:has-text(\"Removed before the message was shown\")"
+  },
+  {
+    "name": "mail/summary-card",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Your order A-42 has shipped\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Your order A-42 has shipped\")"
+      },
+      {
+        "waitFor": "text=Track package"
+      }
+    ]
+  },
+  {
+    "name": "mail/draft-apology",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      },
+      {
+        "click": "role=button[name=\"More actions\"]"
+      },
+      {
+        "click": "role=menuitem[name=\"Draft apology\"]"
+      },
+      {
+        "fill": "#apology-situation",
+        "value": "missed our call yesterday"
+      },
+      {
+        "click": "role=alertdialog >> role=heading[name=\"Draft an apology\"]"
+      }
+    ],
+    "element": "role=alertdialog"
+  },
+  {
+    "name": "mail/mail-ai-panel",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      },
+      {
+        "click": "role=button[name=\"Toggle AI agent\"]"
+      },
+      {
+        "waitFor": "role=textbox[name=\"Ask about your emails…\"]"
+      },
+      {
+        "wait": 600
+      }
+    ]
+  },
+  {
+    "name": "mail/more-actions",
+    "viewport": { "width": 1440, "height": 360 },
+    "element": "div:has(> div > button[title=\"Previous message\"])",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "click": "role=tab[name=/^All$/]"
+      },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
+      },
+      {
+        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
+      },
+      {
+        "click": "role=button[name=\"More actions\"]"
+      },
+      {
+        "waitFor": "role=menuitem[name=\"View original\"]"
+      }
+    ]
+  },
+  {
+    "name": "mail/shortcuts-help",
+    "element": "role=dialog[name=\"Keyboard shortcuts\"]",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      {
+        "waitFor": "main [aria-roledescription=\"draggable\"]"
+      },
+      {
+        "click": "role=heading[level=1][name=\"Inbox\"]"
+      },
+      {
+        "wait": 500
+      },
+      {
+        "press": "?"
+      },
+      {
+        "waitFor": "role=heading[level=2][name=\"Keyboard shortcuts\"]"
+      },
+      {
+        "click": "role=dialog[name=\"Keyboard shortcuts\"] >> role=heading[level=2]"
+      }
+    ]
+  },
+  {
+    "name": "mail/read-later",
+    "element": "div:has(> div > div > h1:text-is(\"Read later\"))",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      { "clearReadLater": true },
+      { "goto": "{workspace}/m/{mailbox}/inbox" },
+      { "click": "role=tab[name=/^All$/]" },
+      {
+        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Your order A-42 has shipped\""
+      },
+      { "waitFor": "main h2:has-text(\"Your order A-42 has shipped\")" },
+      {
+        "click": "div:has(> button[title=\"Previous message\"]) >> role=button[name=\"Read later\"]"
+      },
+      {
+        "waitFor": "div:has(> button[title=\"Previous message\"]) >> role=button[name=\"Saved\"]"
+      },
+      { "wait": 800 },
+      { "goto": "{workspace}/m/{mailbox}/read-later" },
+      { "waitFor": "role=heading[level=1][name=\"Read later\"]" },
+      {
+        "waitFor": "main [aria-roledescription=\"draggable\"] >> text=\"Your order A-42 has shipped\""
+      }
+    ]
+  },
+  {
+    "name": "mail/switch-mailbox",
+    "path": "{workspace}/m/{mailbox}/inbox",
+    "steps": [
+      { "click": "role=button[name=/^Switch mailbox$/]" },
+      { "waitFor": "role=menuitem[name=/Manage mailboxes/]" }
+    ],
+    "element": ["role=button[name=/^Switch mailbox$/]", "role=menu"]
+  }
+]

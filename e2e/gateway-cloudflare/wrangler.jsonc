@@ -1,0 +1,19 @@
+{
+  "name": "metis-cf-mail",
+  "main": "/app/apps/gateway-cloudflare/src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "send_email": [{ "name": "EMAIL" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "metis-suite",
+      "database_id": "e2e",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "RAW",
+      "bucket_name": "metis-suite-raw",
+    },
+  ],
+}

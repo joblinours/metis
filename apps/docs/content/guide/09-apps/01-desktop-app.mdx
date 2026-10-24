@@ -1,0 +1,114 @@
+---
+title: Desktop app
+description: Sign in to your Metis Suite server from the desktop app, and set how the app starts, downloads files and checks spelling.
+---
+
+The Metis Suite desktop app opens your Metis Suite server in its own window, on macOS, Windows and Linux. Everything you can do in the browser works in the app, with a few extras such as a tray icon and a downloads folder.
+
+To get the app, see [Download the apps](/guide/apps/download). It has the file for each system and the install steps.
+
+## Sign in
+
+<Steps>
+  <Step title="Enter your server address">
+    The first time you open the app, it shows "Connect to your Metis
+    Mail server". Type the address you use in the browser into **Server
+    address**, for example `https://mail.example.com`, and click
+    **Continue**.
+
+    The address must start with `https://`. If the app shows "No Metis
+    server answered at" your address, or "Could not reach that server.",
+    check the address with the person who runs your server.
+
+  </Step>
+
+  <Step title="Sign in with your browser">
+    Click **Sign in with browser**. Your usual browser opens. Sign in there
+    as you normally do, with your password and your two-factor code.
+
+    The app waits and says "Finish signing in in your browser. This window
+    updates on its own." If you closed the browser tab, click **Open the
+    browser again**.
+
+  </Step>
+
+<Step title="Confirm in the browser">
+  The browser shows **Sign in to the Metis app**, with the account you are signed in as. Click
+  **Continue as** your email address, or **Use a different account**. Continue only if you started
+  signing in from the app yourself.
+</Step>
+
+  <Step title="Go back to the app">
+    The browser shows **Back to the app** and opens Metis Suite. If the app
+    does not open on its own, click **Open Metis**.
+  </Step>
+</Steps>
+
+The app has its own sign-in, separate from your browser. Signing out in the browser does not sign the app out, and signing out of the app does not sign the browser out.
+
+Signing in to the app sends its own [sign-in alert](/guide/account/sign-in-alerts) email. It says **Desktop or mobile app, from a signed-in browser** next to **Signed in with**.
+
+If the browser says **Set up two-factor first**, your account has no two-factor authentication yet. Follow **Set up two-factor authentication**, then start again from the app. If it says **Link not valid**, start signing in again from the app.
+
+## What works in the app
+
+- **All of Metis Suite:** mail, calendar, drive, the assistant and workflows, just as in the browser.
+- **Connecting accounts:** connecting a Google, Microsoft or Zoho account opens your browser, then returns to the app.
+- **Links** to other websites open in your browser.
+- **Downloads** ask where to save, or go straight to a folder you choose in the app settings. Google Drive downloads open in your browser.
+- **Printing** and viewing a message's original source stay in the app.
+- **When you go offline,** the window title says so. The app shows **You're offline** and reconnects when your network comes back. If your network works but the server does not answer, it shows **Can't reach the server**. Click **Try again** to check.
+- **The app remembers** its window size and position. With **Open where you left off** on, it reopens the last page you had open.
+
+## Menus and shortcuts
+
+| Menu      | Items                                                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **File**  | **Home**, **Settings…** (Ctrl+, or Cmd+,), **Sign out**, **Change server…**, **Quit** (Ctrl+Q)                            |
+| **View**  | **Reload**, **Actual Size** (Ctrl+0 or Cmd+0), **Zoom In** (Ctrl+= or Cmd+=), **Zoom Out** (Ctrl+- or Cmd+-), full screen |
+| Tray icon | **Show Metis Suite**, **Settings…**, **Quit**                                                                             |
+
+Zoom goes from 50% to 300%, in steps of 10%.
+
+## App settings
+
+Open the settings from your initials in the left rail, then **App settings**. You can also use **Settings…** in the **File** menu or the tray menu, or the **Settings** link on the sign-in and offline screens. **App settings** appears in the menu only inside the app.
+
+### General
+
+"How Metis Suite starts and closes on this computer."
+
+| Setting                     | Default |
+| --------------------------- | ------- |
+| **Open when you log in**    | Off     |
+| **Start in the background** | Off     |
+| **Close to tray**           | Off     |
+| **Open where you left off** | On      |
+
+On Linux with GNOME, the tray icon needs the AppIndicator extension. Ubuntu turns it on by default.
+
+### Server
+
+Shows the server address. **Change server…** connects the app to a different Metis Suite server. **Sign out** signs this app out; your browser stays signed in.
+
+### Downloads
+
+- **When a download starts:** **Ask where to save** (the default) or **Save to a folder**. Click **Change…** to pick the folder.
+- **Notify when a download finishes:** on by default. The notification says "Download complete".
+
+### Spelling
+
+Not shown on macOS.
+
+- **Check spelling while typing:** on by default.
+- **Languages:** pick up to 10. Type in the filter box to find one.
+
+### Advanced
+
+- **Hardware acceleration:** on by default. Turn it off if the window flickers or stays blank, then click **Restart now**.
+- **Clear cache:** clears the app's cache. You stay signed in.
+- **Reset the app:** signs you out, forgets the server and restores every setting to its default. The app asks "Reset Metis Suite?" first.
+
+### About
+
+The app's version, and the Electron and Chromium versions it runs on. **Log file** has a **Show** button that shows you the app's log file, which helps when you report a problem.

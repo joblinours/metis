@@ -1,0 +1,9 @@
+:root {
+  --blume-foreground: oklch(0.28 0.02 260);
+  --blume-muted-foreground: oklch(0.5 0.02 260);
+}
+
+:root[data-theme="dark"] {
+  --blume-foreground: oklch(0.97 0.01 260);
+  --blume-muted-foreground: oklch(0.82 0.02 260);
+}

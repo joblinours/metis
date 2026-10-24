@@ -1,0 +1,25 @@
+{
+  "name": "@metis/gateway-resend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "start": "bun run src/server.ts",
+    "db:apply": "bun run scripts/apply-schema.ts",
+    "token": "metis-gateway-token",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@metis/gateway-contract": "workspace:*",
+    "aws4fetch": "^1.0.20",
+    "postgres": "^3.4.9",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,385 @@
+@import "@metis/ui/globals.css";
+@import "./brands.css";
+
+.drive-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  height: 1rem;
+  width: 1rem;
+  background-image: var(--drive-icon-light);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.dark .drive-icon {
+  background-image: var(--drive-icon-dark);
+}
+
+.chart-surface {
+  color: var(--text-secondary);
+  --ts-chart-1: var(--chart-1);
+  --ts-chart-2: var(--chart-2);
+  --ts-chart-3: var(--chart-3);
+  --ts-chart-4: var(--chart-4);
+  --ts-chart-5: var(--chart-5);
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  color: var(--text-faint);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.tiptap:focus {
+  outline: none;
+}
+
+.tiptap p {
+  margin: 0 0 0.6em;
+}
+.tiptap p:last-child {
+  margin-bottom: 0;
+}
+.tiptap ul,
+.tiptap ol {
+  margin: 0.4em 0 0.8em;
+  padding-left: 1.5em;
+}
+.tiptap ul {
+  list-style: disc;
+}
+.tiptap ol {
+  list-style: decimal;
+}
+.tiptap ul ul {
+  list-style: circle;
+}
+.tiptap ul ul ul {
+  list-style: square;
+}
+.tiptap li {
+  margin: 0.15em 0;
+}
+.tiptap li > p {
+  margin: 0;
+}
+.tiptap a {
+  color: var(--brand-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tiptap blockquote {
+  margin: 0.6em 0;
+  padding-left: 1em;
+  border-left: 2px solid var(--border);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.tiptap code {
+  font-family: var(--font-mono);
+  background: var(--bg-hover);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+.tiptap pre {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 0.6em 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.tiptap pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+.tiptap h1,
+.tiptap h2,
+.tiptap h3 {
+  font-weight: 600;
+  margin: 0.8em 0 0.4em;
+  line-height: 1.25;
+}
+.tiptap h1 {
+  font-size: 1.5em;
+}
+.tiptap h2 {
+  font-size: 1.3em;
+}
+.tiptap h3 {
+  font-size: 1.1em;
+}
+.tiptap hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1em 0;
+}
+.tiptap strong {
+  font-weight: 600;
+}
+.tiptap em {
+  font-style: italic;
+}
+.tiptap u {
+  text-decoration: underline;
+}
+
+.search-query .ProseMirror {
+  white-space: pre;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.search-query .ProseMirror p {
+  margin: 0;
+}
+
+.search-query .sq-key {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.search-query .sq-operator,
+.search-query .sq-paren {
+  color: var(--muted-foreground);
+}
+
+.search-query .sq-value {
+  color: var(--chart-2);
+}
+
+.search-query .sq-quoted {
+  color: var(--chart-3);
+}
+
+.search-query .sq-range,
+.search-query .sq-regex {
+  color: var(--chart-5);
+}
+
+.search-query .sq-boolean {
+  color: var(--chart-4);
+  font-weight: 600;
+}
+
+.search-query .sq-negation {
+  color: var(--destructive-text);
+  font-weight: 600;
+}
+
+.search-query .sq-paren-match {
+  background: color-mix(in oklab, var(--primary) 22%, transparent);
+  border-radius: 2px;
+}
+
+.search-query .sq-invalid {
+  text-decoration: underline wavy var(--destructive-text);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+
+.resize-handle {
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.resize-handle:hover,
+.resize-handle.dragging {
+  background-color: var(--brand);
+}
+
+.markdown-msg ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.drive-markdown > * + * {
+  margin-top: 0.8em;
+}
+.drive-markdown h1,
+.drive-markdown h2,
+.drive-markdown h3,
+.drive-markdown h4 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 1.4em;
+}
+.drive-markdown h1 {
+  font-size: 1.6em;
+}
+.drive-markdown h2 {
+  font-size: 1.3em;
+}
+.drive-markdown h3 {
+  font-size: 1.1em;
+}
+.drive-markdown ul,
+.drive-markdown ol {
+  padding-left: 1.5em;
+}
+.drive-markdown ul {
+  list-style: disc;
+}
+.drive-markdown ol {
+  list-style: decimal;
+}
+.drive-markdown li + li {
+  margin-top: 0.2em;
+}
+.drive-markdown a {
+  color: var(--brand-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.drive-markdown blockquote {
+  padding-left: 1em;
+  border-left: 2px solid var(--border);
+  color: var(--text-secondary);
+}
+.drive-markdown code {
+  font-family: var(--font-mono);
+  background: var(--bg-hover);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.drive-markdown pre {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.drive-markdown pre code {
+  background: none;
+  padding: 0;
+}
+.drive-markdown table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.drive-markdown th,
+.drive-markdown td {
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+}
+.drive-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.drive-markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+.pdf-page {
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+.pdf-page .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  text-align: initial;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.pdf-page .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.pdf-page .textLayer > :not(.markedContent),
+.pdf-page .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.pdf-page .textLayer .markedContent {
+  display: contents;
+}
+.pdf-page .textLayer ::selection {
+  background: color-mix(in srgb, AccentColor, transparent 50%);
+  color: transparent;
+}
+.pdf-page .textLayer br::selection {
+  background: transparent;
+}
+.pdf-page .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+}
+.pdf-page .textLayer.selecting .endOfContent {
+  top: 0;
+}
+
+@keyframes metis-flash {
+  0%,
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+  25%,
+  75% {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft);
+  }
+}
+
+.metis-flash {
+  animation: metis-flash 1s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metis-flash {
+    animation: none;
+    border-color: var(--brand);
+  }
+}
+
+@keyframes obsidian-slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.metis-datetime::-webkit-calendar-picker-indicator {
+  display: none;
+  opacity: 0;
+}
+.metis-datetime {
+  -webkit-appearance: none;
+  appearance: none;
+}

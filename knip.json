@@ -1,0 +1,10 @@
+{
+  "workspaces": {
+    "apps/web": {
+      "ignore": ["src/components/ai-elements/**"]
+    },
+    "packages/ui": {
+      "ignore": ["src/components/**"]
+    }
+  }
+}

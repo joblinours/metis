@@ -1,0 +1,273 @@
+[
+  {
+    "name": "workflows/workflows-page",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1440, "height": 1100 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Label rebrand mail\"s]" },
+      { "click": "role=button[name=\"Label rebrand mail\"s]" },
+      { "waitFor": ".react-flow__node[data-id=\"rebrand\"]" },
+      { "click": "role=application >> role=button[name=\"Fit View\"]" },
+      { "hover": ".react-flow__minimap" },
+      { "wait": 600 }
+    ]
+  },
+  {
+    "name": "workflows/new-workflow-menu",
+    "path": "{workspace}/workflow",
+    "steps": [
+      { "waitFor": "role=button[name=\"New workflow\"s]" },
+      { "click": "role=button[name=\"New workflow\"s]" },
+      {
+        "waitFor": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"One mailbox, on arrival\"s]"
+      }
+    ],
+    "element": ["role=button[name=\"New workflow\"s]", "role=menu[name=\"New workflow\"s]"]
+  },
+  {
+    "name": "workflows/first-workflow-canvas",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1440, "height": 1100 },
+    "steps": [
+      { "waitFor": "role=button[name=\"New workflow\"s]" },
+      { "click": "role=button[name=\"New workflow\"s]" },
+      {
+        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"One mailbox, on arrival\"s]"
+      },
+      { "waitFor": "role=button[name=\"Create workflow\"s]" },
+      { "waitFor": ".react-flow__node-condition" },
+      { "click": "role=application >> role=button[name=\"Fit View\"]" },
+      {
+        "fill": "role=application >> role=textbox[name=\"value\"s]",
+        "value": "news@example.com"
+      },
+      {
+        "fill": "role=textbox[name=\"Untitled workflow\"s]",
+        "value": "Archive newsletters"
+      },
+      { "hover": ".react-flow__minimap" },
+      { "wait": 600 }
+    ]
+  },
+  {
+    "name": "workflows/add-step-menu",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 2200, "height": 900 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Add step\"s]" },
+      { "click": "role=button[name=\"Add step\"s]" },
+      {
+        "waitFor": "role=menu[name=\"Add step\"s] >> role=menuitem[name=\"Branch\"s]"
+      }
+    ],
+    "clip": { "x": 280, "y": 0, "width": 560, "height": 600 }
+  },
+  {
+    "name": "workflows/workflow-canvas",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1440, "height": 1100 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Morning newsletter sweep\"s]" },
+      { "click": "role=button[name=\"Morning newsletter sweep\"s]" },
+      { "waitFor": ".react-flow__node[data-id=\"daily\"]" },
+      { "waitFor": "role=button[name=\"Run now\"s]" },
+      { "click": "role=application >> role=button[name=\"Fit View\"]" },
+      { "hover": ".react-flow__minimap" },
+      { "wait": 600 }
+    ]
+  },
+  {
+    "name": "workflows/schedule-trigger",
+    "path": "{workspace}/workflow",
+    "steps": [
+      { "waitFor": "role=button[name=\"Morning newsletter sweep\"s]" },
+      { "click": "role=button[name=\"Morning newsletter sweep\"s]" },
+      {
+        "waitFor": ".react-flow__node[data-id=\"daily\"] >> text=\"Cron (5 fields)\""
+      },
+      { "wait": 400 }
+    ],
+    "element": ".react-flow__node[data-id=\"daily\"]"
+  },
+  {
+    "name": "workflows/if-step",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1440, "height": 1800 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Label rebrand mail\"s]" },
+      { "click": "role=button[name=\"Label rebrand mail\"s]" },
+      { "waitFor": ".react-flow__node[data-id=\"rebrand\"]" },
+      { "click": ".react-flow__node[data-id=\"rebrand\"] >> text=\"If\"" },
+      { "wait": 400 }
+    ],
+    "element": ".react-flow__node[data-id=\"rebrand\"]"
+  },
+  {
+    "name": "workflows/combine-workflow",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1440, "height": 1100 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Collect rebrand and GitHub mail\"s]" },
+      { "click": "role=button[name=\"Collect rebrand and GitHub mail\"s]" },
+      { "waitFor": ".react-flow__node[data-id=\"append\"]" },
+      { "click": "role=application >> role=button[name=\"Fit View\"]" },
+      { "hover": ".react-flow__minimap" },
+      { "wait": 600 }
+    ]
+  },
+  {
+    "name": "workflows/ask-step",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1440, "height": 3700 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Triage with the decision model\"s]" },
+      { "click": "role=button[name=\"Triage with the decision model\"s]" },
+      {
+        "waitFor": ".react-flow__node[data-id=\"ask\"] >> text=\"Send to the model\""
+      },
+      { "click": ".react-flow__node[data-id=\"ask\"] >> text=\"Ask\"" },
+      { "wait": 600 }
+    ],
+    "element": ".react-flow__node[data-id=\"ask\"]"
+  },
+  {
+    "name": "workflows/branch-step",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1920, "height": 4300 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Triage with the decision model\"s]" },
+      { "click": "role=button[name=\"Triage with the decision model\"s]" },
+      {
+        "waitFor": ".react-flow__node[data-id=\"team\"] >> text=\"Take the top answer at 60%\""
+      },
+      { "click": ".react-flow__node[data-id=\"team\"] >> text=\"Branch\"" },
+      { "wait": 600 }
+    ],
+    "element": ".react-flow__node[data-id=\"team\"]"
+  },
+  {
+    "name": "workflows/delete-dialog",
+    "path": "{workspace}/workflow",
+    "steps": [
+      { "waitFor": "role=button[name=\"Morning newsletter sweep\"s]" },
+      { "click": "role=button[name=\"Morning newsletter sweep\"s]" },
+      { "waitFor": "role=button[name=\"Delete workflow\"s]" },
+      { "click": "role=button[name=\"Delete workflow\"s]" },
+      { "waitFor": "role=alertdialog[name=\"Delete this workflow?\"s]" },
+      { "wait": 400 }
+    ],
+    "element": "role=alertdialog[name=\"Delete this workflow?\"s]"
+  },
+  {
+    "name": "workflows/activity",
+    "viewport": { "width": 1100, "height": 740 },
+    "path": "{workspace}/workflow/history",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Workflow activity\"s]" },
+      {
+        "waitFor": "role=listitem >> role=link >> text=\"Label rebrand mail\""
+      },
+      { "wait": 400 }
+    ]
+  },
+  {
+    "name": "workflows/run-detail",
+    "path": "{workspace}/workflow/history",
+    "viewport": { "width": 1100, "height": 1050 },
+    "steps": [
+      {
+        "waitFor": "role=listitem >> role=link >> text=\"Label rebrand mail\""
+      },
+      { "click": "role=listitem >> role=link >> text=\"Label rebrand mail\"" },
+      { "waitFor": "role=heading[level=1][name=\"Label rebrand mail\"s]" },
+      { "waitFor": "role=group[name=/^Apply label: /]" },
+      { "click": "role=group[name=/^Apply label: /]" },
+      { "waitFor": "role=region[name=\"Selected step\"s]" },
+      { "wait": 600 }
+    ]
+  },
+  {
+    "name": "workflows/run-selected-step",
+    "path": "{workspace}/workflow/history",
+    "steps": [
+      {
+        "waitFor": "role=listitem >> role=link >> text=\"Label rebrand mail\""
+      },
+      { "click": "role=listitem >> role=link >> text=\"Label rebrand mail\"" },
+      { "waitFor": "role=heading[level=1][name=\"Label rebrand mail\"s]" },
+      { "waitFor": "role=group[name=/^Apply label: /]" },
+      { "click": "role=group[name=/^Apply label: /]" },
+      { "waitFor": "role=region[name=\"Selected step\"s] >> role=listitem" },
+      { "scroll": "role=region[name=\"Selected step\"s]" },
+      { "wait": 400 }
+    ],
+    "element": "role=region[name=\"Selected step\"s]"
+  },
+  {
+    "name": "workflows/try-on-recent-mail",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1920, "height": 1300 },
+    "steps": [
+      { "waitFor": "role=button[name=\"Triage with the decision model\"s]" },
+      { "click": "role=button[name=\"Triage with the decision model\"s]" },
+      { "waitFor": ".react-flow__node[data-id=\"ask\"]" },
+      { "click": "role=application >> role=button[name=\"Fit View\"]" },
+      {
+        "click": "role=application >> role=button[name=\"Try on recent mail\"s]"
+      },
+      {
+        "click": "role=dialog[name=\"Try on recent mail\"] >> role=button[name=\"Ask\"s]"
+      },
+      { "waitFor": "role=dialog[name=\"Try on recent mail\"] >> text=\"Q1:\"" },
+      { "wait": 600 }
+    ]
+  },
+  {
+    "name": "workflows/bcc-steps",
+    "path": "{workspace}/workflow",
+    "viewport": { "width": 1800, "height": 1100 },
+    "steps": [
+      { "waitFor": "role=button[name=\"New workflow\"s]" },
+      { "click": "role=button[name=\"New workflow\"s]" },
+      {
+        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"One mailbox, on arrival\"s]"
+      },
+      { "waitFor": ".react-flow__node-condition" },
+      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
+      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
+      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
+      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
+      { "click": "role=button[name=\"Add step\"s]" },
+      {
+        "click": "role=menu[name=\"Add step\"s] >> role=menuitem[name=\"Before a message is sent\"s]"
+      },
+      { "click": "role=button[name=\"Add step\"s]" },
+      {
+        "click": "role=menu[name=\"Add step\"s] >> role=menuitem[name=\"Auto-BCC\"s]"
+      },
+      {
+        "fill": "role=application >> role=textbox[name=\"archive@example.com\"]",
+        "value": "archive@example.com"
+      },
+      { "click": "role=textbox[name=\"Untitled workflow\"s]" },
+      { "wait": 600 }
+    ],
+    "element": [
+      ".react-flow__node:has-text(\"Before a message is sent\")",
+      ".react-flow__node:has-text(\"Auto-BCC\")"
+    ]
+  },
+  {
+    "name": "workflows/new-mail-trigger",
+    "path": "{workspace}/workflow",
+    "steps": [
+      { "waitFor": "role=button[name=\"File new mail from Raj\"s]" },
+      { "click": "role=button[name=\"File new mail from Raj\"s]" },
+      {
+        "waitFor": ".react-flow__node[data-id=\"arrives\"] >> text=/^Watching /"
+      },
+      { "wait": 400 }
+    ],
+    "element": ".react-flow__node[data-id=\"arrives\"]"
+  }
+]

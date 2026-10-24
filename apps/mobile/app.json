@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "Metis Suite",
+    "slug": "metis-suite",
+    "version": "0.1.0",
+    "scheme": "metis-suite",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "email.trymetis.suite",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "email.trymetis.suite",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-font",
+        {
+          "ios": {
+            "fonts": [
+              "./node_modules/@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf",
+              "./node_modules/@expo-google-fonts/dm-sans/500Medium/DMSans_500Medium.ttf",
+              "./node_modules/@expo-google-fonts/dm-sans/600SemiBold/DMSans_600SemiBold.ttf",
+              "./node_modules/@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf"
+            ]
+          },
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "DM Sans",
+                "fontDefinitions": [
+                  {
+                    "path": "./node_modules/@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./node_modules/@expo-google-fonts/dm-sans/500Medium/DMSans_500Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./node_modules/@expo-google-fonts/dm-sans/600SemiBold/DMSans_600SemiBold.ttf",
+                    "weight": 600
+                  }
+                ]
+              },
+              {
+                "fontFamily": "DM Mono",
+                "fontDefinitions": [
+                  {
+                    "path": "./node_modules/@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf",
+                    "weight": 400
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "./plugins/with-loopback-cleartext.js"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -1,0 +1,97 @@
+---
+title: Connect your first mailbox
+description: Bring your email into Metis Suite, from an empty workspace to a working inbox.
+---
+
+In this tutorial you connect your first mailbox and open it in Metis Suite. You start from a workspace that has nothing in it yet. By the end, you will be reading your own mail, and you can let the AI assistant read it too if you want.
+
+You need a Metis Suite account with two-factor authentication set up. If you do not have one yet, start with the first pages of [Get started](/guide/get-started).
+
+<Steps>
+  <Step title="Open the empty workspace">
+    When a workspace has no mailbox, calendar or drive, opening it shows a page titled "Nothing in this workspace yet". This is where a brand new account lands after you sign in, and where a workspace you just created opens.
+
+    This page is the workspace's **Mailboxes** settings page. To come back to it later, open the workspace menu at the top of the left rail and choose **Mailboxes**.
+
+  </Step>
+
+  <Step title="Click Add mailbox">
+    Click **Add mailbox**. The **Add a mailbox** dialog opens.
+
+    If you have already connected other mailboxes, they are listed here. Click one to add it to this workspace, and skip to the step "Open your inbox". If you have none yet, the dialog may still say "Every mailbox on your account is already here." That is expected: continue with the next step.
+
+    <img src="/images/workspaces/add-mailbox-dialog.png" alt="The Add a mailbox dialog" class="dark:hidden" />
+    <img src="/images/workspaces/add-mailbox-dialog-dark.png" alt="The Add a mailbox dialog" class="hidden dark:block" />
+
+  </Step>
+
+  <Step title="Connect a new mailbox">
+    Click **Connect a new mailbox**. The dialog lists the mail providers and servers your instance owner has set up.
+
+    <img src="/images/workspaces/connect-mailbox-providers.png" alt="The Connect a mailbox dialog listing the providers and servers you can use" class="dark:hidden" />
+    <img src="/images/workspaces/connect-mailbox-providers-dark.png" alt="The Connect a mailbox dialog listing the providers and servers you can use" class="hidden dark:block" />
+
+    If the one you need is not in the list, ask your instance owner to add it.
+
+  </Step>
+
+  <Step title="Pick your provider and sign in">
+    How you sign in depends on what you pick.
+
+    <Tabs>
+      <Tab title="Gmail, Outlook or Zoho Mail">
+        Click **Gmail**, **Outlook** or **Zoho Mail**. Metis Suite sends you to the provider's own sign-in page. Sign in there and allow Metis Suite to access your mail.
+
+        Finish within 10 minutes. When you are done, you land straight in the new mailbox's inbox, already added to the workspace.
+      </Tab>
+      <Tab title="A mail server login">
+        Click your mail server. Its button shows the name your instance owner gave it. A login form opens.
+
+        <img src="/images/workspaces/imap-login-form.png" alt="The login form for an IMAP mail server" class="dark:hidden" />
+        <img src="/images/workspaces/imap-login-form-dark.png" alt="The login form for an IMAP mail server" class="hidden dark:block" />
+
+        Fill in your **Email address** and **Password**. Fill in **Username** only if it differs from your email address. If your outgoing mail uses a separate login, turn on **SMTP uses a different login** and fill in those details too.
+
+        For a Cloudflare Email or Resend mailbox, the form asks for a **Mailbox token** instead. Your server operator gives you this token.
+
+        Click **Connect mailbox**. Metis Suite checks your login before it saves anything. When it works, you see "Mailbox connected". The new mailbox appears in the workspace's list. If it does not show yet, reload the page.
+      </Tab>
+    </Tabs>
+
+    :::tip[If the provider sign-in does not finish]
+    If something goes wrong at the provider, you land in your default workspace without a message, and no mailbox is added. Start again from **Add mailbox**.
+    :::
+
+    If a server login fails, a message tells you why, for example "That server rejected the username or password." Check your details and try again. For every message, see [Connect an account](/guide/workspaces/connect-an-account#if-the-connection-fails).
+
+  </Step>
+
+  <Step title="Open your inbox">
+    If you signed in with Gmail, Outlook or Zoho Mail, you are already in your inbox. Otherwise, click **Inbox** in the left rail.
+
+    Your mail appears in the message list. Click a message to read it.
+
+    <img src="/images/get-started/first-inbox.png" alt="The inbox of a newly connected mailbox" class="dark:hidden" />
+    <img src="/images/get-started/first-inbox-dark.png" alt="The inbox of a newly connected mailbox" class="hidden dark:block" />
+
+  </Step>
+
+  <Step title="Turn AI on for the mailbox (optional)">
+    A new mailbox starts with AI turned off, so the assistant cannot read it. If your instance has AI set up and you want to use it with this mailbox:
+
+    1. Open the workspace menu at the top of the left rail and choose **Mailboxes**.
+    2. Click the robot icon on the mailbox's row. Its label reads "AI is off for this mailbox here".
+    3. Enter the code from your authenticator app and click **Turn AI on**.
+
+    This turns AI on for this mailbox in this workspace only. You can turn it off again at any time, and that needs no code.
+
+  </Step>
+</Steps>
+
+## Next steps
+
+Your mailbox is connected, and it stays yours: you can add it to other workspaces too.
+
+- Learn to read, write and organize your mail in [Mail](/guide/mail).
+- Add a calendar or a drive the same way, from **Calendars** or **Drives** in the workspace menu. See [Add and remove resources](/guide/workspaces/add-resources).
+- Invite your team to the workspace. Everyone in the workspace sees this mailbox. See [Workspaces and accounts](/guide/workspaces).

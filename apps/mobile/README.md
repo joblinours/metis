@@ -1,0 +1,20 @@
+# Metis Suite mobile
+
+An Expo app (iOS and Android) that is a window onto your own Metis instance, the same way the desktop app is. It bundles nothing of Metis: sign-in and account connections happen in the system browser and come back through `metis-suite://` deep links. AGENTS.md §4.13 describes how it maps onto the desktop app.
+
+It needs a development build. Expo Go cannot register the `metis-suite://` scheme or load the app's own native module (`modules/metis-shell`).
+
+```sh
+bun install                       # from the repository root
+cd apps/mobile
+bun run android                   # prebuild, compile and install on a running emulator or device
+bun run dev                       # start Metro for an installed development build
+```
+
+`bun run android` needs `ANDROID_HOME` pointing at the Android SDK, `adb` on `PATH`, and **Gradle running on JDK 17** (`JAVA_HOME`, or `-Dorg.gradle.java.home=…`). On JDK 24 and later the native CMake configure steps fail: the JVM prints a restricted-method warning to stderr and the Android Gradle plugin treats it as an error. The first build installs NDK 27.1 into the SDK and downloads a few GB of dependencies; an emulator needs only `-PreactNativeArchitectures=x86_64`, which `expo run:android` sets for the connected device. iOS builds (`bun run ios`) need macOS with Xcode.
+
+The instance must be reachable over `https://`, except on `localhost` during development. Android allows plain HTTP only for `localhost` and `127.0.0.1` (`plugins/with-loopback-cleartext.js`), so on an emulator run `adb reverse tcp:3000 tcp:3000` and enter `http://localhost:3000`. The e2e harness (`bun run --cwd e2e up`) serves a seeded instance there: sign in as `ana@harness.test` / `ana-account-password-0001`, with the current TOTP from `curl -s http://localhost:8099/totp`.
+
+In a development build a sign-in link that cold-starts the app lands on the dev launcher instead of the app; start sign-in with the app already open, so the link reaches it. A release build has no launcher.
+
+The screens (loading, setup, sign-in, offline and settings) are React Native components styled with Uniwind, and the primitives in `components/ui` come from React Native Reusables (`bunx @react-native-reusables/cli add --styling-library uniwind <name>`). `@metis/ui` is not used: its components render DOM.
