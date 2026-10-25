@@ -25,7 +25,7 @@ Report back, per feature:
 Then list, separately, everything you saw that must stay out of customer docs:
 
 - internal module, file, table, queue or service names; database or cache drivers; code symbols
-- anything in `TODO.md`, `plans/`, `E2E_MISSES.md`, or `TODO`/`FIXME` notes; planned or unbuilt work, including Metis Cloud
+- anything in `E2E_MISSES.md` or `TODO`/`FIXME` notes; planned or unbuilt work, including Metis Cloud
 - test fixtures, harness names, recorded model data, private repository links, employee names
 - how security controls work inside (key formats, encryption layout, SSRF guards); keep only what the customer sees
 

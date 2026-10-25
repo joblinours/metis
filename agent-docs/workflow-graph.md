@@ -76,6 +76,7 @@ See also [AGENTS.md](../AGENTS.md), [workflow-runtime.md](workflow-runtime.md), 
 ### Built-ins
 
 - **Built-ins (send later, snooze, CIMD prune, auto-BCC) are ordinary workflows** with the graphs below.
+- **`ensureSystemWorkflows` upserts the system workflows one at a time**, because the `local` driver fails two overlapping writes in one process and then keeps the write lock, so every later write of that process fails ([database.md](database.md)).
 - **A snooze restore follows only a checkpointed archive.** The snooze definition is saved disabled and the tick enables it only when the archive node checkpoints, and `discoverOnce` refuses to fire a snooze wake without that checkpoint.
 - **A snooze follows its message when archiving gives it a new id.**
   - The archive and restore steps run through `moveAction`, which passes the moved id downstream ([mail.md](mail.md)).

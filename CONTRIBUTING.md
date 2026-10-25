@@ -112,13 +112,7 @@ Best effort. AstraQ is a small team. We aim to respond to new issues
 and pull requests within seven days. If you have not heard back after
 two weeks, feel free to ping the issue politely.
 
-## Commercial licensing and proprietary modules
-
-The Metis Suite enterprise modules (SSO connectors, SCIM provisioning,
-advanced audit log, custom domain routing, branding, billing) are
-maintained in a separate private repository and are not accepting
-public contributions. If you have an enterprise feature idea, open a
-discussion or contact contact@astraqcyberdefence.com.
+## Proprietary modules
 
 The AstraQ phishing-backend is a separate proprietary product and is
 not part of this repository.

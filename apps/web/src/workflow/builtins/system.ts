@@ -36,22 +36,20 @@ function maintenanceGraph(cron: string, operation: SystemOperation): WorkflowGra
 let ensured: Promise<void> | null = null;
 
 export function ensureSystemWorkflows(): Promise<void> {
-  ensured ??= Promise.all([
-    upsertSystemDefinition({
+  ensured ??= (async () => {
+    await upsertSystemDefinition({
       id: CIMD_PRUNE_ID,
       name: "Prune abandoned MCP clients",
       graph: maintenanceGraph("0 * * * *", "cimd-prune"),
-    }),
-    upsertSystemDefinition({
+    });
+    await upsertSystemDefinition({
       id: AUDIT_PRUNE_ID,
       name: "Prune expired audit events",
       graph: maintenanceGraph("30 3 * * *", "audit-prune"),
-    }),
-  ])
-    .then(() => undefined)
-    .catch((err) => {
-      ensured = null;
-      throw err;
     });
+  })().catch((err) => {
+    ensured = null;
+    throw err;
+  });
   return ensured;
 }

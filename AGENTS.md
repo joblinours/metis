@@ -1,7 +1,6 @@
 # Metis Suite — agent rules
 
 > The hard constraints every change follows. Domain detail lives in [`agent-docs/`](agent-docs/) (index in §7): read the doc for the domain you touch before changing it.
-> Pending work and open bugs are in [TODO.md](TODO.md).
 
 ## 1. The project
 

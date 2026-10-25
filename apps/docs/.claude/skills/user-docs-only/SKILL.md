@@ -10,7 +10,7 @@ Every page under `apps/docs/content/` is public. It is read by customers who hav
 ## Never publish
 
 - Code symbols, file paths, module, table, queue or service names, and internal driver names
-- Anything from `TODO.md`, `plans/`, `E2E_MISSES.md`, or `TODO` / `FIXME` / `HACK` notes
+- Anything from `E2E_MISSES.md`, or `TODO` / `FIXME` / `HACK` notes
 - Planned, unbuilt or unreleased work, including Metis Cloud
 - Test fixtures and harness names (`harness.test`, `Harness Mail`, recorded model data) in prose
 - Employee names, ticket numbers, private repository links or chat channels
