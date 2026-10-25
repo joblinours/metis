@@ -87,6 +87,9 @@ Every external MCP client registered on the instance: **Clients**, **Enabled** a
 
 "Security-relevant changes by every user on this instance."
 
+<img src="/images/self-hosting/dashboard-audit.png" alt="The Audit log page with the All events card, the search box, the event type list and the empty state" class="dark:hidden" />
+<img src="/images/self-hosting/dashboard-audit-dark.png" alt="The Audit log page with the All events card, the search box, the event type list and the empty state" class="hidden dark:block" />
+
 The **All events** card lists changes such as turned-off two-factor authentication, turned-off sign-in alerts, approved MCP clients, disconnected accounts, removed or detached mailboxes, calendars and drives, role changes, removed members, ownership transfers, invites, and deleted workspaces and accounts. The full list of what is recorded is in [Security activity](/guide/account/security-activity#what-is-recorded). Each change is recorded after it succeeds. Reading mail, events or files is never recorded.
 
 Each row shows:
@@ -96,7 +99,31 @@ Each row shows:
 - Who made it ("by" and their email address), and the workspace's name when there is one.
 - The date and time, and the IP address and device it came from, when known.
 
-The newest change is at the top, 50 at a time. Click **Load more** for older ones. The log has no filters or search, and it cannot be edited from the app. If nothing has been recorded yet, the card says "No audit events yet."
+The newest change is at the top, 50 at a time. Click **Load more** for older ones. The log cannot be edited from the app. If nothing has been recorded yet, the card says "No audit events yet."
+
+### Search and filter the audit log
+
+Above the list are a search box ("Search events") and a list of event types, which starts at **All events**.
+
+- **Search:** looks through the whole log, not only the rows already on screen. The list updates shortly after you stop typing. Search finds your text in:
+  - the row title;
+  - what the change was about, such as an email address or a client's name;
+  - the email address of the person who made the change;
+  - the workspace's name;
+  - the IP address.
+- **Not searched:** the extra details on a row (such as the role change or the sensitive tools), the device, the date and time, and the badges.
+- **Filter:** pick an event type. The list has **Account deleted** and every type in the [Security activity filter](/guide/account/security-activity#filter-by-event-type). **Resource removed** and **Resource detached from a workspace** each cover mailboxes, calendars and drives.
+- **Both together:** a row must match both. If no row matches, the card says "No events match your search." **Load more** keeps showing older matches, 50 at a time.
+
+How the text is matched, and other limits:
+
+- Your whole text is matched as one phrase, anywhere inside a field. For example, "invite rev" finds **Workspace invite revoked**, but "revoked invite" does not.
+- Upper and lower case count as the same for the letters A to Z only.
+- Letters with accents must match in case too.
+- The search box takes up to 200 characters.
+- There is no filter by date.
+- To clear the search, empty the box.
+- To clear the filter, pick **All events**.
 
 Account deletions show only here and in the **Audit log** MCP tool below. No user or workspace sees them.
 
@@ -106,7 +133,7 @@ The card also says: "Anyone with access to the database can change this log, so 
 
 Each user sees their own part of this log under **Settings**, **Security**, **Security activity**. Workspace owners and admins see the changes in their workspace on its **Activity** page, without IP addresses or devices. See [Security activity](/guide/account/security-activity) and [Workspace activity](/guide/workspaces/workspace-activity).
 
-Your MCP clients can read this log with the **Audit log** tool in the **Instance (owner)** group. It is on by default for your clients, returns 50 events at a time with the number of days events are kept, and leaves out IP addresses and devices.
+Your MCP clients can read this log with the **Audit log** tool in the **Instance (owner)** group. It is on by default for your clients, returns 50 events at a time with the number of days events are kept, and leaves out IP addresses and devices. The tool cannot search or filter by event type. It only pages through the log, newest first.
 
 ## System
 

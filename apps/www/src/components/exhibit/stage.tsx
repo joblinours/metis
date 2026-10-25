@@ -106,7 +106,7 @@ function Rig({ poses, model }: { poses: Pose[]; model: React.RefObject<THREE.Gro
       if (fit.current.n++ % 6 === 0) fit.current.r = visibleRadius(model.current, target.current);
       const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 28;
       const half = Math.tan((fov * D2R) / 2) * (size.width / size.height);
-      const need = fit.current.r / (half * 0.86) + fit.current.r * 1.1;
+      const need = fit.current.r / (half * 0.7) + fit.current.r * 1.1;
       fit.current.d =
         fit.current.d === 0
           ? need

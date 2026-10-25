@@ -322,5 +322,3 @@ export function EnvelopeModel() {
     </group>
   );
 }
-
-useGLTF.preload("/models/envelope.glb");

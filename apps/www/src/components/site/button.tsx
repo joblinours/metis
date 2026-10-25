@@ -21,18 +21,34 @@ export function Button({
   children: ReactNode;
   tone?: keyof typeof TONES;
   className?: string;
-} & ({ href: Route; external?: false } | { href: string; external: true })) {
+} & (
+  | { kind: "internal"; href: Route }
+  | { kind: "external"; href: string }
+  | { kind: "click"; onClick: () => void }
+)) {
   const cls = `${BASE} ${TONES[tone]} ${className}`;
-  if (link.external) {
-    return (
-      <a href={link.href} target="_blank" rel="noopener noreferrer" className={cls}>
-        {children}
-      </a>
-    );
+
+  switch (link.kind) {
+    case "click": {
+      return (
+        <button type="button" onClick={link.onClick} className={cls}>
+          {children}
+        </button>
+      );
+    }
+    case "external": {
+      return (
+        <a href={link.href} target="_blank" rel="noopener noreferrer" className={cls}>
+          {children}
+        </a>
+      );
+    }
+    case "internal": {
+      return (
+        <Link href={link.href} className={cls}>
+          {children}
+        </Link>
+      );
+    }
   }
-  return (
-    <Link href={link.href} className={cls}>
-      {children}
-    </Link>
-  );
 }

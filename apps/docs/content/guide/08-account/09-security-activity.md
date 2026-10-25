@@ -38,7 +38,80 @@ Each row is one change:
 - **When** it happened (date and time).
 - **Where it came from**: the network address (IP address) and the device, such as "Chrome 130 on Windows", when Metis Suite knows them.
 
-The newest change is at the top. The card shows 50 rows at a time. Click **Load more** to see older ones. You cannot filter, search, edit or delete rows.
+The newest change is at the top. The card shows 50 rows at a time. Click **Load more** to see older ones. You cannot edit or delete rows.
+
+## Search and filter
+
+Above the list are a search box ("Search events") and a list of event types, which starts at **All events**. Use them to find one change without scrolling.
+
+<img src="/images/account/security-activity.png" alt="The Security activity card with the search box, the event type list set to All events, and the empty state" class="dark:hidden" />
+<img src="/images/account/security-activity-dark.png" alt="The Security activity card with the search box, the event type list set to All events, and the empty state" class="hidden dark:block" />
+
+### Search
+
+Type in the search box. The list updates shortly after you stop typing. While it loads, a small spinner shows at the right of the box, and the old list stays on screen until the new one is ready.
+
+Search looks through all your security activity, not only the rows already on screen. **Load more** then shows older matches, 50 at a time, newest first.
+
+Search finds rows where your text appears in:
+
+- the row title, such as **Member removed** or **Drive detached**;
+- what the change was about, such as an email address or a client's name;
+- the email address of the person who made the change;
+- the workspace's name;
+- the IP address.
+
+Search does not look at:
+
+- the extra details on a row: the role change ("member → admin"), the invite role ("as admin"), the sensitive tools, or "access revoked at the provider";
+- the device, such as "Chrome 130 on Windows";
+- the date and time;
+- the **Workspace Assistant** and **MCP client** badges. Typing "MCP client" still finds rows whose title contains it, such as **MCP client approved**;
+- "a deleted account".
+
+How the text is matched:
+
+- Your whole text is matched as one phrase, anywhere inside a field. For example, "invite rev" finds **Workspace invite revoked**. Words are not matched one by one, so "revoked invite" does not find it.
+- Spaces at the start and end are ignored.
+- Upper and lower case count as the same for the letters A to Z. Other letters, such as letters with accents, must match in case too.
+- You can type up to 200 characters.
+
+To clear the search, empty the search box.
+
+### Filter by event type
+
+Pick a type to show only those rows:
+
+- **Two-factor authentication disabled**
+- **Sign-in alerts turned off**
+- **MCP client added**
+- **MCP client approved**
+- **MCP client re-enabled**
+- **Sensitive MCP tools turned on**
+- **Account disconnected**
+- **Resource removed**
+- **Resource detached from a workspace**
+- **Member role changed**
+- **Member removed**
+- **Ownership transferred**
+- **Workspace deleted**
+- **Workspace invite sent**
+- **Workspace invite revoked**
+- **Sign-up invite sent**
+- **Sign-up invite revoked**
+
+Rows name the kind of resource, such as **Mailbox removed** or **Drive detached**. The list uses one type for all three kinds:
+
+- **Resource removed** shows every removed mailbox, calendar and drive.
+- **Resource detached from a workspace** shows every detached mailbox, calendar and drive.
+
+To clear the filter, pick **All events**.
+
+### Search and filter together
+
+When you use both, a row must match both. If no row matches, the card says "No events match your search."
+
+There is no filter by date. Search and filter only narrow the list. They never show changes you could not already see here.
 
 ## What is recorded
 

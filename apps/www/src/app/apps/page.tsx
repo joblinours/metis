@@ -25,8 +25,10 @@ export default function AppsPage() {
         }
         text="Use Metis Suite in its own window on macOS, Windows and Linux, or on your Android phone. Every app works with any Metis Suite server: enter its address the first time you open it, then sign in through your browser."
       >
-        <Button href="#downloads">Download the apps</Button>
-        <Button href={INSTALL_URL} tone="ghost" external>
+        <Button href="#downloads" kind="internal">
+          Download the apps
+        </Button>
+        <Button href={INSTALL_URL} tone="ghost" kind="external">
           Install guide
         </Button>
       </PageHead>

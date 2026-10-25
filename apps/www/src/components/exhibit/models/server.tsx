@@ -216,5 +216,3 @@ export function ServerModel() {
     </>
   );
 }
-
-useGLTF.preload("/models/server.glb");

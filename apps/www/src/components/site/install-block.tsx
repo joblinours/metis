@@ -25,7 +25,7 @@ function Line({ cmd, note, n }: { cmd: string; note: string; n: number }) {
       <span className="label pt-1 text-bone-2">{String(n).padStart(2, "0")}</span>
       <div className="min-w-0">
         <p className="text-[13px] text-bone-2">{note}</p>
-        <code className="mt-1.5 block overflow-x-auto whitespace-nowrap font-[family-name:var(--font-mono)] text-[14.5px] text-bone no-scrollbar">
+        <code className="mt-1.5 block break-all sm:overflow-x-auto sm:whitespace-nowrap font-[family-name:var(--font-mono)] text-[14.5px] text-bone no-scrollbar">
           <span className="text-amber-glow">$ </span>
           {cmd}
         </code>

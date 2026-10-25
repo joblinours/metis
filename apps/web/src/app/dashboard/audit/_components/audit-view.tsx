@@ -2,11 +2,13 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-import { AUDIT_PAGES, AuditEventList } from "@/components/audit-event-list";
+import { AuditEventList, auditPages, useAuditFilter } from "@/components/audit-event-list";
 import { rpc } from "@/lib/orpc";
+import { AUDIT_ACTIONS } from "@/types/audit";
 
 export function AuditView() {
-  const pages = useInfiniteQuery(rpc.dashboard.audit.infiniteOptions(AUDIT_PAGES));
+  const filter = useAuditFilter();
+  const pages = useInfiniteQuery(rpc.dashboard.audit.infiniteOptions(auditPages(filter.filter)));
   const retentionDays = pages.data?.pages.at(-1)?.retentionDays ?? null;
 
   return (
@@ -20,7 +22,13 @@ export function AuditView() {
         evidence.
       </p>
       <div className="mt-3">
-        <AuditEventList pages={pages} showWorkspace emptyText="No audit events yet." />
+        <AuditEventList
+          pages={pages}
+          filter={filter}
+          actions={AUDIT_ACTIONS}
+          showWorkspace
+          emptyText="No audit events yet."
+        />
       </div>
     </section>
   );

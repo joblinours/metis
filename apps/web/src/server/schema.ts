@@ -18,7 +18,12 @@ import { LOCAL_MAIL_STATES, SEARCH_KINDS } from "@/search/fields";
 import { MAX_SEARCH_LENGTH } from "@/search/query";
 import { THEME_BRAND_IDS } from "@/theme/brand";
 import { ANALYSIS_ACTIONS, CLASSIFICATIONS } from "@/types/analysis";
-import { AUDIT_ACTIONS, AUDIT_RESOURCE_KINDS, AUDIT_VIAS } from "@/types/audit";
+import {
+  AUDIT_ACTIONS,
+  AUDIT_RESOURCE_KINDS,
+  AUDIT_SEARCH_MAX_LENGTH,
+  AUDIT_VIAS,
+} from "@/types/audit";
 import { ATTENDEE_RESPONSES, EVENT_STATUSES } from "@/types/calendar";
 import { DRIVE_ENTRY_KINDS, DRIVE_UPLOAD_STRATEGIES } from "@/types/drive";
 import {
@@ -394,12 +399,23 @@ export const auditEventPageSchema = z.object({
 
 export type AuditEventPage = z.infer<typeof auditEventPageSchema>;
 
-export const auditPageInputSchema = z.object({
+export const auditFilterSchema = z.object({
+  q: z.string().trim().max(AUDIT_SEARCH_MAX_LENGTH).optional(),
+  action: z.enum(AUDIT_ACTIONS).optional(),
+});
+
+export type AuditFilter = z.infer<typeof auditFilterSchema>;
+
+export const auditCursorInputSchema = z.object({
   cursor: z.string().max(200).optional(),
 });
 
+export const auditPageInputSchema = auditFilterSchema.extend(auditCursorInputSchema.shape);
+
+export type AuditPageInput = z.infer<typeof auditPageInputSchema>;
+
 export const workspaceAuditInputSchema = workspaceScopeSchema.extend({
-  cursor: z.string().max(200).optional(),
+  ...auditPageInputSchema.shape,
 });
 
 export const dashboardAuditOutputSchema = auditEventPageSchema.extend({

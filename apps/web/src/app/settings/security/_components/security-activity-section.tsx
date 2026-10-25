@@ -3,11 +3,13 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { History } from "lucide-react";
 
-import { AUDIT_PAGES, AuditEventList } from "@/components/audit-event-list";
+import { AuditEventList, auditPages, useAuditFilter } from "@/components/audit-event-list";
 import { rpc } from "@/lib/orpc";
+import { USER_AUDIT_ACTIONS } from "@/types/audit";
 
 export function SecurityActivitySection() {
-  const pages = useInfiniteQuery(rpc.audit.mine.infiniteOptions(AUDIT_PAGES));
+  const filter = useAuditFilter();
+  const pages = useInfiniteQuery(rpc.audit.mine.infiniteOptions(auditPages(filter.filter)));
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
@@ -20,7 +22,13 @@ export function SecurityActivitySection() {
         server&rsquo;s operator decides how long these are kept.
       </p>
       <div className="mt-3">
-        <AuditEventList pages={pages} showWorkspace emptyText="No security activity yet." />
+        <AuditEventList
+          pages={pages}
+          filter={filter}
+          actions={USER_AUDIT_ACTIONS}
+          showWorkspace
+          emptyText="No security activity yet."
+        />
       </div>
     </section>
   );

@@ -51,6 +51,18 @@
     "element": "main"
   },
   {
+    "name": "self-hosting/dashboard-audit",
+    "path": "/dashboard/audit",
+    "steps": [
+      { "waitFor": "role=heading[level=1][name=\"Audit log\"]" },
+      { "waitFor": "main >> role=searchbox[name=\"Search events\"]" },
+      { "waitFor": "main >> role=combobox[name=\"Event type\"]" },
+      {
+        "waitFor": "main >> :is(ul[aria-label='Audit events'], p:text-is('No audit events yet.'))"
+      }
+    ]
+  },
+  {
     "name": "self-hosting/provider-google",
     "path": "/dashboard/system/providers/google",
     "steps": [

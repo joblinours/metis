@@ -78,9 +78,9 @@ export default async function CompareCompetitorPage(props: PageProps<"/compare/[
             {c.name} facts checked on {checked}
           </p>
           <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[720px] border-t border-line text-left">
+            <table className="w-full border-t border-line text-left md:min-w-[720px]">
               <caption className="sr-only">Metis Suite compared with {c.name}</caption>
-              <thead>
+              <thead className="max-md:sr-only">
                 <tr className="border-b border-line">
                   <th scope="col" className="w-[18%] py-5">
                     <span className="sr-only">Feature</span>
@@ -95,14 +95,22 @@ export default async function CompareCompetitorPage(props: PageProps<"/compare/[
               </thead>
               <tbody>
                 {ROWS.map((row) => (
-                  <tr key={row.key} className="border-b border-line align-top">
-                    <th scope="row" className="py-5 pr-6 text-[15px] font-medium text-ink">
+                  <tr
+                    key={row.key}
+                    className="grid grid-cols-2 gap-x-4 border-b border-line py-5 align-top md:table-row md:py-0"
+                  >
+                    <th
+                      scope="row"
+                      className="col-span-2 pb-3 text-[15px] font-medium text-ink md:table-cell md:py-5 md:pr-6"
+                    >
                       {row.label}
                     </th>
-                    <td className="py-5 pr-6 text-[15px] leading-relaxed text-ink">
+                    <td className="text-[15px] leading-relaxed text-ink md:table-cell md:py-5 md:pr-6">
+                      <span className="label mb-1.5 block text-ink-3 md:hidden">Metis Suite</span>
                       <CellText cell={METIS[row.key]} />
                     </td>
-                    <td className="py-5 text-[15px] leading-relaxed text-ink-2">
+                    <td className="text-[15px] leading-relaxed text-ink-2 md:table-cell md:py-5">
+                      <span className="label mb-1.5 block text-ink-3 md:hidden">{c.name}</span>
                       <CellText cell={c.cells[row.key]} />
                     </td>
                   </tr>
@@ -140,7 +148,7 @@ export default async function CompareCompetitorPage(props: PageProps<"/compare/[
             and we will correct it. All trademarks belong to their owners.
           </p>
           <div className="mt-8">
-            <Button href="/compare" tone="ghost">
+            <Button href="/compare" tone="ghost" kind="internal">
               All comparisons
             </Button>
           </div>

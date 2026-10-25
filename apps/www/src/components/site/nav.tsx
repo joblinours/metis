@@ -161,7 +161,7 @@ export function Nav() {
           <span className="hidden sm:inline-flex">
             <Button
               href={CONSOLE_URL}
-              external
+              kind="external"
               className="!h-9 whitespace-nowrap !px-4 !text-[14px]"
             >
               Get started
@@ -237,7 +237,7 @@ export function Nav() {
             </a>
           </li>
         </ul>
-        <Button href={CONSOLE_URL} external className="mt-8">
+        <Button href={CONSOLE_URL} kind="external" className="mt-8">
           Get started
         </Button>
       </div>

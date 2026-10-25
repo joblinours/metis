@@ -51,7 +51,7 @@ export function PriceList() {
                 ))}
               </ul>
               <div className="mt-auto pt-10">
-                <Button href={p.cta.href} tone={p.featured ? "primary" : "ghost"} external>
+                <Button href={p.cta.href} tone={p.featured ? "primary" : "ghost"} kind="external">
                   {p.cta.label}
                 </Button>
               </div>
@@ -73,7 +73,7 @@ export function PriceList() {
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-3">
-            <Button href="/self-host" tone="ghost">
+            <Button href="/self-host" tone="ghost" kind="internal">
               Self-host it
             </Button>
             <a

@@ -64,6 +64,21 @@
     "steps": [{ "waitFor": "main h2:has-text('Regenerate backup codes')" }]
   },
   {
+    "name": "account/security-activity",
+    "path": "/settings/security",
+    "steps": [
+      { "waitFor": "main h2:text-is('Security activity')" },
+      {
+        "waitFor": "section:has(h2:text-is('Security activity')) input[aria-label='Search events']"
+      },
+      {
+        "waitFor": "section:has(h2:text-is('Security activity')) :is(ul[aria-label='Audit events'], p:text-is('No security activity yet.'))"
+      },
+      { "scroll": "main h2:text-is('Security activity')" }
+    ],
+    "element": "section:has(h2:text-is('Security activity'))"
+  },
+  {
     "name": "account/sign-in-alerts",
     "path": "/settings/security",
     "steps": [

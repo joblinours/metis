@@ -207,5 +207,3 @@ export function CabinetModel() {
 
   return <primitive object={built.root} />;
 }
-
-useGLTF.preload("/models/cabinet.glb");

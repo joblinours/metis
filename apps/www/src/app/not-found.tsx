@@ -19,8 +19,10 @@ export default function NotFound() {
       }
       text="This page does not exist. It may have moved, or the link may be wrong."
     >
-      <Button href="/">Go to the home page</Button>
-      <Button href="/pricing" tone="ghost">
+      <Button href="/" kind="internal">
+        Go to the home page
+      </Button>
+      <Button href="/pricing" tone="ghost" kind="internal">
         See pricing
       </Button>
     </PageHead>

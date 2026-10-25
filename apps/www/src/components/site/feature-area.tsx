@@ -61,7 +61,7 @@ function Shot({ name, on, alt }: { name: string; on: boolean; alt: string }) {
           width={W}
           height={H}
           loading="eager"
-          sizes="(min-width: 1024px) 1200px, 100vw"
+          sizes="(min-width: 1024px) 1200px, 200vw"
           className="h-full w-full object-cover"
         />
         {f ? (

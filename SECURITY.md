@@ -1,6 +1,6 @@
 # Security Policy
 
-Metis Suite is built by AstraQ Cyber Defence Pvt Ltd, a cybersecurity
+Metis Suite is built by AstraQ Cyber Defence Pvt. Ltd., a cybersecurity
 company. We take vulnerabilities in our own product seriously and
 respond quickly to credible reports.
 

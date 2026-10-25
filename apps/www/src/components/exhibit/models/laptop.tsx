@@ -76,6 +76,3 @@ export function LaptopModel() {
 
   return <primitive object={built.root} />;
 }
-
-useGLTF.preload("/models/laptop.glb");
-useTexture.preload(SCREEN_IMAGES);

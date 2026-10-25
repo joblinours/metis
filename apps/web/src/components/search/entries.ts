@@ -8,6 +8,7 @@ import {
   EyeOff,
   FolderPlus,
   HardDrive,
+  History,
   LayoutDashboard,
   Link2,
   Mail,
@@ -195,6 +196,16 @@ export function clientEntries(ctx: EntryContext): ClientEntry[] {
     ["Workspace settings: Mailboxes", workspaceSettingsPath(ws, "mailboxes"), Mail, []],
     ["Workspace settings: Calendars", workspaceSettingsPath(ws, "calendars"), CalendarDays, []],
     ["Workspace settings: Drives", workspaceSettingsPath(ws, "drives"), HardDrive, []],
+    ...(ctx.isAdmin
+      ? ([
+          [
+            "Workspace settings: Activity",
+            workspaceSettingsPath(ws, "activity"),
+            History,
+            ["audit", "log", "history"],
+          ],
+        ] as [string, Route, LucideIcon, string[]][])
+      : []),
     ...(ctx.isOwner
       ? ([["Dashboard", "/dashboard", LayoutDashboard, ["owner"]]] as [
           string,

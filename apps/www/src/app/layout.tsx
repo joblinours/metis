@@ -74,9 +74,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cormorant.variable} ${dmSans.variable} ${dmMono.variable}`}>
       <body>
-        <noscript>
-          <style>{"[data-reveal]{opacity:1!important;transform:none!important}"}</style>
-        </noscript>
         <SmoothScroll />
         <Nav />
         <main id="main">{children}</main>

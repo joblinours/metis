@@ -115,10 +115,10 @@ export default function AboutPage() {
               ))}
             </dl>
             <div className="mt-10 flex flex-wrap gap-3">
-              <Button href={DOCS_URL} external>
+              <Button href={DOCS_URL} kind="external">
                 Read the docs
               </Button>
-              <Button href="/compare" tone="ghost">
+              <Button href="/compare" tone="ghost" kind="internal">
                 Compare Metis
               </Button>
             </div>

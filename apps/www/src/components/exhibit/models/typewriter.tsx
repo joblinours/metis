@@ -221,5 +221,3 @@ export function TypewriterModel() {
 
   return <primitive object={built.root} />;
 }
-
-useGLTF.preload("/models/typewriter.glb");

@@ -21,6 +21,8 @@ How `apps/www` (the marketing site at www.trymetis.email) gets its page metadata
 | Canonical host                                                                     | `src/lib/site.ts` → `SITE_URL` (`NEXT_PUBLIC_SITE_URL`, default `https://www.trymetis.email`)                                                   |
 | App download links on `/apps`                                                      | `src/content/downloads.ts` → `DOWNLOADS` ([downloads.md](downloads.md))                                                                         |
 | UI primitives                                                                      | `src/components/ui/` (www's own)                                                                                                                |
+| Security headers and CSP                                                           | `next.config.ts` → `CSP`, `SECURITY_HEADERS`                                                                                                    |
+| Error pages · web manifest · `security.txt`                                        | `src/app/error.tsx`, `src/app/global-error.tsx` · `src/app/manifest.ts` · `public/.well-known/security.txt`                                     |
 
 ## Rules
 
@@ -54,6 +56,12 @@ How `apps/www` (the marketing site at www.trymetis.email) gets its page metadata
   - The typewriter's `sheet` node carries `printV` (where the type strikes, as a fraction from the top of the texture), `aspect` and `width` as glTF extras.
   - The typewriter page is set in Special Elite, loaded with `next/font` in `typewriter.tsx` only.
 - **The stage keeps `environmentRotation` at 0**: the softboxes in `scripts/models/kit/hdri.py` are placed for the stage's camera side.
+- **The CSP is static and allows only what the site loads; a new origin or loader is added to `CSP` in the same change.**
+  - A nonce would force dynamic rendering of a static site, so scripts and styles keep `'unsafe-inline'`.
+  - `'wasm-unsafe-eval'` is the meshopt decoder `useGLTF` instantiates for the `EXT_meshopt_compression` models; `blob:` in `img-src` and `connect-src` is the textures `GLTFLoader` unpacks from each `.glb`.
+  - `https://api.github.com` in `connect-src` is the star count `src/lib/repo.ts` fetches in the browser.
+  - A model exported with Draco instead would make drei fetch its decoder from `www.gstatic.com`, which the CSP blocks.
+- **`security.txt` carries an `Expires` date**; renew it before then, since an expired file tells researchers the contact is stale.
 
 ## Deliberate limits
 

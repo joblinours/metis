@@ -49,7 +49,13 @@ export function SmoothScroll() {
       },
       { rootMargin: "0px 0px -10% 0px" },
     );
-    for (const el of items) io.observe(el);
+    const fold = window.innerHeight * 0.9;
+    for (const el of items) {
+      const r = el.getBoundingClientRect();
+      if (r.top < fold && r.bottom > 0) el.classList.add("revealed");
+      else io.observe(el);
+    }
+    document.documentElement.classList.add("reveal-on");
     return () => io.disconnect();
   }, [pathname]);
 

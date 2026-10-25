@@ -217,5 +217,3 @@ export function PatchboardModel() {
     </>
   );
 }
-
-useGLTF.preload("/models/patchboard.glb");

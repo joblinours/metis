@@ -20,6 +20,19 @@ export const AUDIT_ACTIONS = [
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
+export const AUDIT_SEARCH_MAX_LENGTH = 200;
+
+export const USER_AUDIT_ACTIONS = AUDIT_ACTIONS.filter((action) => action !== "account.deleted");
+
+export const WORKSPACE_AUDIT_ACTIONS = [
+  "resource.detached",
+  "member.role_changed",
+  "member.removed",
+  "workspace.ownership_transferred",
+  "workspace_invite.created",
+  "workspace_invite.revoked",
+] as const satisfies readonly AuditAction[];
+
 export const AUDIT_VIAS = ["app", "assistant", "mcp"] as const;
 export type AuditVia = (typeof AUDIT_VIAS)[number];
 
@@ -48,3 +61,20 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "signup_invite.created": "Sign-up invite sent",
   "signup_invite.revoked": "Sign-up invite revoked",
 };
+
+const AUDIT_RESOURCE_NAMES: Record<AuditResourceKind, string> = {
+  mailbox: "Mailbox",
+  calendar: "Calendar",
+  drive: "Drive",
+};
+
+export function auditEventTitle(
+  action: AuditAction,
+  resourceKind: AuditResourceKind | null,
+): string {
+  if (resourceKind) {
+    const verb = action === "resource.detached" ? "detached" : "removed";
+    return `${AUDIT_RESOURCE_NAMES[resourceKind]} ${verb}`;
+  }
+  return AUDIT_ACTION_LABELS[action];
+}

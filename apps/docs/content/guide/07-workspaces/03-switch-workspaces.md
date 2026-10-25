@@ -9,7 +9,7 @@ The left rail on the side of every workspace page lists your workspaces. This pa
 
 From top to bottom, the rail shows:
 
-1. **The workspace menu**: the current workspace's logo or initials, with a small arrow. Click it for the workspace's settings pages (**General**, **Mailboxes**, **Calendars**, **Drives**) and **All workspaces**.
+1. **The workspace menu**: the current workspace's logo or initials, with a small arrow. Click it for the workspace's settings pages (**General**, **Mailboxes**, **Calendars**, **Drives**) and **All workspaces**. Owners and admins of the workspace also see **Activity**, between **Drives** and **All workspaces**. See [Workspace activity](/guide/workspaces/workspace-activity).
 2. **Inbox**, **Calendar** and **Drive**.
 3. **Workspace AI**, when your instance has AI set up.
 4. **Workflows**.

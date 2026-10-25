@@ -9,7 +9,18 @@ const AMBER = "#815b17";
 const MUTED = "#676254";
 const LINE = "#e2dccb";
 
+const NAV = ["Mail", "Calendar", "Drive", "Agent", "Workflows", "MCP"];
+const LICENSE_LINE = "Open source · AGPL-3.0";
+
 export const dynamicParams = false;
+
+async function googleFont(family: string, weight: number, text: string): Promise<ArrayBuffer> {
+  const url = `https://fonts.googleapis.com/css2?family=${family.replaceAll(" ", "+")}:wght@${weight}&text=${encodeURIComponent(text)}`;
+  const css = await (await fetch(url)).text();
+  const src = /src: url\((.+?)\) format\('(?:opentype|truetype)'\)/.exec(css)?.[1];
+  if (!src) throw new Error(`[og] no font file for ${family} ${weight}`);
+  return (await fetch(src)).arrayBuffer();
+}
 
 function toPath(slug: string[]) {
   return slug.join("/") === "home" ? "/" : `/${slug.join("/")}`;
@@ -27,6 +38,12 @@ export async function GET(_req: Request, ctx: RouteContext<"/og/[...slug]">) {
   const page = pageInfo(path);
   const headline = page.og ?? page.title;
   const kicker = path === "/" ? SITE_NAME : `${SITE_NAME} · ${page.label}`;
+  const [display, sans, sansBold, mono] = await Promise.all([
+    googleFont("Cormorant Garamond", 500, headline),
+    googleFont("DM Sans", 400, `${page.description}${NAV.join("")}`),
+    googleFont("DM Sans", 600, LICENSE_LINE),
+    googleFont("DM Mono", 400, kicker.toUpperCase()),
+  ]);
 
   return new ImageResponse(
     <div
@@ -38,7 +55,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/og/[...slug]">) {
         justifyContent: "space-between",
         backgroundColor: BG,
         padding: "72px 80px",
-        fontFamily: "serif",
+        fontFamily: "Cormorant Garamond",
       }}
     >
       <div
@@ -50,7 +67,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/og/[...slug]">) {
           letterSpacing: 4,
           textTransform: "uppercase",
           color: AMBER,
-          fontFamily: "monospace",
+          fontFamily: "DM Mono",
         }}
       >
         <svg width="46" height="46" viewBox="0 0 256 256" aria-hidden="true">
@@ -68,6 +85,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/og/[...slug]">) {
             fontSize: headline.length > 32 ? 76 : 96,
             lineHeight: 1.04,
             letterSpacing: -2,
+            fontWeight: 500,
             color: INK,
           }}
         >
@@ -80,7 +98,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/og/[...slug]">) {
             lineHeight: 1.35,
             color: MUTED,
             maxWidth: 1000,
-            fontFamily: "sans-serif",
+            fontFamily: "DM Sans",
           }}
         >
           {page.description}
@@ -96,20 +114,26 @@ export async function GET(_req: Request, ctx: RouteContext<"/og/[...slug]">) {
           paddingTop: 26,
           fontSize: 24,
           color: MUTED,
-          fontFamily: "sans-serif",
+          fontFamily: "DM Sans",
         }}
       >
         <div style={{ display: "flex", gap: 26 }}>
-          <span>Mail</span>
-          <span>Calendar</span>
-          <span>Drive</span>
-          <span>Agent</span>
-          <span>Workflows</span>
-          <span>MCP</span>
+          {NAV.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
         </div>
-        <div style={{ display: "flex", color: INK, fontWeight: 600 }}>Open source · AGPL-3.0</div>
+        <div style={{ display: "flex", color: INK, fontWeight: 600 }}>{LICENSE_LINE}</div>
       </div>
     </div>,
-    { width: 1200, height: 630 },
+    {
+      width: 1200,
+      height: 630,
+      fonts: [
+        { name: "Cormorant Garamond", data: display, weight: 500, style: "normal" },
+        { name: "DM Sans", data: sans, weight: 400, style: "normal" },
+        { name: "DM Sans", data: sansBold, weight: 600, style: "normal" },
+        { name: "DM Mono", data: mono, weight: 400, style: "normal" },
+      ],
+    },
   );
 }

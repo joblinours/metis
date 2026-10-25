@@ -12,6 +12,7 @@ import {
   CalendarDays,
   ChevronDown,
   HardDrive,
+  History,
   Inbox,
   LayoutGrid,
   SlidersHorizontal,
@@ -29,6 +30,7 @@ interface WorkspaceMenuTileProps {
 
 export function WorkspaceMenuTile({ workspace, workspaceSlug }: WorkspaceMenuTileProps) {
   const name = workspace?.name ?? "Workspace";
+  const canSeeActivity = workspace?.role === "owner" || workspace?.role === "admin";
 
   return (
     <DropdownMenu>
@@ -92,6 +94,14 @@ export function WorkspaceMenuTile({ workspace, workspaceSlug }: WorkspaceMenuTil
           <HardDrive />
           Drives
         </DropdownMenuItem>
+        {canSeeActivity && (
+          <DropdownMenuItem
+            render={<Link href={workspaceSettingsPath(workspaceSlug, "activity")} />}
+          >
+            <History />
+            Activity
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href="/settings/workspaces" />}>
           <LayoutGrid />

@@ -264,5 +264,3 @@ export function CalendarModel() {
 
   return <primitive object={built.root} />;
 }
-
-useGLTF.preload("/models/calendar.glb");

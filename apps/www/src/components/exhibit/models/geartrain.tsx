@@ -139,5 +139,3 @@ export function GeartrainModel() {
     </>
   );
 }
-
-useGLTF.preload("/models/geartrain.glb");

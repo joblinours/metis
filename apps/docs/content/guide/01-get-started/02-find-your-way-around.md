@@ -14,7 +14,7 @@ Hover over any icon in the rail to see its name.
 
 ### The workspace tile
 
-The tile at the top shows the workspace you are in. A workspace holds a set of mailboxes, calendars and drives, and can be shared with other people. Click the tile to open its menu. The menu shows the workspace's name and your role in it. It also has shortcuts to the workspace's settings: **General**, **Mailboxes**, **Calendars** and **Drives**. **All workspaces** opens the list of every workspace you belong to.
+The tile at the top shows the workspace you are in. A workspace holds a set of mailboxes, calendars and drives, and can be shared with other people. Click the tile to open its menu. The menu shows the workspace's name and your role in it. It also has shortcuts to the workspace's settings: **General**, **Mailboxes**, **Calendars** and **Drives**. Owners and admins of the workspace also see **Activity**, which lists security-relevant changes made in the workspace. See [Workspace activity](/guide/workspaces/workspace-activity). **All workspaces** opens the list of every workspace you belong to.
 
 To learn more, see [Workspaces](/guide/workspaces).
 

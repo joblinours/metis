@@ -41,8 +41,8 @@ export function Compare() {
           providers either way. The difference is who runs the server.
         </p>
         <div data-reveal className="mt-12 overflow-x-auto">
-          <table className="w-full min-w-[640px] border-t border-line text-left">
-            <thead>
+          <table className="w-full border-t border-line text-left md:min-w-[640px]">
+            <thead className="max-md:sr-only">
               <tr className="border-b border-line">
                 <th scope="col" className="w-[30%] py-5">
                   <span className="sr-only">Compare</span>
@@ -57,12 +57,24 @@ export function Compare() {
             </thead>
             <tbody>
               {ROWS.map(([label, cloud, self]) => (
-                <tr key={label} className="border-b border-line align-top">
-                  <th scope="row" className="py-5 pr-6 text-[15px] font-medium text-ink">
+                <tr
+                  key={label}
+                  className="grid grid-cols-2 gap-x-4 border-b border-line py-5 align-top md:table-row md:py-0"
+                >
+                  <th
+                    scope="row"
+                    className="col-span-2 pb-3 text-[15px] font-medium text-ink md:table-cell md:py-5 md:pr-6"
+                  >
                     {label}
                   </th>
-                  <td className="py-5 pr-6 text-[15px] text-ink-2">{cloud}</td>
-                  <td className="py-5 text-[15px] text-ink-2">{self}</td>
+                  <td className="text-[15px] text-ink-2 md:table-cell md:py-5 md:pr-6">
+                    <span className="label mb-1.5 block text-ink-3 md:hidden">Metis Cloud</span>
+                    {cloud}
+                  </td>
+                  <td className="text-[15px] text-ink-2 md:table-cell md:py-5">
+                    <span className="label mb-1.5 block text-ink-3 md:hidden">Self-host</span>
+                    {self}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -73,10 +85,10 @@ export function Compare() {
           you want everything Metis keeps on hardware you control.
         </p>
         <div data-reveal className="mt-8 flex flex-wrap gap-3">
-          <Button href={CONSOLE_URL} external>
+          <Button href={CONSOLE_URL} kind="external">
             Get started
           </Button>
-          <Button href="#install" tone="ghost">
+          <Button href="#install" tone="ghost" kind="internal">
             Install it
           </Button>
         </div>

@@ -12,9 +12,7 @@ export const auditRouter = {
   mine: appSession
     .input(auditPageInputSchema)
     .output(auditEventPageSchema)
-    .handler(async ({ input, context }) =>
-      listUserAuditEvents(context.appUser.userId, input.cursor),
-    ),
+    .handler(async ({ input, context }) => listUserAuditEvents(context.appUser.userId, input)),
 
   workspace: workspaceSession(workspaceAuditInputSchema)
     .output(auditEventPageSchema)
@@ -24,6 +22,6 @@ export const auditRouter = {
           message: "Only workspace owners and admins can see activity",
         });
       }
-      return listWorkspaceAuditEvents(context.appUser.workspaceId, input.cursor);
+      return listWorkspaceAuditEvents(context.appUser.workspaceId, input);
     }),
 };

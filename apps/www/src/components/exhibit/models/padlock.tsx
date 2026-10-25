@@ -102,5 +102,3 @@ export function PadlockModel() {
 
   return <primitive object={built.root} />;
 }
-
-useGLTF.preload("/models/padlock.glb");

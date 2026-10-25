@@ -6,7 +6,7 @@ import { z } from "zod";
 import * as instance from "@/mastra/toolkit/instance";
 import { ToolRefusal, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
-  auditPageInputSchema,
+  auditCursorInputSchema,
   connectionProviderSchema,
   dashboardSystemProviderInputSchema,
   dashboardUsageInputSchema,
@@ -115,7 +115,7 @@ export const getInstanceMcpClients = createTool({
 export const getInstanceAuditLog = createTool({
   id: "getInstanceAuditLog",
   description: `Read the audit log, newest first, 50 events per page: two-factor disables, MCP client approvals, disconnected accounts, role changes, removed members, invites and deleted workspaces and accounts. Pass nextCursor back as cursor for the next page. ${OWNER_NOTE}`,
-  inputSchema: auditPageInputSchema,
+  inputSchema: auditCursorInputSchema,
   execute: async ({ cursor }, { requestContext }) =>
     withToolErrors(async () => {
       requireOwner(requestContext);

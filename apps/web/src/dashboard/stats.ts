@@ -45,6 +45,7 @@ import {
 } from "@/db/schema";
 import { isMcpToolEnabled, mcpToolsFor } from "@/mcp/tools";
 import type {
+  AuditPageInput,
   DashboardAudit,
   DashboardAutomation,
   DashboardConnections,
@@ -685,9 +686,9 @@ export async function dashboardMcp(): Promise<DashboardMcp> {
   };
 }
 
-export async function dashboardAudit(cursor?: string): Promise<DashboardAudit> {
+export async function dashboardAudit(page: AuditPageInput = {}): Promise<DashboardAudit> {
   return {
     retentionDays: config.audit.retentionDays,
-    ...(await listInstanceAuditEvents(cursor)),
+    ...(await listInstanceAuditEvents(page)),
   };
 }

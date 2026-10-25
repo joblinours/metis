@@ -266,7 +266,8 @@ export function MetisSuiteTemplate({
             {footer}
           </Text>
           <Text style={addressStyle} className="m-muted">
-            AstraQ Cyber Defence Pvt Ltd · Mothi Umri, Akola, Maharashtra, India, 444001
+            AstraQ Cyber Defence Pvt. Ltd. · Engineers Colony, Mothi Umari, Jatherpeth, Akola,
+            Maharashtra, India 444005
           </Text>
         </Container>
       </Body>

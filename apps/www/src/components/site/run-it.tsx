@@ -25,7 +25,7 @@ export function RunIt() {
               with your own AI key.
             </p>
             <div className="mt-auto flex flex-wrap items-center gap-3 pt-8">
-              <Button href={CONSOLE_URL} external>
+              <Button href={CONSOLE_URL} kind="external">
                 Get started
               </Button>
               <Link
@@ -48,7 +48,7 @@ export function RunIt() {
               AGPL-3.0, with your own AI model.
             </p>
             <div className="mt-auto flex flex-wrap items-center gap-3 pt-8">
-              <Button href="/self-host" tone="ghost">
+              <Button href="/self-host" tone="ghost" kind="internal">
                 Self-host it
               </Button>
               <a

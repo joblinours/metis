@@ -14,7 +14,7 @@ const FACTS = [
 export function Trust() {
   return (
     <section className="relative z-[6] border-t border-line bg-bg px-[var(--gx)] py-28 md:py-40">
-      <div className="mx-auto grid max-w-[1200px] items-start gap-14 lg:grid-cols-[1fr_1fr] lg:gap-20">
+      <div className="mx-auto grid max-w-[1200px] grid-cols-[minmax(0,1fr)] items-start gap-14 lg:grid-cols-[1fr_1fr] lg:gap-20">
         <div>
           <h2 data-reveal className="display text-[clamp(44px,5vw,80px)]">
             Open source. <em>Nothing taken on trust.</em>

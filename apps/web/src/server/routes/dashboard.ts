@@ -108,7 +108,7 @@ export const dashboardRouter = {
   audit: ownerSession
     .input(auditPageInputSchema)
     .output(dashboardAuditOutputSchema)
-    .handler(async ({ input }) => dashboardAudit(input.cursor)),
+    .handler(async ({ input }) => dashboardAudit(input)),
 
   system: {
     overview: ownerSession

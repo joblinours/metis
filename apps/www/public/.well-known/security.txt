@@ -1,0 +1,5 @@
+Contact: mailto:contact@astraqcyberdefence.com
+Expires: 2027-10-26T00:00:00.000Z
+Policy: https://github.com/trymetis/metis/security/policy
+Preferred-Languages: en
+Canonical: https://www.trymetis.email/.well-known/security.txt

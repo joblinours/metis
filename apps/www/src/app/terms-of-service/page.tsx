@@ -134,9 +134,9 @@ export default function TermsPage() {
           content in order to operate the Service for you.
         </li>
         <li>
-          The Service, including its software, design, and branding, is owned by {ORG_NAME} and its
-          licensors and is protected by intellectual-property law. We grant you a personal,
-          revocable, non-transferable license to use it in accordance with these Terms.
+          The {SITE_NAME} software is licensed under the GNU AGPL-3.0-or-later, and nothing in these
+          Terms limits your rights under that license. These Terms govern your use of the hosted
+          Service.
         </li>
       </ul>
 

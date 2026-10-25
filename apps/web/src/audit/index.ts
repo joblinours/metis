@@ -1,11 +1,19 @@
 import "server-only";
-import { and, desc, eq, lt, or, type SQL } from "drizzle-orm";
+import { and, type Column, desc, eq, isNull, lt, or, type SQL, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { auditEvent, user, workspace } from "@/db/schema";
-import type { AuditEvent, AuditEventPage } from "@/server/schema";
+import type { AuditEvent, AuditEventPage, AuditFilter, AuditPageInput } from "@/server/schema";
 import { getClientIp } from "@/services/rate-limit";
-import type { AuditAction, AuditDetail, AuditResourceKind, AuditVia } from "@/types/audit";
+import {
+  AUDIT_ACTIONS,
+  AUDIT_RESOURCE_KINDS,
+  type AuditAction,
+  type AuditDetail,
+  type AuditResourceKind,
+  type AuditVia,
+  auditEventTitle,
+} from "@/types/audit";
 
 export interface AuditActor {
   userId: string;
@@ -106,6 +114,44 @@ function parseCursor(cursor: string | undefined): SQL | undefined {
   return or(lt(auditEvent.createdAt, at), and(eq(auditEvent.createdAt, at), lt(auditEvent.id, id)));
 }
 
+const AUDIT_TITLES = AUDIT_ACTIONS.flatMap((action) =>
+  [null, ...AUDIT_RESOURCE_KINDS].map((kind) => ({
+    action,
+    kind,
+    title: auditEventTitle(action, kind).toLowerCase(),
+  })),
+);
+
+function containing(column: Column, q: string): SQL {
+  const pattern = `%${q.replaceAll(/[\\%_]/g, "\\$&")}%`;
+  return sql`${column} LIKE ${pattern} ESCAPE '\\'`;
+}
+
+function textMatch(q: string, withNetwork: boolean): SQL | undefined {
+  const needle = q.toLowerCase();
+  const titles = AUDIT_TITLES.filter(({ title }) => title.includes(needle)).map(
+    ({ action, kind }) =>
+      and(
+        eq(auditEvent.action, action),
+        kind ? eq(auditEvent.resourceKind, kind) : isNull(auditEvent.resourceKind),
+      ),
+  );
+  return or(
+    ...titles,
+    containing(auditEvent.actorEmail, q),
+    containing(auditEvent.targetLabel, q),
+    containing(auditEvent.workspaceName, q),
+    withNetwork ? containing(auditEvent.ip, q) : undefined,
+  );
+}
+
+function filterScope(filter: AuditFilter, withNetwork: boolean): SQL | undefined {
+  return and(
+    filter.action ? eq(auditEvent.action, filter.action) : undefined,
+    filter.q ? textMatch(filter.q, withNetwork) : undefined,
+  );
+}
+
 type AuditRow = typeof auditEvent.$inferSelect;
 
 function toView(row: AuditRow, withNetwork: boolean): AuditEvent {
@@ -127,13 +173,13 @@ function toView(row: AuditRow, withNetwork: boolean): AuditEvent {
 
 async function listPage(
   scope: SQL | undefined,
-  cursor: string | undefined,
+  { cursor, ...filter }: AuditPageInput,
   withNetwork: boolean,
 ): Promise<AuditEventPage> {
   const rows = await db
     .select()
     .from(auditEvent)
-    .where(and(scope, parseCursor(cursor)))
+    .where(and(scope, filterScope(filter, withNetwork), parseCursor(cursor)))
     .orderBy(desc(auditEvent.createdAt), desc(auditEvent.id))
     .limit(AUDIT_PAGE_SIZE + 1);
   const page = rows.slice(0, AUDIT_PAGE_SIZE);
@@ -149,16 +195,16 @@ function userScope(userId: string): SQL | undefined {
   return or(eq(auditEvent.actorUserId, userId), eq(auditEvent.targetUserId, userId));
 }
 
-export function listUserAuditEvents(userId: string, cursor?: string) {
-  return listPage(userScope(userId), cursor, true);
+export function listUserAuditEvents(userId: string, page: AuditPageInput = {}) {
+  return listPage(userScope(userId), page, true);
 }
 
-export function listWorkspaceAuditEvents(workspaceId: string, cursor?: string) {
-  return listPage(eq(auditEvent.workspaceId, workspaceId), cursor, false);
+export function listWorkspaceAuditEvents(workspaceId: string, page: AuditPageInput = {}) {
+  return listPage(eq(auditEvent.workspaceId, workspaceId), page, false);
 }
 
-export function listInstanceAuditEvents(cursor?: string) {
-  return listPage(undefined, cursor, true);
+export function listInstanceAuditEvents(page: AuditPageInput = {}) {
+  return listPage(undefined, page, true);
 }
 
 export async function exportUserAuditEvents(userId: string): Promise<AuditEvent[]> {

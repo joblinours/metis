@@ -2,7 +2,7 @@
 
 Thanks for thinking about contributing. This document explains how to
 get involved and the few legal steps that protect both you and AstraQ
-Cyber Defence Pvt Ltd ("AstraQ") so that contributions can be merged
+Cyber Defence Pvt. Ltd. ("AstraQ") so that contributions can be merged
 without later disputes.
 
 ## Code of conduct

@@ -35,7 +35,7 @@ export const instanceWorkspaces = () => dashboardWorkspaces();
 export const instanceAutomation = () => dashboardAutomation();
 export const instanceMcpClients = () => dashboardMcp();
 export const instanceAuditLog = async (cursor?: string) => {
-  const page = await dashboardAudit(cursor);
+  const page = await dashboardAudit({ cursor });
   return {
     ...page,
     events: page.events.map(({ ip: _, userAgent: __, ...event }) => event),

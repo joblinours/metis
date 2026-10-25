@@ -27,8 +27,10 @@ export default function SelfHostPage() {
         poses={POSES}
         actions={
           <>
-            <Button href="#install">Install it</Button>
-            <Button href={GITHUB_URL} tone="ghost" external>
+            <Button href="#install" kind="internal">
+              Install it
+            </Button>
+            <Button href={GITHUB_URL} tone="ghost" kind="external">
               Read the source
             </Button>
           </>

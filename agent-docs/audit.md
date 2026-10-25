@@ -8,7 +8,8 @@ See also [AGENTS.md](../AGENTS.md), [workspaces.md](workspaces.md) (the data exp
 
 | Concern                   | Where                                                                                                                                                                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Actions, channels, labels | `src/types/audit.ts` → `AUDIT_ACTIONS`, `AUDIT_VIAS`, `AUDIT_RESOURCE_KINDS`, `AUDIT_ACTION_LABELS`                                                                                                                       |
+| Actions, channels, labels | `src/types/audit.ts` → `AUDIT_ACTIONS`, `USER_AUDIT_ACTIONS`, `WORKSPACE_AUDIT_ACTIONS`, `AUDIT_VIAS`, `AUDIT_RESOURCE_KINDS`, `AUDIT_ACTION_LABELS`, `auditEventTitle`                                                   |
+| Search and filter         | `src/server/schema.ts` → `auditFilterSchema` · `src/audit/index.ts` → `filterScope` · `src/components/audit-event-list.tsx` → `useAuditFilter`, `auditPages`                                                              |
 | Table                     | `src/db/schema.ts` → `auditEvent`                                                                                                                                                                                         |
 | Writing and reading       | `src/audit/index.ts` → `recordAuditEvent`, `appActor`, `AuditActor`, `listUserAuditEvents`, `listWorkspaceAuditEvents`, `listInstanceAuditEvents`, `exportUserAuditEvents`                                                |
 | Retention                 | `src/audit/prune.ts` → `pruneAuditEvents` · run by the `system:audit-prune` workflow (`src/workflow/builtins/system.ts`) · `METIS_AUDIT_RETENTION_DAYS` in `src/config/schema.ts` → `auditConfigSchema`                   |
@@ -50,6 +51,15 @@ See also [AGENTS.md](../AGENTS.md), [workspaces.md](workspaces.md) (the data exp
 - **The owner MCP tool drops IP and user agent**, so no network detail reaches a model.
 - **The data export carries the user's own events** as `securityActivity`, without row ids or the top-level `mcpClientId`; an MCP event's `detail.clientId` stays, because it names the user's own client ([workspaces.md](workspaces.md)).
 
+### Search and filter
+
+- **All three views search and filter on the server, inside their scope.** `audit.mine`, `audit.workspace` and `dashboard.audit` take `q` and `action` beside `cursor`, so paging stays correct; filtering loaded pages in the browser would miss older events.
+- **Search matches the text a row shows:** its title, the target, the actor's email, the workspace name, and the IP in the views that show IPs.
+  - Titles live in code, not in the row, so `filterScope` matches `q` against every `auditEventTitle` (action × resource kind) and turns the hits into `action`/`resource_kind` conditions.
+  - The workspace view never searches IP, the same way it never returns it.
+- **Each view's type filter lists only the actions it can contain.** The dashboard lists `AUDIT_ACTIONS`, Security activity `USER_AUDIT_ACTIONS` (no `account.deleted`, which no user's feed can hold), workspace Activity `WORKSPACE_AUDIT_ACTIONS`.
+  - A new action written with a `workspaceId` joins `WORKSPACE_AUDIT_ACTIONS`, or workspace admins cannot filter for it.
+
 ### Retention and claims
 
 - **Retention is boot config (`METIS_AUDIT_RETENTION_DAYS`, default 365, at least 1), never instance config**, so a leaked dashboard session cannot shorten it to erase events.
@@ -60,10 +70,14 @@ See also [AGENTS.md](../AGENTS.md), [workspaces.md](workspaces.md) (the data exp
 ## How it works
 
 - **Paging.** Every list is newest first (`created_at`, then `id`), 50 per page (`AUDIT_PAGE_SIZE`); `nextCursor` is `<created_at ms>.<id>` of the last row, and a malformed cursor reads the first page.
-- **Describing an event.** Rows store machine values (`action`, `resource_kind`, `detail` such as `{ from, to }` for a role change or `{ tools }` for sensitive tools); `AuditEventList` turns them into the line a person reads.
+- **Describing an event.** Rows store machine values (`action`, `resource_kind`, `detail` such as `{ from, to }` for a role change or `{ tools }` for sensitive tools); `auditEventTitle` gives the title, shared with search, and `AuditEventList` builds the rest of the line a person reads.
+- **Searching.** `useAuditFilter` debounces the search box and holds the type filter; `auditPages` puts both into each page's input and keeps the previous list on screen while a new search loads. `q` matches with SQLite `LIKE`, `%`, `_` and `\` escaped. The box's `maxLength` and the schema share `AUDIT_SEARCH_MAX_LENGTH`, so typing never trips server validation.
 
 ## Deliberate limits
 
 - **No hash chain or signature.** It would prove nothing against an operator who holds the database and the app's keys.
 - **Removing a member does not write a separate detach event per resource**; the `member.removed` event covers the links `removeMember` drops.
-- **No filters or search** on any view; the owner pages through the newest events.
+- **Search skips `detail` and the user agent.** Role names, sensitive tools and the browser a row shows are not matched.
+- **Search is case-insensitive for ASCII only**, as SQLite `LIKE` is.
+- **No date range filter**; the views page back from the newest event.
+- **The owner MCP tool `getInstanceAuditLog` takes only a cursor** (`auditCursorInputSchema`), so its schema never advertises filters it does not apply.

@@ -16,7 +16,7 @@ export const SITE_DESCRIPTION =
 
 export const ORG_NAME = "AstraQ Cyber Defence";
 
-export const ORG_LEGAL_NAME = "AstraQ Cyber Defence Pvt Ltd";
+export const ORG_LEGAL_NAME = "AstraQ Cyber Defence Pvt. Ltd.";
 
 export const GITHUB_URL = "https://github.com/trymetis/metis";
 
@@ -36,7 +36,7 @@ export const ORG_PROFILES = [
 export const APP_PROFILES = ["https://www.instagram.com/metis_mail/"];
 
 export const ORG_POSTAL = {
-  street: "Engineers Colony Mothi Umari, Jatherpeth",
+  street: "Engineers Colony, Mothi Umari, Jatherpeth",
   locality: "Akola",
   region: "Maharashtra",
   country: "India",

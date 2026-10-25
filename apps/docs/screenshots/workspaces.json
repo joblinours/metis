@@ -180,6 +180,18 @@
     "element": "role=dialog"
   },
   {
+    "name": "workspaces/workspace-activity",
+    "path": "{workspace}/settings/activity",
+    "steps": [
+      { "waitFor": "main >> role=heading[level=1][name=\"Activity\"]" },
+      { "waitFor": "main >> role=searchbox[name=\"Search events\"]" },
+      { "waitFor": "main >> role=combobox[name=\"Event type\"]" },
+      {
+        "waitFor": "main >> :is(ul[aria-label='Audit events'], p:text-is('Nothing has happened in this workspace yet.'))"
+      }
+    ]
+  },
+  {
     "name": "workspaces/ai-and-privacy",
     "path": "{workspace}/settings/general",
     "steps": [
