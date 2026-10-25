@@ -44,6 +44,8 @@ in issues, pull requests, or community channels.
    bun run typecheck
    bun run lint
    ```
+   CI runs the same two checks on every push and pull request, plus
+   `gofmt -l` and `go vet` in the Go modules (`apps/updater`, `e2e/fakes`).
 5. If you changed `package.json` dependencies: run `bun install` from the
    repository root, then check anything new is license-compatible with
    AGPL-3.0-or-later:

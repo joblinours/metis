@@ -14,7 +14,6 @@ Where the schema lives and how it reaches a database, the one driver with two co
 | `db:push` / `db:export`            | `drizzle.config.ts`                                                                                    |
 | Schema for an empty database       | `scripts/preflight.ts` → `SCHEMA_PATH` (`/deploy/init.sql`, or `METIS_INIT_SQL`)                       |
 | sqld key and token generation      | `bootstrap.sh` (repository root) → `gen_sqld_auth`; `bash bootstrap.sh sqld-auth` prints a pair        |
-| Why `local` is dev-only, in full   | `README.md` (repository root) → "Database"                                                             |
 
 ## Rules
 
@@ -25,7 +24,7 @@ Where the schema lives and how it reaches a database, the one driver with two co
   - The URL schemes and the required `authToken` per driver are in `dbConfigSchema`.
   - Both connections use the same driver; a mixed pair fails validation.
 - **Mastra's database is separate from the app's**, so its writes never contend for the app database's single writer lock and `db:push` never sees its `mastra_*` tables (Mastra creates those itself).
-- **`local` is dev-only: never deploy it or verify against it** (`README.md` → "Database"). Anything that tests contention, multiple processes or the workflow runner under load runs on sqld.
+- **`local` is dev-only: never deploy it or verify against it.** Anything that tests contention, multiple processes or the workflow runner under load runs on sqld. The reasons are under Deliberate limits.
 - **Keep transactions short and database-only.** sqld serializes writes and rolls back an interactive transaction open for 5 s once another writer is waiting; the holder's commit then fails with `TRANSACTION_TIMEOUT`, and no setting changes this.
 - **Functions that may run inside a transaction take an `Executor`** (`typeof db | Tx`), so the caller decides.
 
@@ -43,3 +42,9 @@ Where the schema lives and how it reaches a database, the one driver with two co
 
 - **There are no migrations.** Preflight creates the schema of an empty database; every later change goes through `db:push`.
   - The one data backfill is preflight's `backfillServerIds` ([servers.md](servers.md)).
+- **`local` fails exactly where a mail client needs it to hold**, so it serves a single `next dev` and nothing else.
+  - It contends with itself: `@libsql/client` pools up to 20 connections to one file with a busy timeout of 0, so two overlapping writes in one process (two requests, or a request and a workflow tick) fail at once with `SQLITE_BUSY`.
+  - It silently loses writes: in `libsql` 0.5.29 a statement that fails with `SQLITE_BUSY` stays active while its connection reports no transaction; the pool reuses it, every later write on it reports success without committing, and it holds the write lock until the process restarts.
+  - A busy timeout does not fix it, because the driver is synchronous: waiting for the lock freezes the event loop, including the code that holds the lock.
+  - It can leave auth broken: Better Auth writes on startup, and if that write hits `SQLITE_BUSY`, sign-in stays broken until a restart.
+  - It cannot be shared: the web app and the bullmq worker are separate processes, and two processes on one file hit all of the above.

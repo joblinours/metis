@@ -2,7 +2,7 @@
 
 How an instance is deployed: `compose.yml`, `bootstrap.sh`, the two Dockerfiles and their images, release tags, health endpoints and build traps.
 Paths are from the repository root.
-See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](self-host.md), [workflow-runtime.md](workflow-runtime.md), [database.md](database.md), [configuration.md](configuration.md), `README.md` → "Deploying".
+See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](self-host.md), [workflow-runtime.md](workflow-runtime.md), [database.md](database.md), [configuration.md](configuration.md). The operator-facing install guide is `apps/docs/content/self-hosting/`.
 
 ## Code map
 
@@ -131,3 +131,4 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
   - `updater` is the `metis-updater` binary on `docker:29-cli`, which ships the Docker CLI and the compose plugin it calls.
   - `docker.yml` builds one matrix job per image, each with its own build cache scope.
 - **A deployment needs `runner`, `preflight` and `updater`, plus sqld unless the databases are elsewhere.**
+- **A platform that builds from source uses `apps/web` as the project root and `bun run preflight && bun run start` as the start command**; the images build from the repository root (`docker build --target runner .`).

@@ -76,8 +76,24 @@ See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [wor
 - **`internal`.** `startInProcessRunner()` (called from `instrumentation.ts` outside the build phase) runs one tick at start, then one per cadence on an `unref()`'d timer, skipping an interval while a tick is still running.
   - On a runner change, `syncInProcessRunner()` stops the timer (aborting the active tick) and starts a new one if the driver is still `internal`, so a cadence change restarts it; the two are serialized per process.
 - **Work cut off by a process exit** is recovered by lease expiry, exactly as for a killed worker.
-- **What each driver needs to run.** The root stack runs the app only ([deployment.md](deployment.md)); the operator procedure is `README.md` → "Operating the runner".
+- **What each driver needs to run.** The root stack runs the app only ([deployment.md](deployment.md)); the operator procedure is the docs site's Background work page (`apps/docs/content/self-hosting/02-configure/07-background-work.mdx`).
   - `internal` (the default) needs the app process to run continuously (`next start` / the runner image); on known serverless hosts a save refuses it and seeding stores it with a warning (`validateInstanceConfig` in `src/config/sections.ts`).
   - `bullmq` needs the published worker image and a Redis with `noeviction`, which the operator runs wherever they like and points at through the stored Redis URL. The worker needs only the minimal boot variables ([configuration.md](configuration.md)).
   - `cron` needs an external scheduler (cron-job.org, Vercel cron, …) calling the tick route with the stored secret.
   - Selecting `bullmq` without a running worker means nothing ticks: work queues in the database, nothing fails, and the runner shows `never` or `delayed`.
+
+### Operating the runner
+
+- **Every tick logs one `[workflow-runner] tick` line** with `driver`, `outcome`, `invocation`, timing and counts (`discovered`, `discoveryErrors`, `claimed`, `completed`, `failed`, `blocked`, `remaining`); `internal` lines add `trigger=start|interval`.
+  - `outcome` is `worked` when the tick discovered or claimed anything, `idle` otherwise, and `failed` on an infrastructure error, which names only `stage` (`setup`, `discovery`, `maintenance`, `execution`) and `code`.
+  - A failing workflow is not a tick failure: it shows in `failed` / `blocked` and in that workflow's history.
+  - `discoveryErrors` counts new-mail triggers that could not be checked (owner left, mailbox no longer visible or attached, provider scan failed); it recurs once per cadence until fixed, and the trigger node shows "Last check failed".
+- **The cron endpoint answers `200` or `500` (with `failure`) with a JSON summary, `401` for a wrong or missing secret, `404` when the driver is not `cron`.**
+  - Rejections log `tick rejected` at most once a minute per reason, with the count since the last line.
+  - The scheduler's timeout must exceed the tick budget, and calling more often than the cadence only drains ready work sooner.
+- **During a Redis outage the worker logs `redis source=… code=…` at most once a minute per error** and receives no ticks; it catches up on the first tick after Redis returns, and a worker started while Redis is down waits instead of exiting.
+- **The worker drains on `SIGTERM` / `SIGINT`**: it stops taking ticks and waits for the active one (at most the budget), so its stop timeout must exceed the budget (75 s covers the default 45 s).
+  - Startup exits non-zero with `not ready database=false …` when the database cannot be queried.
+- **The app under `internal` does not wait for its active tick on shutdown**; Next exits once its HTTP requests finish, so a longer stop timeout buys nothing. The cut-off work is recovered by lease expiry, and a restart catches up on its start tick.
+- **A backlog drains on its own over several ticks** (`remaining` and the dashboard's backlog age show it); to drain faster, tick more often under `cron` or raise batch size and concurrency.
+- **Switching drivers needs no migration.** Moving to `cron`, set the secret in the same edit and start the scheduler; moving to `bullmq`, start the worker and Redis first and enter the Redis URL in the same edit; moving to `internal`, stop the worker and remove the scheduler.

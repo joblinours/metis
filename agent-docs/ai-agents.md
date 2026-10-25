@@ -42,6 +42,7 @@ The Mastra agents, the toolkit every tool body lives in, the tool roster shared 
   - `workflow.ts` takes the whole `WorkspaceCtx`, because a graph may reference several mailboxes; its tools take no `mailboxId`, except `previewDecision`, which runs an Ask step on one mailbox's inbox.
   - A body that needs a route's mail scope builds it with `mailScopeFor(ctx, mailbox)`; `AgentMailbox` carries `mailboxes` and `isAggregate` for that ([mail.md](mail.md)).
 - **Every shared tool runs the same domain function as its route, and a route's rate limit lives in that function** (`enforceRateLimit`), so a route never holds logic its tool needs.
+  - The per-user bucket in `mailSession`, `calendarSession` and `driveSession` is a guard, not a route's limit, and stays in the middleware ([orpc.md](orpc.md)); tools are paced by the chat and MCP limits instead.
 - **A chat route only parses, authorizes and rate-limits; everything that shapes the model request lives in `chat-streams.ts`**, so the e2e recorder sends byte-for-byte the request the UI sends ([e2e.md](e2e.md)). The same holds for `classifyMessages` and `generateSmartReplies` behind their procedures.
 - **Per-request scope rides in Mastra `RequestContext`, which only the tool surfaces read.** Toolkit functions get resolved primitives.
 - **Tools read request headers from `ctx.actor.headers`**, because they run during stream consumption, after the request handler returned and `next/headers` is gone.

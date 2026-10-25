@@ -30,6 +30,9 @@ See also [AGENTS.md](../AGENTS.md) (scope as explicit input), [auth.md](auth.md)
   - `appSession` answers no session with `UNAUTHORIZED` and a session without 2FA with `FORBIDDEN`.
   - `workspaceSession` answers an unknown workspace with `FORBIDDEN`.
   - `mailSession`, `calendarSession` and `driveSession` answer an unknown slug with `NOT_FOUND`.
+- **`mailSession`, `calendarSession` and `driveSession` rate-limit every procedure per user, one bucket per resource kind** (`MAIL_RATE`, `CALENDAR_RATE`, `DRIVE_RATE` in their middleware files).
+  - The bucket is a floor that covers every procedure, including new ones; a procedure with a costlier action (sending, classifying, scanning) adds its own tighter limit on top.
+  - It counts before the resource is resolved, so a flood of unknown slugs is limited too.
 - **`signup.*` is the only namespace on bare `base`: public and IP rate-limited** ([auth.md](auth.md)). `signupInvites.*` uses `appSession`.
 - **`dashboard.*` answers everyone but the owner with `NOT_FOUND`** (`ownerSession`), so the dashboard stays indistinguishable from an unrouted URL ([dashboard.md](dashboard.md)).
 

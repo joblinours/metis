@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage (details: README.md → Deploying):
+# Usage (details: https://docs.trymetis.email/self-hosting/install/install-with-bootstrap):
 #   sudo -E bash bootstrap.sh                  deploy from exported env vars
 #   sudo -E bash bootstrap.sh --interactive    prompt for anything not exported
 #   sudo bash bootstrap.sh domain example.com  HTTPS via Caddy once DNS points here
