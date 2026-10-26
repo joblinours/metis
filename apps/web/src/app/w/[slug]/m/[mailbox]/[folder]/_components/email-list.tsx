@@ -139,6 +139,8 @@ export function EmailList({ folder, view }: EmailListProps) {
     hasMore,
     loadMore,
     mailboxErrors,
+    error: listError,
+    retry: retryList,
   } = useEmailSource(scope, folder, source, submittedSearch);
   const { labels, ready: labelsReady } = useMailLabels(scope);
   const customLabels = useCustomLabels();
@@ -163,6 +165,10 @@ export function EmailList({ folder, view }: EmailListProps) {
   }, [scope, folder, readLaterMode, urlLabel, activeTab]);
 
   usePollingRefresh(async () => {
+    if (listError) {
+      retryList();
+      return;
+    }
     if (useMailStore.getState().submittedSearch) return;
     if (readLaterMode) await refreshReadLaterList(scope).catch(() => {});
     else await refreshMailListHead(scope, folder).catch(() => {});
@@ -522,6 +528,19 @@ export function EmailList({ folder, view }: EmailListProps) {
                 className="h-16 animate-pulse rounded-md bg-hover"
               />
             ))}
+          </div>
+        ) : listError && emails.length === 0 ? (
+          <div
+            role="alert"
+            className="flex flex-col items-center justify-center gap-2 py-16 text-faint"
+          >
+            <p className="text-base font-serif">Couldn't load your {folderLabel.toLowerCase()}</p>
+            <span className="text-xs">
+              {listError.message || "The request did not go through."}
+            </span>
+            <Button variant="outline" size="sm" className="mt-2" onClick={retryList}>
+              Try again
+            </Button>
           </div>
         ) : visibleEmails.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-faint">

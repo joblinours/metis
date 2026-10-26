@@ -35,32 +35,34 @@
         "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"One mailbox, on arrival\"s]"
       },
       { "waitFor": "role=button[name=\"Create workflow\"s]" },
-      { "waitFor": ".react-flow__node-condition" },
-      { "click": "role=application >> role=button[name=\"Fit View\"]" },
+      { "waitFor": "role=application >> role=group[name=\"If\"s]" },
+      { "click": "role=application >> role=group[name=\"If\"s]" },
       {
-        "fill": "role=application >> role=textbox[name=\"value\"s]",
+        "fill": "role=region[name=\"Inspector\"s] >> role=textbox[name=\"Value\"s]",
         "value": "news@example.com"
       },
-      {
-        "fill": "role=textbox[name=\"Untitled workflow\"s]",
-        "value": "Archive newsletters"
-      },
-      { "hover": ".react-flow__minimap" },
+      { "fill": "role=textbox[name=\"Workflow name\"s]", "value": "Archive newsletters" },
+      { "click": "role=application >> role=button[name=\"Fit View\"]" },
       { "wait": 600 }
     ]
   },
   {
     "name": "workflows/add-step-menu",
     "path": "{workspace}/workflow",
-    "viewport": { "width": 2200, "height": 900 },
     "steps": [
-      { "waitFor": "role=button[name=\"Add step\"s]" },
-      { "click": "role=button[name=\"Add step\"s]" },
+      { "waitFor": "role=button[name=\"New workflow\"s]" },
+      { "click": "role=button[name=\"New workflow\"s]" },
       {
-        "waitFor": "role=menu[name=\"Add step\"s] >> role=menuitem[name=\"Branch\"s]"
-      }
+        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"One mailbox, on arrival\"s]"
+      },
+      { "waitFor": "role=button[name=\"Create workflow\"s]" },
+      { "waitFor": "role=application >> role=group[name=\"If\"s]" },
+      { "press": "w" },
+      { "press": "a" },
+      { "waitFor": "role=dialog[name=\"Add step\"s]" },
+      { "wait": 400 }
     ],
-    "clip": { "x": 280, "y": 0, "width": 560, "height": 600 }
+    "element": "role=dialog[name=\"Add step\"s]"
   },
   {
     "name": "workflows/workflow-canvas",
@@ -82,12 +84,12 @@
     "steps": [
       { "waitFor": "role=button[name=\"Morning newsletter sweep\"s]" },
       { "click": "role=button[name=\"Morning newsletter sweep\"s]" },
-      {
-        "waitFor": ".react-flow__node[data-id=\"daily\"] >> text=\"Cron (5 fields)\""
-      },
+      { "waitFor": ".react-flow__node[data-id=\"daily\"]" },
+      { "click": ".react-flow__node[data-id=\"daily\"]" },
+      { "waitFor": "role=region[name=\"Inspector\"s] >> role=combobox[name=\"Repeats\"s]" },
       { "wait": 400 }
     ],
-    "element": ".react-flow__node[data-id=\"daily\"]"
+    "element": "role=region[name=\"Inspector\"s]"
   },
   {
     "name": "workflows/if-step",
@@ -118,32 +120,32 @@
   {
     "name": "workflows/ask-step",
     "path": "{workspace}/workflow",
-    "viewport": { "width": 1440, "height": 3700 },
+    "viewport": { "width": 1440, "height": 2000 },
     "steps": [
       { "waitFor": "role=button[name=\"Triage with the decision model\"s]" },
       { "click": "role=button[name=\"Triage with the decision model\"s]" },
+      { "waitFor": ".react-flow__node[data-id=\"ask\"]" },
+      { "click": ".react-flow__node[data-id=\"ask\"]" },
       {
-        "waitFor": ".react-flow__node[data-id=\"ask\"] >> text=\"Send to the model\""
+        "waitFor": "role=region[name=\"Inspector\"s] >> role=button[name=\"Try on recent mail\"s]"
       },
-      { "click": ".react-flow__node[data-id=\"ask\"] >> text=\"Ask\"" },
       { "wait": 600 }
     ],
-    "element": ".react-flow__node[data-id=\"ask\"]"
+    "element": "role=region[name=\"Inspector\"s]"
   },
   {
     "name": "workflows/branch-step",
     "path": "{workspace}/workflow",
-    "viewport": { "width": 1920, "height": 4300 },
+    "viewport": { "width": 1440, "height": 2000 },
     "steps": [
       { "waitFor": "role=button[name=\"Triage with the decision model\"s]" },
       { "click": "role=button[name=\"Triage with the decision model\"s]" },
-      {
-        "waitFor": ".react-flow__node[data-id=\"team\"] >> text=\"Take the top answer at 60%\""
-      },
-      { "click": ".react-flow__node[data-id=\"team\"] >> text=\"Branch\"" },
+      { "waitFor": ".react-flow__node[data-id=\"team\"]" },
+      { "click": ".react-flow__node[data-id=\"team\"]" },
+      { "waitFor": "role=region[name=\"Inspector\"s] >> role=slider" },
       { "wait": 600 }
     ],
-    "element": ".react-flow__node[data-id=\"team\"]"
+    "element": "role=region[name=\"Inspector\"s]"
   },
   {
     "name": "workflows/delete-dialog",
@@ -151,8 +153,9 @@
     "steps": [
       { "waitFor": "role=button[name=\"Morning newsletter sweep\"s]" },
       { "click": "role=button[name=\"Morning newsletter sweep\"s]" },
-      { "waitFor": "role=button[name=\"Delete workflow\"s]" },
-      { "click": "role=button[name=\"Delete workflow\"s]" },
+      { "waitFor": ".react-flow__node[data-id=\"daily\"]" },
+      { "click": "role=button[name=\"More workflow actions\"s]" },
+      { "click": "role=menuitem[name=\"Delete workflow\"s]" },
       { "waitFor": "role=alertdialog[name=\"Delete this workflow?\"s]" },
       { "wait": 400 }
     ],
@@ -211,13 +214,9 @@
       { "waitFor": "role=button[name=\"Triage with the decision model\"s]" },
       { "click": "role=button[name=\"Triage with the decision model\"s]" },
       { "waitFor": ".react-flow__node[data-id=\"ask\"]" },
-      { "click": "role=application >> role=button[name=\"Fit View\"]" },
-      {
-        "click": "role=application >> role=button[name=\"Try on recent mail\"s]"
-      },
-      {
-        "click": "role=dialog[name=\"Try on recent mail\"] >> role=button[name=\"Ask\"s]"
-      },
+      { "click": ".react-flow__node[data-id=\"ask\"]" },
+      { "click": "role=region[name=\"Inspector\"s] >> role=button[name=\"Try on recent mail\"s]" },
+      { "click": "role=dialog[name=\"Try on recent mail\"] >> role=button[name=\"Ask\"s]" },
       { "waitFor": "role=dialog[name=\"Try on recent mail\"] >> text=\"Q1:\"" },
       { "wait": 600 }
     ]
@@ -232,24 +231,24 @@
       {
         "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"One mailbox, on arrival\"s]"
       },
-      { "waitFor": ".react-flow__node-condition" },
-      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
-      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
-      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
-      { "click": "role=application >> role=button[name=\"Remove step\"s]" },
-      { "click": "role=button[name=\"Add step\"s]" },
+      { "waitFor": "role=button[name=\"Create workflow\"s]" },
+      { "waitFor": "role=application >> role=group[name=\"If\"s]" },
+      { "click": "role=application >> role=group[name=\"Archive\"s]" },
+      { "click": "role=region[name=\"Inspector\"s] >> role=button[name=\"Delete\"s]" },
+      { "click": "role=application >> role=group[name=\"If\"s]" },
+      { "click": "role=region[name=\"Inspector\"s] >> role=button[name=\"Delete\"s]" },
+      { "click": "role=application >> role=group[name=\"Mailbox\"s]" },
+      { "click": "role=region[name=\"Inspector\"s] >> role=button[name=\"Delete\"s]" },
+      { "click": "role=application >> role=group[name=\"When mail arrives\"s]" },
+      { "click": "role=region[name=\"Inspector\"s] >> role=button[name=\"Delete\"s]" },
+      { "click": "role=option >> text=\"Before a message is sent\"" },
+      { "click": "role=option >> text=\"Auto-BCC\"" },
       {
-        "click": "role=menu[name=\"Add step\"s] >> role=menuitem[name=\"Before a message is sent\"s]"
-      },
-      { "click": "role=button[name=\"Add step\"s]" },
-      {
-        "click": "role=menu[name=\"Add step\"s] >> role=menuitem[name=\"Auto-BCC\"s]"
-      },
-      {
-        "fill": "role=application >> role=textbox[name=\"archive@example.com\"]",
+        "fill": "role=region[name=\"Inspector\"s] >> role=textbox[name=\"Bcc address\"s]",
         "value": "archive@example.com"
       },
-      { "click": "role=textbox[name=\"Untitled workflow\"s]" },
+      { "click": "role=application >> role=button[name=\"Tidy up the layout\"s]" },
+      { "click": "role=application >> role=button[name=\"Fit View\"]" },
       { "wait": 600 }
     ],
     "element": [

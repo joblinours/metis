@@ -93,13 +93,13 @@ The client half is not in a container because the issuer and the token audience 
 
 ## Updater
 
-The `updater` service (the fakes' `updater` role, `fakes/updater.go`) is a fake updater: it serves the real updater protocol (`metis.updater.v1.UpdaterService`, through the handler generated in `apps/updater/gen`) on `/run/metis-updater/updater.sock`, in the `updater-socket` volume the app mounts read-only with `METIS_UPDATER_SOCKET` set, so the dashboard's Updates page and its procedures run unchanged. It moves no containers: it keeps the running version, the release list, the rollback target and the last upgrade in memory, and steps an upgrade through pull, preflight, switch and ready, one step every `stepMs`, answering with the same codes and messages as the Go updater.
+The `updater` service (the fakes' `updater` role, `fakes/updater.go`) is a fake updater: it serves the real updater protocol (`metis.updater.v1.UpdaterService`, through the handler generated in `apps/updater/gen`) on `/run/metis-updater/updater.sock`, in the `updater-socket` volume the app mounts read-only with `METIS_UPDATER_SOCKET` set, so the dashboard's Updates page and its procedures run unchanged. It moves no containers and copies no database: it keeps the running version, the release list and notes, the undo target, whether the install has snapshots and the last upgrade in memory, and steps an upgrade through pull, snapshot (with snapshots), preflight, switch and ready, and an undo through pull, restore, switch and ready, one step every `stepMs`, answering with the same codes and messages as the Go updater.
 
-- Defaults: running `1.1.0`, releases `1.2.0`, `1.1.0`, `1.0.0`, rollback `1.0.0`, `stepMs` `1000`.
-- `POST http://localhost:8097/reset` restores them; a JSON body overrides any of `current`, `releases`, `rollback`, `stepMs` and `outcome`, which decides how the next upgrade or rollback ends (`succeed`, `preflight-fails`, `never-ready` (switched back) or `restore-fails` (needs attention)) and then returns to `succeed`. Reset also brings the socket back up.
+- Defaults: running `1.1.0`, releases `1.2.0`, `1.1.0`, `1.0.0`, notes for `1.2.0`, undo target `1.0.0`, snapshots on, `stepMs` `1000`.
+- `POST http://localhost:8097/reset` restores them; a JSON body overrides any of `current`, `releases`, `notes`, `rollback`, `snapshots`, `stepMs` and `outcome`, which decides how the next upgrade ends (`succeed`, `preflight-fails` (switched back with snapshots, never installed without), `never-ready` (switched back) or `restore-fails` (needs attention)) and then returns to `succeed`; an undo always succeeds. Reset also brings the socket back up.
 - `POST /hold` leaves an upgrade running that never advances, so a second request is refused; `POST /down` and `/up` remove and recreate the socket; `GET /state` returns everything.
 
-The suite drives it through `tests/updater.ts`, and `tests/write/updates.spec.ts` resets it before every test. Each upgrade or rollback costs one TOTP code, and `instance-update` allows 10 per user per 5 minutes, which the spec uses exactly.
+The suite drives it through `tests/updater.ts`, and `tests/write/updates.spec.ts` resets it before every test. Each upgrade or undo costs one TOTP code, and `instance-update` allows 10 per user per 5 minutes, which the spec uses exactly.
 
 ## Cloudflare gateway
 

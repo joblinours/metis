@@ -116,6 +116,8 @@ export function useMailList(
       hasMore: false,
       loadMore,
       mailboxErrors: searched.data?.mailboxErrors ?? NO_ERRORS,
+      error: searched.data ? null : searched.error,
+      retry: () => void searched.refetch(),
     };
   }
   return {
@@ -124,6 +126,8 @@ export function useMailList(
     hasMore: list.hasNextPage,
     loadMore,
     mailboxErrors: pages?.[0]?.mailboxErrors ?? NO_ERRORS,
+    error: pages ? null : list.error,
+    retry: () => void list.refetch(),
   };
 }
 
@@ -175,6 +179,8 @@ function usePagedEmails(list: {
   isFetching: boolean;
   hasNextPage: boolean;
   fetchNextPage: () => Promise<unknown>;
+  error: Error | null;
+  refetch: () => Promise<unknown>;
 }) {
   const pages = list.data?.pages;
   const emails = useMemo(() => pages?.flatMap((page) => page.emails) ?? NO_EMAILS, [pages]);
@@ -188,6 +194,8 @@ function usePagedEmails(list: {
     hasMore: list.hasNextPage,
     loadMore,
     mailboxErrors: pages?.[0]?.mailboxErrors ?? NO_ERRORS,
+    error: pages ? null : list.error,
+    retry: () => void list.refetch(),
   };
 }
 
@@ -433,6 +441,16 @@ export function useReadLaterList(scope: MailboxScope, search: string, fetching =
     hasMore: false,
     loadMore: noMore,
     mailboxErrors: search ? searched.mailboxErrors : NO_ERRORS,
+    error: search
+      ? searched.error
+      : ((saved.data ? null : saved.error) ?? (savedIds.data ? null : savedIds.error)),
+    retry: () => {
+      if (search) searched.retry();
+      else {
+        void saved.refetch();
+        void savedIds.refetch();
+      }
+    },
   };
 }
 

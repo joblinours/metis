@@ -6,10 +6,11 @@ interface SeededWorkflow {
   graph: { nodes: object[]; edges: object[] };
 }
 
-const ROW_Y = [0, 210, 570, 810, 1120, 1740, 2000];
+const STEP_X = 352;
+const LANE_Y = 200;
 
-function at(row: number, column = 0) {
-  return { x: column * 280, y: ROW_Y[row] ?? 0 };
+function at(step: number, lane = 0) {
+  return { x: step * STEP_X, y: lane * LANE_Y };
 }
 
 function edge(

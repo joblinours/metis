@@ -53,6 +53,7 @@ import { useMailPrivacy, useRenderedEmail } from "@/hooks/use-mail-privacy";
 import { useWorkspaceMailboxes } from "@/hooks/use-mailbox-emails";
 import { useMailboxScope } from "@/hooks/use-workspace-path";
 import { orpc, rpc } from "@/lib/orpc";
+import { refreshQueries } from "@/lib/query-client";
 import { formatBytes } from "@/lib/utils";
 import { mailboxMarkColor } from "@/mail/mailbox-color";
 import type { RemoteImages } from "@/mail/render/types";
@@ -403,6 +404,7 @@ export function ComposeDialog() {
         payload,
         scheduledFor: date.toISOString(),
       });
+      void refreshQueries(rpc.mail.scheduledSend.list.key());
       notifyScheduled(payload, scope, date);
       resetForm();
     } catch (e) {

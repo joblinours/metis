@@ -21,7 +21,7 @@ Workflows run in the background on your server, so they keep working when Metis 
 
 ## Run and manage workflows
 
-- [Run a workflow and check its history](/guide/workflows/run-and-check-history): run a workflow now, then see what each run did.
+- [Run a workflow and check its history](/guide/workflows/run-and-check-history): test a workflow without changing anything, run it now, then see what each run did.
 - [Cancel and retry runs](/guide/workflows/cancel-and-retry-runs): stop a run that is waiting or running, and retry the steps that failed.
 - [Manage workflows](/guide/workflows/manage-workflows): turn workflows on and off, delete them, and change them from the assistant.
 - [Limits](/guide/workflows/limits): the sizes and rules every workflow has to fit.

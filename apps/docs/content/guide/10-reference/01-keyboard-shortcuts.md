@@ -1,16 +1,16 @@
 ---
 title: Keyboard shortcuts
-description: Every keyboard shortcut in mail, calendar and drive, the shortcuts for search and for switching workspaces, and the keys inside the search window.
+description: Every keyboard shortcut in mail, calendar, drive and the workflow editor, the shortcuts for search and for switching workspaces, and the keys inside the search window.
 ---
 
-Mail, calendar and drive each have their own shortcuts. Most of them are two keys pressed one after the other: a prefix letter for the section, then a second key.
+Mail, calendar, drive and the workflow editor each have their own shortcuts. Most of them are two keys pressed one after the other: a prefix letter for the section, then a second key.
 
 ## How shortcuts work
 
-- **Press the prefix, then the key.** Press **m** in mail, **c** in calendar or **d** in drive, then press the second key within about 1.5 seconds. For example, **m** then **i** opens the inbox. While the prefix is active, a hint shows the keys you can press.
+- **Press the prefix, then the key.** Press **m** in mail, **c** in calendar, **d** in drive or **w** in the workflow editor, then press the second key within about 1.5 seconds. For example, **m** then **i** opens the inbox. While the prefix is active, a hint shows the keys you can press.
 - **A wrong second key does nothing.** If you press the prefix and then a key with no shortcut, nothing happens.
-- **Mail, calendar and drive shortcuts pause while you type.** They do nothing while you are typing in a field, such as a search box or the message editor. Switching workspaces with **Alt** and a number still works.
-- **Press ? for help.** In mail, calendar and drive, **?** shows or hides the **Keyboard shortcuts** dialog for that section. Press **Esc** or click **Close** to close it.
+- **Mail, calendar, drive and workflow shortcuts pause while you type.** They do nothing while you are typing in a field, such as a search box or the message editor. Switching workspaces with **Alt** and a number still works.
+- **Press ? for help.** In mail, calendar, drive and the workflow editor, **?** shows or hides the **Keyboard shortcuts** dialog for that section. Press **Esc** or click **Close** to close it.
 - **Press Ctrl + K to search.** Workspace search also finds commands such as **Compose mail** and settings pages, so you can run them by typing their name. See [Search](#search).
 
 <img src="/images/workspaces/keyboard-shortcuts-help.png" alt="The Keyboard shortcuts dialog in mail" class="dark:hidden" />
@@ -121,3 +121,31 @@ Without a prefix:
 | **k** or **p** | Go back to the previous folder in your history |
 
 In drive, **j** and **k** move through the folders you have visited, like a browser's back and forward buttons. They do not move a selection. Your history is kept when you switch between drives.
+
+## Workflows
+
+These work in the workflow editor. See [Workflows](/guide/workflows).
+
+Press **w**, then:
+
+| Keys             | Action                                                                    |
+| ---------------- | ------------------------------------------------------------------------- |
+| **w** then **a** | Open the **Add step** window                                              |
+| **w** then **l** | Tidy up the layout                                                        |
+| **w** then **t** | Open the **Test run** tab                                                 |
+| **w** then **r** | Run the saved workflow now. It does nothing for a workflow not yet saved. |
+
+Without a prefix:
+
+| Keys                                                              | Action                                                      |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Ctrl** + **S** (**⌘** + **S** on a Mac)                         | Save                                                        |
+| **Ctrl** + **Z** (**⌘** + **Z** on a Mac)                         | Undo                                                        |
+| **Ctrl** + **Shift** + **Z** (**⌘** + **Shift** + **Z** on a Mac) | Redo. **Ctrl** + **Y** (**⌘** + **Y** on a Mac) also works. |
+| **Ctrl** + **C** (**⌘** + **C** on a Mac)                         | Copy the selected steps                                     |
+| **Ctrl** + **V** (**⌘** + **V** on a Mac)                         | Paste steps                                                 |
+| **Ctrl** + **D** (**⌘** + **D** on a Mac)                         | Duplicate the selected steps                                |
+| **Delete** or **Backspace**                                       | Remove the selected steps or connections                    |
+| **?**                                                             | Show or hide the **Keyboard shortcuts** dialog              |
+
+**Ctrl** + **S** saves even while you are typing in a field. The other keys do nothing while you type. The **Keyboard shortcuts** dialog is also in the editor's **More workflow actions** menu (**...**).

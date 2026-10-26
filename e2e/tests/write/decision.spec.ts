@@ -47,7 +47,7 @@ async function retryFailedSteps(page: Page) {
 async function openTriage(page: Page, account: Account) {
   await page.goto(workspacePath(account, "/workflow"));
   await page.getByRole("complementary").getByRole("button", { name: TRIAGE, exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Untitled workflow" })).toHaveValue(TRIAGE);
+  await expect(page.getByRole("textbox", { name: "Workflow name" })).toHaveValue(TRIAGE);
 }
 
 export default function decisionSpecs() {
@@ -83,10 +83,10 @@ export default function decisionSpecs() {
     account,
   }) => {
     await openTriage(page, account);
-    await page
-      .getByRole("application")
-      .getByRole("button", { name: "Try on recent mail", exact: true })
-      .click();
+    const canvas = page.getByRole("application");
+    const inspector = page.getByRole("region", { name: "Inspector" });
+    await canvas.getByRole("group", { name: "Ask", exact: true }).click();
+    await inspector.getByRole("button", { name: "Try on recent mail", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "Try on recent mail" });
     await sheet.getByRole("button", { name: "Ask", exact: true }).click();
     const kickoff = sheet
@@ -96,8 +96,8 @@ export default function decisionSpecs() {
     await expect(sheet.getByText("That didn't go through. Try again.")).toHaveCount(0);
 
     const extra = await hitsDuring("/systemone", async () => {
-      const yesThreshold = page
-        .getByRole("application")
+      await canvas.getByRole("group", { name: "Branch", exact: true }).first().click();
+      const yesThreshold = inspector
         .getByRole("group")
         .filter({ has: page.getByText(/^Yes when at least \d+%$/) })
         .filter({ hasNot: page.getByText(/^No when at most \d+%$/) });

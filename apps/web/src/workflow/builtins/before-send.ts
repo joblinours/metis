@@ -45,7 +45,7 @@ export async function collectSendPolicyBccs(opts: SendPolicyInput): Promise<stri
 
       return executeRun({
         runId: null,
-        pure: true,
+        mode: "policy",
         definition: loaded.definition,
         graph: loaded.graph,
         principal: principal.value,

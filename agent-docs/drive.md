@@ -107,7 +107,6 @@ See also [AGENTS.md](../AGENTS.md), [drive-providers.md](drive-providers.md), [d
 - **A drive root is labeled by its server name (or provider) and account email wherever drives are listed side by side**, because one account often has several drives: the drive pickers (`drive-picker-dialog.tsx`) and the `@` picker (`ResolvedDrive.server`, read by `src/ai/reference-directory.ts`).
 - **"Link a file from Drive" is offered only for drives with provider share links** (`SHARE_LINK_PROVIDERS`: Google Drive and OneDrive). Self-hosted drives return `webUrl: null`, so compose hides the button when no such drive is linked and the picker lists only those drives.
 - **File type icons are generated, never hand-written.** `icons:drive` keeps a curated allowlist from `catppuccin/vscode-icons` and throws if an allowlisted icon vanished upstream; attribution is in the repository-root `NOTICE`.
-- **The mail↔drive seam lives in the browser.** Neither domain nor the server imports the other.
 
 ## How it works
 

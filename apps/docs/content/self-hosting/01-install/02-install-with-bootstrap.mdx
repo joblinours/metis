@@ -8,9 +8,9 @@ In this tutorial you install a complete Metis Suite instance on a fresh Ubuntu s
 The stack the script starts has these services:
 
 - **sqld**: the database server. It holds the app database and the AI memory database, in the `metis_sqld` Docker volume.
-- **preflight**: a one-time check that runs before the app starts on every deploy. It prepares the database and checks your settings.
+- **preflight**: a one-time check that runs before the app starts on every deploy. It applies the release's changes to the database and checks your settings.
 - **app**: Metis Suite itself.
-- **updater**: applies upgrades and rollbacks that you start from the owner dashboard.
+- **updater**: upgrades the app when you start an upgrade from the owner dashboard, and undoes the last upgrade if you ask. Before each upgrade from the dashboard, it takes a snapshot (a full copy) of the bundled database.
 - **caddy**: serves the app over HTTPS. It runs only once you set a domain.
 
 Everything is installed in `/opt/metis-suite`. Your settings go in `/opt/metis-suite/.env`, which only root can read.
@@ -146,12 +146,17 @@ export MASTRA_DATABASE_AUTH_TOKEN=<token>
 
 The bundled database server then does not start. Both databases must use the same driver.
 
+With Turso, the updater cannot take a snapshot before an upgrade, so an upgrade cannot be undone. Back up your databases before each upgrade. See [Upgrade and undo](/self-hosting/operate/upgrade-and-undo#snapshots-need-the-bundled-database).
+
 ## Run the script again
 
-You can run the script again at any time, for example to pick up a new Compose file:
+You can run the script again at any time. It is the only way to update the updater service and the Compose file, which upgrades from the dashboard never change. A release's upgrade notes say when you need to. See [Releases that need the bootstrap script](/self-hosting/operate/upgrade-and-undo#releases-that-need-the-bootstrap-script).
 
 - An existing `.env` is kept. In interactive mode the script asks "Re-configure .env? (y/N)" first.
-- Every run pins the release again: the newest one, or the one in `METIS_VERSION`. So running the script also upgrades the app.
+- Every run downloads the Compose file and pins every image again, the updater included: to the newest release, or to the one in `METIS_VERSION`. So running the script also upgrades the app, and preflight applies the release's database changes.
+- This upgrade takes no snapshot and cannot be undone. Back up the database first. See [Backups](/self-hosting/operate/backups).
+- If the run moves your instance to a different release, it also ends any undo that was waiting on the **Updates** page.
+- `METIS_VERSION` cannot take you back to a release older than one that already changed your database. Preflight refuses the database, and the script stops with "The stack did not start".
 
 :::warning[Do not regenerate .env to start over]
 If you delete `.env`, or answer **y** to "Re-configure .env?", the script generates every secret you have not exported, including a new encryption key. The instance can then no longer read the passwords and tokens users stored, and everyone has to reconnect every account. Edit `.env` instead. Do not answer **y** or delete `.env` unless you first export your saved `METIS_ENCRYPTION_KEY` and `BETTER_AUTH_SECRET`, so the script reuses them.

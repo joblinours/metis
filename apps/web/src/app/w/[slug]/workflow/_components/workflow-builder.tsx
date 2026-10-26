@@ -1,5 +1,15 @@
 "use client";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@metis/ui/components/alert-dialog";
 import { Button } from "@metis/ui/components/button";
 import {
   DropdownMenu,
@@ -11,7 +21,8 @@ import { cn } from "@metis/ui/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, History, Loader2, Plus, WorkflowIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 
 import { ResponsiveAside } from "@/components/mobile-aside";
 import { useWorkspacePath, useWorkspaceScope } from "@/hooks/use-workspace-path";
@@ -21,7 +32,7 @@ import type { GraphMailbox, GraphTemplate } from "@/workflow/graph";
 import { GRAPH_TEMPLATES, TEMPLATE_LABELS } from "@/workflow/graph";
 import { workflowPath, workspacePath, workspaceRootPath } from "@/workspace/path";
 
-import { WorkflowCanvas } from "./workflow-canvas";
+import { WorkflowEditor } from "./workflow-editor";
 
 type Selection = { mode: "new"; template: GraphTemplate } | { mode: "workflow"; id: string } | null;
 
@@ -58,7 +69,15 @@ export function WorkflowBuilder({
         ? { mode: "workflow", id: firstWorkflow.id }
         : { mode: "new", template: "single" }
       : null);
-  const [justCreated, setJustCreated] = useState<string | null>(null);
+  const router = useRouter();
+  const [dirty, setDirty] = useState(false);
+  const [pending, setPending] = useState<(() => void) | null>(null);
+  const onDirtyChange = useCallback((next: boolean) => setDirty(next), []);
+
+  function guard(action: () => void) {
+    if (dirty) setPending(() => action);
+    else action();
+  }
 
   function setWorkflows(update: (list: WorkflowOutput[]) => WorkflowOutput[]) {
     queryClient.setQueryData(listOptions.queryKey, (old) =>
@@ -70,7 +89,6 @@ export function WorkflowBuilder({
     selection?.mode === "workflow" ? (workflows.find((w) => w.id === selection.id) ?? null) : null;
 
   function handleSaved(saved: WorkflowOutput) {
-    if (!workflows.some((w) => w.id === saved.id)) setJustCreated(saved.id);
     setWorkflows((prev) => {
       const exists = prev.some((w) => w.id === saved.id);
       return exists ? prev.map((w) => (w.id === saved.id ? saved : w)) : [...prev, saved];
@@ -91,10 +109,15 @@ export function WorkflowBuilder({
   return (
     <div className="flex h-full w-full">
       <ResponsiveAside label="Workflows" closeKey={canvasKey}>
-        <aside className="flex h-full w-64 shrink-0 flex-col border-border border-r bg-panel">
+        <aside className="flex h-full w-56 shrink-0 flex-col border-border border-r bg-panel">
           <div className="flex items-center gap-2 border-border-soft border-b px-3 py-2.5">
             <Link
               href={inboxHref}
+              onClick={(event) => {
+                if (!dirty) return;
+                event.preventDefault();
+                guard(() => router.push(inboxHref));
+              }}
               aria-label="Back to mail"
               className="flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-hover hover:text-foreground"
             >
@@ -125,7 +148,7 @@ export function WorkflowBuilder({
                 {GRAPH_TEMPLATES.map((template) => (
                   <DropdownMenuItem
                     key={template}
-                    onClick={() => setSelection({ mode: "new", template })}
+                    onClick={() => guard(() => setSelection({ mode: "new", template }))}
                   >
                     {TEMPLATE_LABELS[template]}
                   </DropdownMenuItem>
@@ -153,7 +176,7 @@ export function WorkflowBuilder({
                     <li key={flow.id}>
                       <button
                         type="button"
-                        onClick={() => setSelection({ mode: "workflow", id: flow.id })}
+                        onClick={() => guard(() => setSelection({ mode: "workflow", id: flow.id }))}
                         className={cn(
                           "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-hover",
                           active && "bg-active",
@@ -194,7 +217,7 @@ export function WorkflowBuilder({
             <Loader2 className="size-5 animate-spin opacity-50" />
           </div>
         ) : (
-          <WorkflowCanvas
+          <WorkflowEditor
             key={canvasKey}
             mailboxes={mailboxes}
             allowDecisionNodes={allowDecisionNodes}
@@ -202,12 +225,40 @@ export function WorkflowBuilder({
             template={selection?.mode === "new" ? selection.template : "single"}
             onSaved={handleSaved}
             onDeleted={handleDeleted}
-            initialStatus={
-              selection?.mode === "workflow" && selection.id === justCreated ? "Saved" : null
-            }
+            onDirtyChange={onDirtyChange}
           />
         )}
       </div>
+
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open) setPending(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This workflow has changes you have not saved. They are lost if you leave it now.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const action = pending;
+                setPending(null);
+                setDirty(false);
+                action?.();
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -7,28 +7,42 @@ A workflow automates work you would otherwise do by hand in your inbox, such as 
 
 ## Where to find workflows
 
-Click **Workflows** in the left rail. The Workflows page has two parts:
+Click **Workflows** in the left rail. The Workflows page has a sidebar and an editor.
 
-- **The sidebar** on the left lists every workflow you can see. An enabled workflow has a coloured icon. A disabled one has a grey icon and the word "off" after its name. At the top is the **New workflow** menu, and at the bottom is the **Activity** link, which opens the history of every run.
-- **The canvas** on the right shows the workflow you selected, drawn as connected steps. This is where you build and change it.
+The **sidebar** on the left lists every workflow you can see. An enabled workflow has a coloured icon. A disabled one has a grey icon and the word "off" after its name. At the top are the back arrow (**Back to mail**) and the **New workflow** menu. At the bottom is the **Activity** link, which opens the history of every run.
 
-<img src="/images/workflows/workflows-page.png" alt="The Workflows page with the list of workflows on the left and a workflow open on the canvas" class="dark:hidden" />
-<img src="/images/workflows/workflows-page-dark.png" alt="The Workflows page with the list of workflows on the left and a workflow open on the canvas" class="hidden dark:block" />
+The **editor** shows the workflow you picked. It has five parts:
 
-You need at least one mailbox in the workspace to use workflows. On a phone, the sidebar opens as a drawer named **Workflows**.
+- **The top bar** holds the workflow's name, the **Enabled** switch, the save status and the buttons **Test**, **Run now** and **Save**.
+- **The step palette** on the left lists every step you can add.
+- **The canvas** in the middle shows the workflow as connected steps. This is where you build and change it.
+- **The Inspector** on the right shows the settings of the step you select.
+- **The Runs dock** under the canvas has two tabs, **Runs** and **Test run**. It starts closed. Click **Expand** at its right end to open it, and **Collapse** to close it again.
+
+<img src="/images/workflows/workflows-page.png" alt="The Workflows page with the list of workflows, the step palette, a workflow on the canvas and the Inspector" class="dark:hidden" />
+<img src="/images/workflows/workflows-page-dark.png" alt="The Workflows page with the list of workflows, the step palette, a workflow on the canvas and the Inspector" class="hidden dark:block" />
+
+You can drag the edges of the palette, the Inspector and the Runs dock to resize them. Use **Hide steps** and **Hide the inspector** in the top bar to make more room for the canvas. The browser remembers these sizes.
+
+The page opens the first workflow in the list. If you have none, it opens the **One mailbox, on arrival** template, not yet saved.
+
+You need at least one mailbox in the workspace to use workflows.
+
+On a phone, the sidebar opens as a drawer named **Workflows**, and there is no palette. Tap **Add step** (the **+** button) in the top bar to add a step. Tap a step to open its settings at the bottom of the screen.
 
 ## A workflow is a chain of steps
 
-Each box on the canvas is a **step**. Lines between steps are **connections**. Mail flows down the connections from one step to the next. Every workflow is built from four kinds of steps, and the **Add step** menu groups them the same way:
+Each box on the canvas is a **step**. Lines between steps are **connections**. Mail flows along the connections from one step to the next. The palette groups the steps into five categories:
 
-| Group         | What it does                                                     | Examples                                 |
-| ------------- | ---------------------------------------------------------------- | ---------------------------------------- |
-| **Trigger**   | Decides when the workflow runs. Every workflow starts with one.  | **When mail arrives**, **On a schedule** |
-| **Data**      | Picks up mail, filters it or joins branches back together.       | **Mailbox**, **If**, **Combine**         |
-| **Decisions** | Asks an AI model about each message and routes it by the answer. | **Ask**, **Branch**                      |
-| **Action**    | Does something to each message that reaches it.                  | **Archive**, **Star**, **Apply label**   |
+| Category     | What it does                                                     | Examples                                 |
+| ------------ | ---------------------------------------------------------------- | ---------------------------------------- |
+| **Triggers** | Decide when the workflow runs. Every workflow starts with one.   | **When mail arrives**, **On a schedule** |
+| **Mail**     | Picks up the mail the workflow works on.                         | **Mailbox**                              |
+| **Logic**    | Filters mail or joins branches back together.                    | **If**, **Combine**, **Wait for all**    |
+| **AI**       | Asks an AI model about each message and routes it by the answer. | **Ask**, **Branch**                      |
+| **Actions**  | Do something to each message that reaches them.                  | **Archive**, **Star**, **Apply label**   |
 
-A typical workflow reads from top to bottom: a trigger, then a **Mailbox** step that supplies the mail, then an **If** step that keeps only the messages you care about, then an action. The [Steps](/guide/workflows/steps) page describes every step.
+A typical workflow reads from left to right: a trigger, then a **Mailbox** step that supplies the mail, then an **If** step that keeps only the messages you care about, then an action. The [Steps](/guide/workflows/steps) page describes every step.
 
 A step with more than one output, such as **If**, shows a label on each connection (for example **Yes** and **No**), so you can see which way mail goes.
 
@@ -67,7 +81,7 @@ Each time you save a workflow, Metis Suite keeps that version as a new **revisio
 
 ## Workflows do not stop to ask you
 
-A workflow never pauses to wait for your approval. Once it is enabled, it acts on every message that matches. Test a new workflow with a narrow condition first, and check its runs under **Activity**.
+A workflow never pauses to wait for your approval. Once it is enabled, it acts on every message that matches. Try a new workflow with **Test** first, which changes nothing, and start with a narrow condition. Then check its runs under **Activity**. See [Run a workflow and check its history](/guide/workflows/run-and-check-history#test-a-workflow-without-changing-anything).
 
 The **Ask** and **Branch** steps let an AI model make a decision inside a workflow, but that is the model answering questions about each message, not a person approving it. See [Let AI decide with Ask and Branch](/guide/workflows/ask-and-branch).
 

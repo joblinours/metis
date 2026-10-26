@@ -46,7 +46,9 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
   - A run by hand (`workflow_dispatch`) pushes `latest*` and `<sha>*` only, and skips `publish`.
   - Releases tagged `desktop-v*` or `mobile-v*` build no images ([downloads.md](downloads.md)).
 - **A pre-release image is reachable only by pinning it.** `latest_release` and the updater's `fetchReleases` accept only `X.Y.Z` tags.
-- **An `app-v*` tag must match `apps/web/package.json` → `version`; `docker.yml` fails the run before building when it does not.**
+- **An `app-v*` tag must match `apps/web/package.json` → `version`, and the root `CHANGELOG.md` must hold a `## <version> - <date>` section with entries; `docker.yml` fails the run before building otherwise.**
+  - `.github/scripts/changelog-section.sh` checks the section and prints it, which is also how the release body is written (`gh release create app-v<version> --verify-tag --notes-file …`).
+  - The updater shows that body as the release's notes on Dashboard → Updates ([updater.md](updater.md)).
   - That field is the version the app shows beside its source link on every platform, including hosts no tag reaches ([ui.md](ui.md)).
   - Bump it in the commit the tag points at.
 - **The updater is the only container with the Docker socket**, and the app reaches it only through its socket ([updater.md](updater.md)).
@@ -67,7 +69,7 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
 
 ### Build traps
 
-- **The preflight image carries only `preflight.mjs`, `init.sql` and `libsql`.**
+- **The preflight image carries only `preflight.mjs`, `migrations/` and `libsql`.**
   - `preflight.Dockerfile` bundles everything else into `preflight.mjs`, including `@libsql/client`, `ws`, `ssh2` and `ssh2-sftp-client`.
   - `libsql` stays external because it loads its native binding from a target computed at runtime.
   - `cpu-features` stays external because ssh2 loads it, like its own `sshcrypto.node`, inside a `try/catch`; neither addon is built in these images, so ssh2 uses pure-JS crypto.
@@ -108,13 +110,13 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
   - `deploy_stack` runs `pull`, retires the services whose profile is off (`retire_inactive_services`) and runs `up -d --remove-orphans`.
   - `up -d` recreates only services whose image or config changed, so a redeploy leaves an unchanged sqld running.
 - **Preflight** (`bun run --cwd apps/web preflight`, idempotent, once per deployment; `--conditions=react-server` because `credentials.ts` imports `server-only`) runs in order:
-  - applies `/deploy/init.sql` when the database has no schema ([database.md](database.md));
+  - applies pending migrations, creating the schema of an empty database from `0000_baseline` ([database.md](database.md));
   - seeds the stored config when the table is empty, else warns where the environment differs ([configuration.md](configuration.md));
   - probes every server and OAuth client in the stored config (`verifyConnectServers`, [servers.md](servers.md));
   - checks the decision model when a decision feature is on;
   - runs `backfillServerIds` and `reconcileQuarantine` ([connections.md](connections.md));
   - records every warning for the dashboard's Deploy checks ([dashboard.md](dashboard.md)).
-  - It warns on a failed probe and exits non-zero only when the run itself fails (no schema and no readable `init.sql`, a database error), so one bad server never blocks a deploy.
+  - It warns on a failed probe and exits non-zero only when the run itself fails (a failed or unknown migration, a database error), so one bad server never blocks a deploy.
 - **Profiles from the `.env`** (`compose_profiles`): `sqld` when `METIS_DB_DRIVER=sqld` and `DATABASE_URL=http://app.sqld:8080`; `proxy` (`caddy`) when `METIS_DOMAIN` is set.
   - Bootstrap writes `METIS_DB_DRIVER=sqld` with the two namespace URLs unless `turso` is exported; `turso`, or `sqld` at an external URL, leaves the stack's sqld off.
 - **Bootstrap resolves only the env-only variables** (domain, auth URL and secret, encryption key, database variables, relay secret, setup code, owner), generating or prompting where needed.

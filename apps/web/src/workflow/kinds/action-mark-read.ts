@@ -9,6 +9,8 @@ import {
 export const actionMarkRead: NodeKindDefinition<"action.markRead"> = {
   kind: "action.markRead",
   label: "Mark as read",
+  category: "action",
+  description: "Marks each message as read.",
   scope: "any",
   retry: "safe",
   input: NEEDS_MAIL,

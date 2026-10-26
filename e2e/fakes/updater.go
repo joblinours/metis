@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,25 +32,30 @@ import (
 const (
 	defaultUpdaterSocket = "/run/metis-updater/updater.sock"
 	updaterReadyError    = "http://app:3000/api/readyz was not ready within 2m0s (last: answered 503)"
+	updaterSnapshotDir   = "/opt/metis-suite/.updater-snapshot"
 )
 
 var releasePattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
 type updaterSettings struct {
-	Current  string   `json:"current"`
-	Releases []string `json:"releases"`
-	Rollback string   `json:"rollback"`
-	Outcome  string   `json:"outcome"`
-	StepMs   int      `json:"stepMs"`
+	Current   string            `json:"current"`
+	Releases  []string          `json:"releases"`
+	Notes     map[string]string `json:"notes"`
+	Rollback  string            `json:"rollback"`
+	Snapshots bool              `json:"snapshots"`
+	Outcome   string            `json:"outcome"`
+	StepMs    int               `json:"stepMs"`
 }
 
 func defaultUpdaterSettings() updaterSettings {
 	return updaterSettings{
-		Current:  "1.1.0",
-		Releases: []string{"1.2.0", "1.1.0", "1.0.0"},
-		Rollback: "1.0.0",
-		Outcome:  "succeed",
-		StepMs:   1_000,
+		Current:   "1.1.0",
+		Releases:  []string{"1.2.0", "1.1.0", "1.0.0"},
+		Notes:     map[string]string{"1.2.0": "### Added\n\n- Faster inbox loading"},
+		Rollback:  "1.0.0",
+		Snapshots: true,
+		Outcome:   "succeed",
+		StepMs:    1_000,
 	}
 }
 
@@ -56,46 +63,84 @@ type upgradePlan struct {
 	steps    []updaterv1.UpgradeStep
 	state    updaterv1.UpgradeState
 	restored bool
-	err      func(from string) string
+	err      string
 }
 
-var throughReady = []updaterv1.UpgradeStep{
-	updaterv1.UpgradeStep_UPGRADE_STEP_PULL,
-	updaterv1.UpgradeStep_UPGRADE_STEP_PREFLIGHT,
-	updaterv1.UpgradeStep_UPGRADE_STEP_SWITCH,
-	updaterv1.UpgradeStep_UPGRADE_STEP_READY,
+var upgradeOutcomes = []string{"succeed", "preflight-fails", "never-ready", "restore-fails"}
+
+func upgradeSteps(snapshots bool, through updaterv1.UpgradeStep) []updaterv1.UpgradeStep {
+	steps := []updaterv1.UpgradeStep{updaterv1.UpgradeStep_UPGRADE_STEP_PULL}
+	if snapshots {
+		steps = append(steps, updaterv1.UpgradeStep_UPGRADE_STEP_SNAPSHOT)
+	}
+	for _, step := range []updaterv1.UpgradeStep{
+		updaterv1.UpgradeStep_UPGRADE_STEP_PREFLIGHT,
+		updaterv1.UpgradeStep_UPGRADE_STEP_SWITCH,
+		updaterv1.UpgradeStep_UPGRADE_STEP_READY,
+	} {
+		steps = append(steps, step)
+		if step == through {
+			break
+		}
+	}
+	return steps
 }
 
-var upgradePlans = map[string]upgradePlan{
-	"succeed": {
-		steps: throughReady,
-		state: updaterv1.UpgradeState_UPGRADE_STATE_SUCCEEDED,
-		err:   func(string) string { return "" },
-	},
-	"preflight-fails": {
-		steps: []updaterv1.UpgradeStep{
-			updaterv1.UpgradeStep_UPGRADE_STEP_PULL,
-			updaterv1.UpgradeStep_UPGRADE_STEP_PREFLIGHT,
-		},
-		state: updaterv1.UpgradeState_UPGRADE_STATE_FAILED,
-		err:   func(string) string { return "preflight failed: exit status 1" },
-	},
-	"never-ready": {
-		steps:    append(slices.Clone(throughReady), updaterv1.UpgradeStep_UPGRADE_STEP_RESTORE),
-		state:    updaterv1.UpgradeState_UPGRADE_STATE_FAILED,
-		restored: true,
-		err:      func(string) string { return updaterReadyError },
-	},
-	"restore-fails": {
-		steps: append(slices.Clone(throughReady), updaterv1.UpgradeStep_UPGRADE_STEP_RESTORE),
-		state: updaterv1.UpgradeState_UPGRADE_STATE_ROLLBACK_FAILED,
-		err: func(from string) string {
-			if from == "" {
-				from = "unpinned"
+func planFor(kind updaterv1.UpgradeKind, outcome, from string, snapshots bool) upgradePlan {
+	if kind == updaterv1.UpgradeKind_UPGRADE_KIND_ROLLBACK {
+		return upgradePlan{
+			steps: []updaterv1.UpgradeStep{
+				updaterv1.UpgradeStep_UPGRADE_STEP_PULL,
+				updaterv1.UpgradeStep_UPGRADE_STEP_RESTORE,
+				updaterv1.UpgradeStep_UPGRADE_STEP_SWITCH,
+				updaterv1.UpgradeStep_UPGRADE_STEP_READY,
+			},
+			state: updaterv1.UpgradeState_UPGRADE_STATE_SUCCEEDED,
+		}
+	}
+	if from == "" {
+		from = "unpinned"
+	}
+	restore := updaterv1.UpgradeStep_UPGRADE_STEP_RESTORE
+	switch outcome {
+	case "preflight-fails":
+		cause := "preflight failed: exit status 1"
+		if snapshots {
+			return upgradePlan{
+				steps:    append(upgradeSteps(true, updaterv1.UpgradeStep_UPGRADE_STEP_PREFLIGHT), restore),
+				state:    updaterv1.UpgradeState_UPGRADE_STATE_FAILED,
+				restored: true,
+				err:      cause,
 			}
-			return fmt.Sprintf("%s; restoring %s also failed: %s", updaterReadyError, from, updaterReadyError)
-		},
-	},
+		}
+		return upgradePlan{
+			steps: upgradeSteps(false, updaterv1.UpgradeStep_UPGRADE_STEP_PREFLIGHT),
+			state: updaterv1.UpgradeState_UPGRADE_STATE_FAILED,
+			err:   cause,
+		}
+	case "never-ready":
+		return upgradePlan{
+			steps:    append(upgradeSteps(snapshots, updaterv1.UpgradeStep_UPGRADE_STEP_READY), restore),
+			state:    updaterv1.UpgradeState_UPGRADE_STATE_FAILED,
+			restored: true,
+			err:      updaterReadyError,
+		}
+	case "restore-fails":
+		again := updaterReadyError
+		if snapshots {
+			again = fmt.Sprintf("%s (the database snapshot is in %s/pending)", again, updaterSnapshotDir)
+		}
+		return upgradePlan{
+			steps: append(upgradeSteps(snapshots, updaterv1.UpgradeStep_UPGRADE_STEP_READY), restore),
+			state: updaterv1.UpgradeState_UPGRADE_STATE_ROLLBACK_FAILED,
+			err:   fmt.Sprintf("%s; restoring %s also failed: %s", updaterReadyError, from, again),
+		}
+	default:
+		return upgradePlan{
+			steps: upgradeSteps(snapshots, updaterv1.UpgradeStep_UPGRADE_STEP_READY),
+			state: updaterv1.UpgradeState_UPGRADE_STATE_SUCCEEDED,
+		}
+	}
 }
 
 type updaterFake struct {
@@ -103,6 +148,7 @@ type updaterFake struct {
 
 	mu         sync.Mutex
 	settings   updaterSettings
+	snapshotAt time.Time
 	last       *updaterv1.Upgrade
 	generation int
 	server     *http.Server
@@ -121,9 +167,29 @@ func upgradeID() string {
 	return hex.EncodeToString(b)
 }
 
-func (f *updaterFake) start(kind updaterv1.UpgradeKind, to string) *updaterv1.Upgrade {
+func olderRelease(a, b string) bool {
+	left, right := strings.Split(a, "."), strings.Split(b, ".")
+	for i := range left {
+		l, _ := strconv.Atoi(left[i])
+		r, _ := strconv.Atoi(right[i])
+		if l != r {
+			return l < r
+		}
+	}
+	return false
+}
+
+func (f *updaterFake) undoTarget() string {
+	if !f.settings.Snapshots {
+		return ""
+	}
+	return f.settings.Rollback
+}
+
+func (f *updaterFake) start(kind updaterv1.UpgradeKind, to, requestedBy string) *updaterv1.Upgrade {
 	from := f.settings.Current
-	plan := upgradePlans[f.settings.Outcome]
+	snapshots := f.settings.Snapshots
+	plan := planFor(kind, f.settings.Outcome, from, snapshots)
 	f.settings.Outcome = "succeed"
 	upgrade := &updaterv1.Upgrade{
 		Id:          upgradeID(),
@@ -133,6 +199,7 @@ func (f *updaterFake) start(kind updaterv1.UpgradeKind, to string) *updaterv1.Up
 		State:       updaterv1.UpgradeState_UPGRADE_STATE_RUNNING,
 		Step:        plan.steps[0],
 		StartedAt:   timestamppb.Now(),
+		RequestedBy: requestedBy,
 	}
 	f.last = upgrade
 	run := f.generation
@@ -152,11 +219,16 @@ func (f *updaterFake) start(kind updaterv1.UpgradeKind, to string) *updaterv1.Up
 		}
 		upgrade.State = plan.state
 		upgrade.Restored = plan.restored
-		upgrade.Error = plan.err(from)
+		upgrade.Error = plan.err
 		upgrade.FinishedAt = timestamppb.Now()
-		if plan.state == updaterv1.UpgradeState_UPGRADE_STATE_SUCCEEDED {
+		if plan.state != updaterv1.UpgradeState_UPGRADE_STATE_SUCCEEDED {
+			return
+		}
+		f.settings.Current = to
+		f.settings.Rollback = ""
+		if kind == updaterv1.UpgradeKind_UPGRADE_KIND_UPGRADE && snapshots {
 			f.settings.Rollback = from
-			f.settings.Current = to
+			f.snapshotAt = time.Now()
 		}
 	}
 	upgrade.Step = plan.steps[0]
@@ -169,13 +241,18 @@ func (f *updaterFake) GetStatus(context.Context, *updaterv1.GetStatusRequest) (*
 	defer f.mu.Unlock()
 	releases := make([]*updaterv1.Release, 0, len(f.settings.Releases))
 	for _, version := range f.settings.Releases {
-		releases = append(releases, &updaterv1.Release{Version: version})
+		releases = append(releases, &updaterv1.Release{Version: version, Notes: f.settings.Notes[version]})
 	}
-	return &updaterv1.GetStatusResponse{
-		CurrentVersion:  f.settings.Current,
-		Releases:        releases,
-		RollbackVersion: f.settings.Rollback,
-	}, nil
+	status := &updaterv1.GetStatusResponse{
+		CurrentVersion: f.settings.Current,
+		Releases:       releases,
+		Snapshots:      f.settings.Snapshots,
+	}
+	if target := f.undoTarget(); target != "" {
+		status.RollbackVersion = target
+		status.RollbackSnapshotAt = timestamppb.New(f.snapshotAt)
+	}
+	return status, nil
 }
 
 func (f *updaterFake) StartUpgrade(_ context.Context, req *updaterv1.StartUpgradeRequest) (*updaterv1.StartUpgradeResponse, error) {
@@ -192,11 +269,16 @@ func (f *updaterFake) StartUpgrade(_ context.Context, req *updaterv1.StartUpgrad
 	if err := f.abortedIfRunning(); err != nil {
 		return nil, err
 	}
-	if version == f.settings.Current {
+	current := f.settings.Current
+	if current != "" && current != version && olderRelease(version, current) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Sprintf("%s is older than the running %s; only newer releases can be installed", version, current))
+	}
+	if version == current {
 		return nil, connect.NewError(connect.CodeAlreadyExists, version+" is already running")
 	}
 	return &updaterv1.StartUpgradeResponse{
-		Upgrade: f.start(updaterv1.UpgradeKind_UPGRADE_KIND_UPGRADE, version),
+		Upgrade: f.start(updaterv1.UpgradeKind_UPGRADE_KIND_UPGRADE, version, req.GetRequestedBy()),
 	}, nil
 }
 
@@ -206,21 +288,21 @@ func (f *updaterFake) GetUpgrade(context.Context, *updaterv1.GetUpgradeRequest) 
 	return &updaterv1.GetUpgradeResponse{Upgrade: f.last}, nil
 }
 
-func (f *updaterFake) Rollback(context.Context, *updaterv1.RollbackRequest) (*updaterv1.RollbackResponse, error) {
+func (f *updaterFake) Rollback(_ context.Context, req *updaterv1.RollbackRequest) (*updaterv1.RollbackResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.abortedIfRunning(); err != nil {
 		return nil, err
 	}
-	if f.settings.Rollback == "" {
-		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			"there is no previous release to roll back to")
+	target := f.undoTarget()
+	if target == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "there is no upgrade to undo")
 	}
-	if f.settings.Rollback == f.settings.Current {
-		return nil, connect.NewError(connect.CodeAlreadyExists, f.settings.Rollback+" is already running")
+	if target == f.settings.Current {
+		return nil, connect.NewError(connect.CodeAlreadyExists, target+" is already running")
 	}
 	return &updaterv1.RollbackResponse{
-		Upgrade: f.start(updaterv1.UpgradeKind_UPGRADE_KIND_ROLLBACK, f.settings.Rollback),
+		Upgrade: f.start(updaterv1.UpgradeKind_UPGRADE_KIND_ROLLBACK, target, req.GetRequestedBy()),
 	}, nil
 }
 
@@ -308,17 +390,19 @@ func parseUpdaterSettings(r *http.Request) (updaterSettings, error) {
 		return json.Unmarshal(value, into)
 	}
 	for key, into := range map[string]any{
-		"current":  &settings.Current,
-		"releases": &settings.Releases,
-		"rollback": &settings.Rollback,
-		"outcome":  &settings.Outcome,
-		"stepMs":   &settings.StepMs,
+		"current":   &settings.Current,
+		"releases":  &settings.Releases,
+		"notes":     &settings.Notes,
+		"rollback":  &settings.Rollback,
+		"snapshots": &settings.Snapshots,
+		"outcome":   &settings.Outcome,
+		"stepMs":    &settings.StepMs,
 	} {
 		if err := decode(key, into); err != nil {
 			return settings, fmt.Errorf("%s: %w", key, err)
 		}
 	}
-	if _, ok := upgradePlans[settings.Outcome]; !ok {
+	if !slices.Contains(upgradeOutcomes, settings.Outcome) {
 		return settings, fmt.Errorf("outcome: %q is not one of succeed, preflight-fails, never-ready, restore-fails", settings.Outcome)
 	}
 	if settings.StepMs < 0 {
@@ -332,7 +416,7 @@ func runUpdater() error {
 	if socket == "" {
 		socket = defaultUpdaterSocket
 	}
-	fake := &updaterFake{socket: socket, settings: defaultUpdaterSettings()}
+	fake := &updaterFake{socket: socket, settings: defaultUpdaterSettings(), snapshotAt: time.Now().Add(-time.Hour)}
 	if err := fake.up(); err != nil {
 		return err
 	}
@@ -355,6 +439,7 @@ func runUpdater() error {
 		fake.generation++
 		fake.last = nil
 		fake.settings = settings
+		fake.snapshotAt = time.Now().Add(-time.Hour)
 		if err := fake.up(); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return

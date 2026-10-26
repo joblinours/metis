@@ -19,6 +19,7 @@ service UpdaterService {
 
 message Release {
   string version = 1;
+  string notes = 2;
 }
 
 message GetStatusRequest {}
@@ -27,10 +28,13 @@ message GetStatusResponse {
   string current_version = 1;
   repeated Release releases = 2;
   string rollback_version = 3;
+  bool snapshots = 4;
+  google.protobuf.Timestamp rollback_snapshot_at = 5;
 }
 
 message StartUpgradeRequest {
   string version = 1;
+  string requested_by = 2;
 }
 
 message StartUpgradeResponse {
@@ -43,7 +47,9 @@ message GetUpgradeResponse {
   Upgrade upgrade = 1;
 }
 
-message RollbackRequest {}
+message RollbackRequest {
+  string requested_by = 1;
+}
 
 message RollbackResponse {
   Upgrade upgrade = 1;
@@ -70,6 +76,7 @@ enum UpgradeStep {
   UPGRADE_STEP_SWITCH = 3;
   UPGRADE_STEP_READY = 4;
   UPGRADE_STEP_RESTORE = 5;
+  UPGRADE_STEP_SNAPSHOT = 6;
 }
 
 message Upgrade {
@@ -83,4 +90,5 @@ message Upgrade {
   string error = 8;
   google.protobuf.Timestamp started_at = 9;
   google.protobuf.Timestamp finished_at = 10;
+  string requested_by = 11;
 }

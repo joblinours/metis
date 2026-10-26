@@ -38,6 +38,7 @@ import { addCustomLabel, removeCustomLabel, useCustomLabels } from "@/hooks/use-
 import { useMailboxScope, useWorkspacePath } from "@/hooks/use-workspace-path";
 import { orpc, rpc } from "@/lib/orpc";
 import { customLabelMark, LABEL_OPTIONS } from "@/mail/label-meta";
+import type { ScheduledSendItem } from "@/server/schema";
 import { useMailStore } from "@/store/mail-store";
 import { CUSTOM_LABEL_COLORS, type CustomLabelColor, type MailFolder } from "@/types/mail";
 import { mailPath, workspaceRootPath } from "@/workspace/path";
@@ -56,6 +57,19 @@ const MAILBOXES: {
   { label: "Trash", folder: "trash", icon: Trash2 },
 ];
 
+const DUE_GRACE_MS = 5_000;
+const OVERDUE_POLL_MS = 30_000;
+const MAX_WAIT_MS = 5 * 60_000;
+
+function untilNextDue(scheduled: ScheduledSendItem[] | undefined): number | false {
+  const due = (scheduled ?? [])
+    .filter((s) => s.status === "pending")
+    .map((s) => new Date(s.scheduledFor).getTime());
+  if (due.length === 0) return false;
+  const wait = Math.min(...due) - Date.now();
+  return wait > 0 ? Math.min(MAX_WAIT_MS, wait + DUE_GRACE_MS) : OVERDUE_POLL_MS;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -73,7 +87,7 @@ export function Sidebar() {
     useQuery(
       rpc.mail.scheduledSend.list.queryOptions({
         input: scope,
-        refetchInterval: 30_000,
+        refetchInterval: (query) => untilNextDue(query.state.data?.scheduled),
         select: (data) => (data.scheduled ?? []).filter((s) => s.status === "pending").length,
       }),
     ).data ?? null;

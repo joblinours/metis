@@ -3,7 +3,7 @@ title: Build your first workflow
 description: Build and save a workflow that archives new mail from one sender shortly after it arrives.
 ---
 
-In this tutorial you will build a workflow that archives new mail from one sender shortly after it arrives. You will start from a template, set a condition, save it, and then see its runs in the history. It takes about five minutes.
+In this tutorial you will build a workflow that archives new mail from one sender shortly after it arrives. You will start from a template, set a condition, try it on a real message, save it, and then see its runs in the history. It takes about five minutes.
 
 You need a workspace with at least one mailbox. Pick a sender whose mail you are happy to see archived, such as a newsletter. Archived mail is not deleted: it leaves your inbox and stays in your archive.
 
@@ -17,40 +17,47 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
 
     Click **One mailbox, on arrival**.
 
-    <img src="/images/workflows/new-workflow-menu.png" alt="The New workflow menu open with five templates" class="dark:hidden" />
-    <img src="/images/workflows/new-workflow-menu-dark.png" alt="The New workflow menu open with five templates" class="hidden dark:block" />
+    <img src="/images/workflows/new-workflow-menu.png" alt="The New workflow menu open with its five templates" class="dark:hidden" />
+    <img src="/images/workflows/new-workflow-menu-dark.png" alt="The New workflow menu open with its five templates" class="hidden dark:block" />
 
-    The canvas now shows four connected steps, from top to bottom:
+    The canvas now shows four connected steps, from left to right:
 
     1. **When mail arrives**: the trigger. It starts the workflow when new mail lands.
     2. **Mailbox**: the mailbox to watch.
     3. **If**: the condition each new message has to meet.
     4. **Archive**: the action, connected to the **Yes** output of **If**.
 
-    Nothing is saved yet. The workflow only exists on your screen until you click **Create workflow**.
+    Nothing is saved yet. The top bar says "Not saved yet", and the workflow only exists on your screen until you click **Create workflow**.
+
+    The top bar also shows a red **1 problem** button, and the **If** card says "Fill in the value of every condition". You fix that in a later step.
 
   </Step>
 
-<Step title="Name the workflow">
-  Click the name field at the top left of the canvas. It shows "Untitled workflow" until you type.
-  Enter a name that says what the workflow does, such as `Archive newsletters`. Names can be up to
-  80 characters.
-</Step>
+  <Step title="Name the workflow">
+    Click the name field in the top bar. It shows "Untitled workflow" until you type.
+
+    Enter a name that says what the workflow does, such as `Archive newsletters`. Names can be up to 80 characters. A longer name is refused when you save.
+
+  </Step>
 
   <Step title="Choose the mailbox">
-    In the **Mailbox** step, open the **Mailbox** list and pick the mailbox to watch. The first mailbox in the workspace is already selected.
+    Click the **Mailbox** card on the canvas. Its settings open in the **Inspector** on the right.
 
-    Leave **Provides** set to **newly arrived mail**. That setting is what lets the **When mail arrives** trigger watch this mailbox. When the trigger is connected, its card says which address it is watching.
+    Open the **Mailbox** list and pick the mailbox to watch. The first mailbox in the workspace is already selected.
+
+    Leave **Provides** set to **Newly arrived mail**. That setting is what lets the **When mail arrives** trigger watch this mailbox. The trigger's card now says "Watching" and the mailbox address.
 
   </Step>
 
   <Step title="Set the condition">
-    The **If** step decides which messages go on to the action. It starts with one condition: **Sender** **contains** an empty value.
+    The **If** step decides which messages go on to the action. Click the **If** card to open its settings in the Inspector. It starts with one condition: **Sender** **contains** an empty value.
 
-    Click the field that shows "value" and type part of the sender's address, for example `news@example.com`. You can change **Sender** to **Recipient**, **Cc**, **Subject**, **Body** or **Has attachment**, and **contains** to **equals**, **starts with** or **ends with**.
+    Click the field that shows "value" and type part of the sender's address, for example `news@example.com`. You can change **Sender** to **Recipient**, **Cc**, **Subject**, **Body** or **Has attachment**, and **contains** to **is**, **starts with** or **ends with**.
 
-    <img src="/images/workflows/first-workflow-canvas.png" alt="The template on the canvas with a name and a sender condition filled in" class="dark:hidden" />
-    <img src="/images/workflows/first-workflow-canvas-dark.png" alt="The template on the canvas with a name and a sender condition filled in" class="hidden dark:block" />
+    <img src="/images/workflows/first-workflow-canvas.png" alt="The template on the canvas with the If step selected and a Sender contains condition filled in, in the Inspector" class="dark:hidden" />
+    <img src="/images/workflows/first-workflow-canvas-dark.png" alt="The template on the canvas with the If step selected and a Sender contains condition filled in, in the Inspector" class="hidden dark:block" />
+
+    As soon as the value is filled in, the problem goes away. The **1 problem** button disappears.
 
     Messages that match go out of the **Yes** output to **Archive**. Messages that do not match go out of **No**, which is not connected here, so nothing happens to them.
 
@@ -60,19 +67,28 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
 
   </Step>
 
+  <Step title="Try it without changing anything">
+    Click **Test** in the top bar. The **Test run** tab opens under the canvas.
+
+    In the list next to **Run test**, pick one of the newest messages in the mailbox, then click **Run test**. The canvas shows which steps the message reached. Nothing in your mailbox changes: the **Archive** step only reports what it would do.
+
+    See [Test a workflow without changing anything](/guide/workflows/run-and-check-history#test-a-workflow-without-changing-anything) for the details.
+
+  </Step>
+
   <Step title="Save the workflow">
-    Check that the switch next to the name says **Enabled**. Then click **Create workflow** at the top right.
+    Check that the switch next to the name says **Enabled**. Then click **Create workflow** in the top bar.
 
-    If something is missing, a red message appears at the top right instead, for example "Give your workflow a name". Fix what it says and click **Create workflow** again.
+    If something is missing, a message appears instead, for example "Give your workflow a name" or "Fix the problem in this workflow before saving". Fix what it says and click **Create workflow** again.
 
-    When the save works, the top right shows **Saved**, the button changes to **Save**, and your workflow appears in the list on the left.
+    When the save works, the status next to the switch shows **Saved**, the button changes to **Save**, and your workflow appears in the list on the left.
 
   </Step>
 
   <Step title="Let it take a baseline">
-    Right after you save, the **When mail arrives** card says it is taking a baseline. This means Metis Suite is noting the mail already in the mailbox, so the workflow skips it. Only mail that arrives from now on goes through the workflow.
+    Click the **When mail arrives** card. Right after you save, the Inspector says "Taking a baseline: mail already there is skipped." This means Metis Suite is noting the mail already in the mailbox, so the workflow skips it. Only mail that arrives from now on goes through the workflow.
 
-    After a short while, reload the page. The card then shows **Checked** followed by the date and time of its last check.
+    After a short while, reload the page, click your workflow in the list, and click the card again. The Inspector then shows **Checked** followed by the date and time of its last check.
 
   </Step>
 
@@ -89,7 +105,7 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
 
 ## What you built
 
-You built a workflow with one trigger, one mailbox, one condition and one action, and you saw its runs in the history. Every workflow follows the same pattern, with more steps or different ones.
+You built a workflow with one trigger, one mailbox, one condition and one action, tested it, and saw its runs in the history. Every workflow follows the same pattern, with more steps or different ones.
 
 If this was only practice, turn the workflow off or delete it. See [Manage workflows](/guide/workflows/manage-workflows).
 

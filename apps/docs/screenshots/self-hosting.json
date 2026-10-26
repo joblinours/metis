@@ -102,6 +102,17 @@
     "element": "role=alertdialog"
   },
   {
+    "name": "self-hosting/undo-dialog",
+    "path": "/dashboard/system/updates",
+    "steps": [
+      { "waitFor": "main >> role=button[name=\"Undo last upgrade\"]" },
+      { "click": "main >> role=button[name=\"Undo last upgrade\"]" },
+      { "waitFor": "role=alertdialog[name=\"Undo last upgrade\"]" },
+      { "wait": 300 }
+    ],
+    "element": "role=alertdialog"
+  },
+  {
     "name": "self-hosting/dashboard-automation",
     "path": "/dashboard/automation",
     "steps": [

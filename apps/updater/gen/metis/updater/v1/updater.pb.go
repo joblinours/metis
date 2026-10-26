@@ -135,6 +135,7 @@ const (
 	UpgradeStep_UPGRADE_STEP_SWITCH      UpgradeStep = 3
 	UpgradeStep_UPGRADE_STEP_READY       UpgradeStep = 4
 	UpgradeStep_UPGRADE_STEP_RESTORE     UpgradeStep = 5
+	UpgradeStep_UPGRADE_STEP_SNAPSHOT    UpgradeStep = 6
 )
 
 // Enum value maps for UpgradeStep.
@@ -146,6 +147,7 @@ var (
 		3: "UPGRADE_STEP_SWITCH",
 		4: "UPGRADE_STEP_READY",
 		5: "UPGRADE_STEP_RESTORE",
+		6: "UPGRADE_STEP_SNAPSHOT",
 	}
 	UpgradeStep_value = map[string]int32{
 		"UPGRADE_STEP_UNSPECIFIED": 0,
@@ -154,6 +156,7 @@ var (
 		"UPGRADE_STEP_SWITCH":      3,
 		"UPGRADE_STEP_READY":       4,
 		"UPGRADE_STEP_RESTORE":     5,
+		"UPGRADE_STEP_SNAPSHOT":    6,
 	}
 )
 
@@ -187,6 +190,7 @@ func (UpgradeStep) EnumDescriptor() ([]byte, []int) {
 type Release struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Notes         string                 `protobuf:"bytes,2,opt,name=notes,proto3" json:"notes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -228,6 +232,13 @@ func (x *Release) GetVersion() string {
 	return ""
 }
 
+func (x *Release) GetNotes() string {
+	if x != nil {
+		return x.Notes
+	}
+	return ""
+}
+
 type GetStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -265,12 +276,14 @@ func (*GetStatusRequest) Descriptor() ([]byte, []int) {
 }
 
 type GetStatusResponse struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	CurrentVersion  string                 `protobuf:"bytes,1,opt,name=current_version,json=currentVersion,proto3" json:"current_version,omitempty"`
-	Releases        []*Release             `protobuf:"bytes,2,rep,name=releases,proto3" json:"releases,omitempty"`
-	RollbackVersion string                 `protobuf:"bytes,3,opt,name=rollback_version,json=rollbackVersion,proto3" json:"rollback_version,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	CurrentVersion     string                 `protobuf:"bytes,1,opt,name=current_version,json=currentVersion,proto3" json:"current_version,omitempty"`
+	Releases           []*Release             `protobuf:"bytes,2,rep,name=releases,proto3" json:"releases,omitempty"`
+	RollbackVersion    string                 `protobuf:"bytes,3,opt,name=rollback_version,json=rollbackVersion,proto3" json:"rollback_version,omitempty"`
+	Snapshots          bool                   `protobuf:"varint,4,opt,name=snapshots,proto3" json:"snapshots,omitempty"`
+	RollbackSnapshotAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=rollback_snapshot_at,json=rollbackSnapshotAt,proto3" json:"rollback_snapshot_at,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *GetStatusResponse) Reset() {
@@ -324,9 +337,24 @@ func (x *GetStatusResponse) GetRollbackVersion() string {
 	return ""
 }
 
+func (x *GetStatusResponse) GetSnapshots() bool {
+	if x != nil {
+		return x.Snapshots
+	}
+	return false
+}
+
+func (x *GetStatusResponse) GetRollbackSnapshotAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RollbackSnapshotAt
+	}
+	return nil
+}
+
 type StartUpgradeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	RequestedBy   string                 `protobuf:"bytes,2,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -364,6 +392,13 @@ func (*StartUpgradeRequest) Descriptor() ([]byte, []int) {
 func (x *StartUpgradeRequest) GetVersion() string {
 	if x != nil {
 		return x.Version
+	}
+	return ""
+}
+
+func (x *StartUpgradeRequest) GetRequestedBy() string {
+	if x != nil {
+		return x.RequestedBy
 	}
 	return ""
 }
@@ -494,6 +529,7 @@ func (x *GetUpgradeResponse) GetUpgrade() *Upgrade {
 
 type RollbackRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestedBy   string                 `protobuf:"bytes,1,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -526,6 +562,13 @@ func (x *RollbackRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RollbackRequest.ProtoReflect.Descriptor instead.
 func (*RollbackRequest) Descriptor() ([]byte, []int) {
 	return file_metis_updater_v1_updater_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RollbackRequest) GetRequestedBy() string {
+	if x != nil {
+		return x.RequestedBy
+	}
+	return ""
 }
 
 type RollbackResponse struct {
@@ -584,6 +627,7 @@ type Upgrade struct {
 	Error         string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`
 	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	RequestedBy   string                 `protobuf:"bytes,11,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -688,28 +732,40 @@ func (x *Upgrade) GetFinishedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Upgrade) GetRequestedBy() string {
+	if x != nil {
+		return x.RequestedBy
+	}
+	return ""
+}
+
 var File_metis_updater_v1_updater_proto protoreflect.FileDescriptor
 
 const file_metis_updater_v1_updater_proto_rawDesc = "" +
 	"\n" +
-	"\x1emetis/updater/v1/updater.proto\x12\x10metis.updater.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"#\n" +
+	"\x1emetis/updater/v1/updater.proto\x12\x10metis.updater.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"9\n" +
 	"\aRelease\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion\"\x12\n" +
-	"\x10GetStatusRequest\"\x9e\x01\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x14\n" +
+	"\x05notes\x18\x02 \x01(\tR\x05notes\"\x12\n" +
+	"\x10GetStatusRequest\"\x8a\x02\n" +
 	"\x11GetStatusResponse\x12'\n" +
 	"\x0fcurrent_version\x18\x01 \x01(\tR\x0ecurrentVersion\x125\n" +
 	"\breleases\x18\x02 \x03(\v2\x19.metis.updater.v1.ReleaseR\breleases\x12)\n" +
-	"\x10rollback_version\x18\x03 \x01(\tR\x0frollbackVersion\"/\n" +
+	"\x10rollback_version\x18\x03 \x01(\tR\x0frollbackVersion\x12\x1c\n" +
+	"\tsnapshots\x18\x04 \x01(\bR\tsnapshots\x12L\n" +
+	"\x14rollback_snapshot_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x12rollbackSnapshotAt\"R\n" +
 	"\x13StartUpgradeRequest\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion\"K\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12!\n" +
+	"\frequested_by\x18\x02 \x01(\tR\vrequestedBy\"K\n" +
 	"\x14StartUpgradeResponse\x123\n" +
 	"\aupgrade\x18\x01 \x01(\v2\x19.metis.updater.v1.UpgradeR\aupgrade\"\x13\n" +
 	"\x11GetUpgradeRequest\"I\n" +
 	"\x12GetUpgradeResponse\x123\n" +
-	"\aupgrade\x18\x01 \x01(\v2\x19.metis.updater.v1.UpgradeR\aupgrade\"\x11\n" +
-	"\x0fRollbackRequest\"G\n" +
+	"\aupgrade\x18\x01 \x01(\v2\x19.metis.updater.v1.UpgradeR\aupgrade\"4\n" +
+	"\x0fRollbackRequest\x12!\n" +
+	"\frequested_by\x18\x01 \x01(\tR\vrequestedBy\"G\n" +
 	"\x10RollbackResponse\x123\n" +
-	"\aupgrade\x18\x01 \x01(\v2\x19.metis.updater.v1.UpgradeR\aupgrade\"\xa1\x03\n" +
+	"\aupgrade\x18\x01 \x01(\v2\x19.metis.updater.v1.UpgradeR\aupgrade\"\xc4\x03\n" +
 	"\aUpgrade\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x121\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x1d.metis.updater.v1.UpgradeKindR\x04kind\x12!\n" +
@@ -724,7 +780,8 @@ const file_metis_updater_v1_updater_proto_rawDesc = "" +
 	"started_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
 	"\vfinished_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt*`\n" +
+	"finishedAt\x12!\n" +
+	"\frequested_by\x18\v \x01(\tR\vrequestedBy*`\n" +
 	"\vUpgradeKind\x12\x1c\n" +
 	"\x18UPGRADE_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14UPGRADE_KIND_UPGRADE\x10\x01\x12\x19\n" +
@@ -734,14 +791,15 @@ const file_metis_updater_v1_updater_proto_rawDesc = "" +
 	"\x15UPGRADE_STATE_RUNNING\x10\x01\x12\x1b\n" +
 	"\x17UPGRADE_STATE_SUCCEEDED\x10\x02\x12\x18\n" +
 	"\x14UPGRADE_STATE_FAILED\x10\x03\x12!\n" +
-	"\x1dUPGRADE_STATE_ROLLBACK_FAILED\x10\x04*\xa9\x01\n" +
+	"\x1dUPGRADE_STATE_ROLLBACK_FAILED\x10\x04*\xc4\x01\n" +
 	"\vUpgradeStep\x12\x1c\n" +
 	"\x18UPGRADE_STEP_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11UPGRADE_STEP_PULL\x10\x01\x12\x1a\n" +
 	"\x16UPGRADE_STEP_PREFLIGHT\x10\x02\x12\x17\n" +
 	"\x13UPGRADE_STEP_SWITCH\x10\x03\x12\x16\n" +
 	"\x12UPGRADE_STEP_READY\x10\x04\x12\x18\n" +
-	"\x14UPGRADE_STEP_RESTORE\x10\x052\xfb\x02\n" +
+	"\x14UPGRADE_STEP_RESTORE\x10\x05\x12\x19\n" +
+	"\x15UPGRADE_STEP_SNAPSHOT\x10\x062\xfb\x02\n" +
 	"\x0eUpdaterService\x12Y\n" +
 	"\tGetStatus\x12\".metis.updater.v1.GetStatusRequest\x1a#.metis.updater.v1.GetStatusResponse\"\x03\x90\x02\x01\x12]\n" +
 	"\fStartUpgrade\x12%.metis.updater.v1.StartUpgradeRequest\x1a&.metis.updater.v1.StartUpgradeResponse\x12\\\n" +
@@ -781,27 +839,28 @@ var file_metis_updater_v1_updater_proto_goTypes = []any{
 }
 var file_metis_updater_v1_updater_proto_depIdxs = []int32{
 	3,  // 0: metis.updater.v1.GetStatusResponse.releases:type_name -> metis.updater.v1.Release
-	12, // 1: metis.updater.v1.StartUpgradeResponse.upgrade:type_name -> metis.updater.v1.Upgrade
-	12, // 2: metis.updater.v1.GetUpgradeResponse.upgrade:type_name -> metis.updater.v1.Upgrade
-	12, // 3: metis.updater.v1.RollbackResponse.upgrade:type_name -> metis.updater.v1.Upgrade
-	0,  // 4: metis.updater.v1.Upgrade.kind:type_name -> metis.updater.v1.UpgradeKind
-	1,  // 5: metis.updater.v1.Upgrade.state:type_name -> metis.updater.v1.UpgradeState
-	2,  // 6: metis.updater.v1.Upgrade.step:type_name -> metis.updater.v1.UpgradeStep
-	13, // 7: metis.updater.v1.Upgrade.started_at:type_name -> google.protobuf.Timestamp
-	13, // 8: metis.updater.v1.Upgrade.finished_at:type_name -> google.protobuf.Timestamp
-	4,  // 9: metis.updater.v1.UpdaterService.GetStatus:input_type -> metis.updater.v1.GetStatusRequest
-	6,  // 10: metis.updater.v1.UpdaterService.StartUpgrade:input_type -> metis.updater.v1.StartUpgradeRequest
-	8,  // 11: metis.updater.v1.UpdaterService.GetUpgrade:input_type -> metis.updater.v1.GetUpgradeRequest
-	10, // 12: metis.updater.v1.UpdaterService.Rollback:input_type -> metis.updater.v1.RollbackRequest
-	5,  // 13: metis.updater.v1.UpdaterService.GetStatus:output_type -> metis.updater.v1.GetStatusResponse
-	7,  // 14: metis.updater.v1.UpdaterService.StartUpgrade:output_type -> metis.updater.v1.StartUpgradeResponse
-	9,  // 15: metis.updater.v1.UpdaterService.GetUpgrade:output_type -> metis.updater.v1.GetUpgradeResponse
-	11, // 16: metis.updater.v1.UpdaterService.Rollback:output_type -> metis.updater.v1.RollbackResponse
-	13, // [13:17] is the sub-list for method output_type
-	9,  // [9:13] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	13, // 1: metis.updater.v1.GetStatusResponse.rollback_snapshot_at:type_name -> google.protobuf.Timestamp
+	12, // 2: metis.updater.v1.StartUpgradeResponse.upgrade:type_name -> metis.updater.v1.Upgrade
+	12, // 3: metis.updater.v1.GetUpgradeResponse.upgrade:type_name -> metis.updater.v1.Upgrade
+	12, // 4: metis.updater.v1.RollbackResponse.upgrade:type_name -> metis.updater.v1.Upgrade
+	0,  // 5: metis.updater.v1.Upgrade.kind:type_name -> metis.updater.v1.UpgradeKind
+	1,  // 6: metis.updater.v1.Upgrade.state:type_name -> metis.updater.v1.UpgradeState
+	2,  // 7: metis.updater.v1.Upgrade.step:type_name -> metis.updater.v1.UpgradeStep
+	13, // 8: metis.updater.v1.Upgrade.started_at:type_name -> google.protobuf.Timestamp
+	13, // 9: metis.updater.v1.Upgrade.finished_at:type_name -> google.protobuf.Timestamp
+	4,  // 10: metis.updater.v1.UpdaterService.GetStatus:input_type -> metis.updater.v1.GetStatusRequest
+	6,  // 11: metis.updater.v1.UpdaterService.StartUpgrade:input_type -> metis.updater.v1.StartUpgradeRequest
+	8,  // 12: metis.updater.v1.UpdaterService.GetUpgrade:input_type -> metis.updater.v1.GetUpgradeRequest
+	10, // 13: metis.updater.v1.UpdaterService.Rollback:input_type -> metis.updater.v1.RollbackRequest
+	5,  // 14: metis.updater.v1.UpdaterService.GetStatus:output_type -> metis.updater.v1.GetStatusResponse
+	7,  // 15: metis.updater.v1.UpdaterService.StartUpgrade:output_type -> metis.updater.v1.StartUpgradeResponse
+	9,  // 16: metis.updater.v1.UpdaterService.GetUpgrade:output_type -> metis.updater.v1.GetUpgradeResponse
+	11, // 17: metis.updater.v1.UpdaterService.Rollback:output_type -> metis.updater.v1.RollbackResponse
+	14, // [14:18] is the sub-list for method output_type
+	10, // [10:14] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_metis_updater_v1_updater_proto_init() }

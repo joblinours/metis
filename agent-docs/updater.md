@@ -1,6 +1,6 @@
 # Updater — the protocol, the Go updater and dashboard updates
 
-How an instance moves between published releases: the ConnectRPC protocol in `proto/`, the Go updater that implements it for compose installs, and the dashboard that drives it.
+How an instance moves to a newer published release and undoes the last upgrade: the ConnectRPC protocol in `proto/`, the Go updater that implements it for compose installs, its database snapshots, and the dashboard that drives it.
 Paths are from the repository root.
 See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configuration.md](configuration.md), [dashboard.md](dashboard.md), [e2e.md](e2e.md).
 
@@ -13,12 +13,14 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
 | Updater entry and socket           | `apps/updater/cmd/metis-updater/main.go` → `main`, `listenUnix`                                                                                                                                                                                    |
 | Settings and their defaults        | `apps/updater/internal/updater/config.go` → `ConfigFromEnv`                                                                                                                                                                                        |
 | Releases in the registry           | `apps/updater/internal/updater/releases.go` → `Releases.List`, `fetchReleases` · image refs `images.go` → `Repository`, `ReleaseImages`, `Images.Env`, `Images.Version`                                                                            |
-| The upgrade sequence               | `apps/updater/internal/updater/manager.go` → `Manager.Upgrade`, `Manager.Rollback`, `Manager.run`, `Manager.switchTo`, `Manager.restore`                                                                                                           |
-| Docker and compose calls           | `apps/updater/internal/updater/stack.go` → `Stack.Pull`, `Stack.Preflight`, `Stack.Switch`, `WaitReady`                                                                                                                                            |
-| `.env` pins and saved state        | `apps/updater/internal/updater/envfile.go` → `EnvFile.Set` · `state.go` → `StateFile` (`<install>/.updater-state.json`)                                                                                                                            |
+| Release notes                      | `apps/updater/internal/updater/releases.go` → `fetchNotes`, `NotesURL` (GitHub Releases of `trymetis/metis`, tags `app-v<version>`)                                                                                                                |
+| The upgrade and undo sequences     | `apps/updater/internal/updater/manager.go` → `Manager.Upgrade`, `Manager.upgrade`, `Manager.Rollback`, `Manager.undo`, `Manager.restore`, `Manager.resume`, `Manager.switchTo`                                                                     |
+| Docker and compose calls           | `apps/updater/internal/updater/stack.go` → `Stack.Pull`, `Stack.Preflight`, `Stack.Switch`, `Stack.StopApp`, `WaitReady`                                                                                                                           |
+| Database snapshots                 | `apps/updater/internal/updater/stack.go` → `Stack.SaveSnapshot`, `Stack.RestoreSnapshot`, `Stack.PromoteSnapshot`, `Stack.SnapshotDir` · capability `images.go` → `StackRunsSqld`                                                                  |
+| `.env` pins and saved state        | `apps/updater/internal/updater/envfile.go` → `EnvFile.Set` · `state.go` → `StateFile` (`<install>/.updater-state.json`), `Snapshot`                                                                                                                |
 | The Connect handler                | `apps/updater/internal/updater/service.go` → `Service`                                                                                                                                                                                             |
 | Image                              | `Dockerfile` → stages `updater-build`, `updater`                                                                                                                                                                                                   |
-| App client                         | `apps/web/src/dashboard/updates.ts` → `updatesEnabled`, `updatesStatus`, `startUpgrade`, `rollbackRelease`, `toOrpcError`                                                                                                                          |
+| App client                         | `apps/web/src/dashboard/updates.ts` → `updatesEnabled`, `updatesStatus`, `startUpgrade`, `rollbackRelease`, `recordUndo`, `toOrpcError`                                                                                                            |
 | Procedures                         | `apps/web/src/server/routes/dashboard.ts` → `dashboard.system.updatesEnabled`, `updates`, `upgrade`, `rollback`                                                                                                                                    |
 | Page                               | `apps/web/src/app/dashboard/system/updates/` (`POLL_MS` in `_components/updates-view.tsx`) · nav `apps/web/src/components/dashboard/system-nav.ts` → `SYSTEM_UPDATES_NAV`, shown by `apps/web/src/app/dashboard/_components/dashboard-sidebar.tsx` |
 | E2E fake                           | `e2e/fakes/updater.go`                                                                                                                                                                                                                             |
@@ -28,13 +30,18 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
 - **The app is the only client, and it calls the protocol and nothing else.** Whatever implements the protocol owns the containers.
 - **The app reaches the updater over a Unix socket at `METIS_UPDATER_SOCKET`; whoever can open the socket may call it.** In the compose stack the updater writes its socket to the `metis_updater` volume, which the app mounts read-only.
 - **The socket is mode `0600`, owned by the updater's user.** Both containers run as root; a non-root app user would need ownership or a group with `0660`.
-- **The updater moves only between published releases.**
+- **The updater installs only published releases newer than the running one.**
   - A release is a version whose app tag `:X.Y.Z` exists in `ghcr.io/trymetis/metis` (`fetchReleases`).
   - The repository is a constant, so a compromised app cannot make it run another image.
-  - Any release may be chosen, older ones included.
+  - An older release is refused with `FailedPrecondition`, because its code may not read a schema a newer release migrated. While the running version is unknown any release may be chosen, and preflight refuses a database it cannot run on ([database.md](database.md)).
+- **The only way back is Undo last upgrade, once.** It returns to the release that ran before the last successful upgrade and restores the database snapshot taken for it; afterwards there is nothing left to undo.
+  - Undo discards every write since that upgrade, so the dashboard shows when the snapshot was taken, and the undo is audited ([audit.md](audit.md)).
+- **Snapshots exist only when the stack runs sqld** (`StackRunsSqld`: `METIS_DB_DRIVER=sqld` and `DATABASE_URL=http://app.sqld:8080`, the rule `bootstrap.sh` uses for the `sqld` profile).
+  - With Turso or an external sqld the updater cannot copy the database, so an upgrade runs preflight against the live database while the app keeps serving, there is no undo, and the dashboard tells the owner to back up first.
 - **The updater rewrites `APP_IMAGE`, `PREFLIGHT_IMAGE` and `WORKER_IMAGE`; `bootstrap.sh` alone pins `UPDATER_IMAGE`** ([deployment.md](deployment.md)).
-- **One upgrade or rollback runs at a time**, per updater process (`Manager.running`).
-- **Starting an upgrade or a rollback takes TOTP** (`requireTotp`, scope `instance-update`), because a rollback or an older pick is a downgrade.
+- **One upgrade or undo runs at a time**, per updater process (`Manager.running`).
+- **Starting an upgrade or an undo takes TOTP** (`requireTotp`, scope `instance-update`), because both restart the app and an undo discards data.
+- **The app passes the requesting user's id as `requested_by`**, which the updater keeps on the `Upgrade` record so the restored release can audit the undo.
 - **With `METIS_UPDATER_SOCKET` unset there are no update controls**: the sidebar hides the entry, the page 404s and the procedures answer `NOT_FOUND` ([dashboard.md](dashboard.md)).
 - **Generated code is never hand-edited.** Change `proto/`, then run `bun run proto:generate` from the root (buf with remote plugins pinned in `buf.gen.yaml`); oxlint and oxfmt skip `packages/updater-proto/src/gen`.
 - **The TypeScript is generated with `erasable_syntax=true`**, which emits each proto enum as an `as const` object.
@@ -48,16 +55,18 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
 
 `metis.updater.v1.UpdaterService` (`updater.proto`), Connect protocol over HTTP/1.1 or h2c on the socket; all four procedures are unary. Versions are bare `X.Y.Z` strings with no `v`. An `Upgrade` record is what every write returns and what `GetUpgrade` reports.
 
-- **Empty means none.** `current_version` is empty when the running images are not a release, `rollback_version` when there is nothing to roll back to, and `GetUpgrade` returns no `upgrade` when none ever ran.
+- **Empty means none.** `current_version` is empty when the running images are not a release, `rollback_version` and `rollback_snapshot_at` when there is nothing to undo, a release's `notes` when GitHub has none for it, and `GetUpgrade` returns no `upgrade` when none ever ran.
+- **`snapshots`** says whether this install can snapshot its database; `rollback_version` is set only when it can and a snapshot is kept.
 - **Errors are Connect codes**, returned by `manager.go` and `releases.go` and mapped by the app in `toOrpcError`.
 
-- **The sequence.** `PULL` the target, run `PREFLIGHT` against the live database, `SWITCH` the app to the target, then `READY`: poll the app's `/api/readyz` until it answers 200 or the deadline passes.
+- **The upgrade sequence.** `PULL` the target; `SNAPSHOT` (only with snapshots): stop the app, stop sqld, copy its volume, start sqld; `PREFLIGHT`, which migrates the database; `SWITCH` the app to the target; then `READY`: poll the app's `/api/readyz` until it answers 200 or the deadline passes.
+- **The undo sequence** (`UPGRADE_KIND_ROLLBACK`). `PULL` the previous release; `RESTORE`: stop the app, stop sqld, replace its volume with the kept snapshot, start sqld; `SWITCH`; `READY`.
 - **States.**
   - `RUNNING`, then `SUCCEEDED`.
-  - `FAILED`: the previous release is serving, either because nothing was switched yet (a failed pull or preflight) or because the switch was undone (`restored` true, after `RESTORE`).
-  - `ROLLBACK_FAILED`: the target failed and restoring the previous release failed too, so the instance needs an operator.
+  - `FAILED`: the previous release is serving, either because nothing was switched yet (a failed pull, snapshot, or preflight without snapshots) or because the switch was undone (`restored` true, after `RESTORE`, which also restored the snapshot when one was taken).
+  - `ROLLBACK_FAILED`: the target failed and restoring the previous release failed too, or an undo failed after it touched the database, so the instance needs an operator. The error names the snapshot folder.
   - `step` is the step in progress while running and the step that failed afterwards; `error` explains it.
-- **The rollback target.** After a successful switch, `rollback_version` is the release that was running before it, so two rollbacks in a row return to where they started. It is empty when the previous images were not a release.
+- **The undo target.** After a successful upgrade with a snapshot, `rollback_version` is the release that was running before it. It is empty when the previous images were not a release, when no snapshot was kept or its folder is gone, after an undo, and once the running release is no longer the one that upgrade installed (a `bootstrap.sh` run moved it), so an undo never skips back over a release it did not install.
 
 ### The Go updater
 
@@ -70,20 +79,31 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
 - **Steps.**
   - `Stack.Pull` runs `docker pull` for the app and preflight images.
   - `Stack.Preflight` runs `docker compose run --rm --no-deps preflight` with the target's three image variables in the environment (`Images.Env`), so `.env` is untouched until preflight passes.
+  - A snapshot is a `docker compose run` of the `sqld` service as root with `<install>/.updater-snapshot` mounted at `/snapshot`, while sqld is stopped, so the copy is consistent and needs no tool the sqld image lacks. It covers both namespaces, `app` and `mastra`.
+  - An upgrade writes `.updater-snapshot/pending`; success promotes it to `current`, replacing the previous one, and a failed upgrade restores `pending` and deletes it, leaving `current` and its undo as they were.
   - `Manager.switchTo` writes the three pins into `.env` (`EnvFile.Set`, an atomic rename keeping the file's mode), then `Stack.Switch` recreates the preflight container without starting it and runs `docker compose up -d --no-deps app`, leaving sqld, Caddy and the updater untouched.
   - Restoring calls `switchTo` with the previous images, removing a key that was unset before.
-- **State** lives in `<install>/.updater-state.json`: the images before the last successful switch and the last record. A record still `RUNNING` when the updater starts becomes `ROLLBACK_FAILED`, because the process died mid-upgrade.
+- **State** lives in `<install>/.updater-state.json`: the images before the last successful upgrade, when its snapshot was taken, and the last record. A record still `RUNNING` when the updater starts becomes `ROLLBACK_FAILED`, because the process died mid-upgrade.
+- **Release notes** are the body of each `app-v<version>` GitHub release, fetched anonymously with the release list and cached for the same TTL; a failed fetch keeps the last notes, and the list never waits on GitHub past 10 s.
 
 ### The dashboard
 
 - **Client.** `updates.ts` builds one connect-node transport over `nodeOptions.socketPath` with `httpVersion: "1.1"`; the socket path is boot config, so the client is a module constant. `toOrpcError` maps Connect codes to oRPC errors.
 - **Status.** `dashboard.system.updates` calls `GetUpgrade` and then `GetStatus`, settling each on its own, so the last record still shows while the registry is unreachable. A release is `newer` only when the running version is known.
-- **Releases.** Every listed release but the running one has a button: Upgrade for a newer one (or any, while the running version is unknown), Downgrade for an older one; both call `StartUpgrade`.
+- **Releases.** Only newer releases are listed (all of them while the running version is unknown), each with Upgrade and its notes rendered with Streamdown.
+- **Undo.** The Running release card has the one Undo last upgrade button, with the snapshot time; with no snapshot support it says so instead.
+- **Auditing the undo.** `updatesStatus` calls `recordUndo`, which writes `instance.upgrade_undone` once per upgrade id after the restored release reports the undo as succeeded ([audit.md](audit.md)).
 - **Progress.** The page polls every `POLL_MS` while a record is running and treats failed polls as the app restarting.
 
 ## Deliberate limits
 
-- **Only images move.** A release that changes `compose.yml` needs `bootstrap.sh` run again, which downloads the compose file ([self-host.md](self-host.md)).
+- **Only images move.** A release that changes `compose.yml` needs `bootstrap.sh` run again, which downloads the compose file ([self-host.md](self-host.md)). The updater image moves only that way too, so a change to the updater reaches an install when bootstrap runs.
+- **One snapshot, one undo.** The snapshot costs a full copy of the sqld volume on the host and a short downtime on every upgrade; older states need the operator's own backups.
+- **An undo is audited only once an owner opens Updates on the restored release**, since nothing else runs `updatesStatus`.
+- **An undo replays scheduled work that already ran after the upgrade.** The snapshot holds the scheduled sends, snoozes, workflow triggers and occurrences as they were before the upgrade, so the runtime finds them due again on its first tick after the restore ([workflow-runtime.md](workflow-runtime.md)).
+  - A scheduled message sent after the upgrade is sent a second time; nothing checks the provider for an earlier send.
+  - A scheduled workflow that ran since then runs once more (missed slots collapse into one run), and a snooze whose time passed wakes again.
+  - Changes already made at the providers (mail sent, labels, moves) are not reversed. The customer page `apps/docs/content/self-hosting/03-operate/02-upgrade-and-undo.mdx` warns operators.
 - **The worker image is pinned, never pulled or restarted**, because the root stack does not run it ([deployment.md](deployment.md)).
 - **No MCP tool reaches the updater.** The owner's MCP tools cover the stats and System pages only ([mcp.md](mcp.md)).
 - **The Go updater itself has no e2e coverage** (`e2e/E2E_MISSES.md`).

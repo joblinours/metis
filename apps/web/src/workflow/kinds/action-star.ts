@@ -9,6 +9,8 @@ import {
 export const actionStar: NodeKindDefinition<"action.star"> = {
   kind: "action.star",
   label: "Star",
+  category: "action",
+  description: "Stars each message.",
   scope: "any",
   retry: "safe",
   input: NEEDS_MAIL,

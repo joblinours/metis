@@ -5,7 +5,7 @@ description: Quick facts to look up, such as keyboard shortcuts, supported provi
 
 These pages list facts in tables, for when you need to look something up quickly.
 
-- [Keyboard shortcuts](/guide/reference/keyboard-shortcuts): every shortcut in mail, calendar, drive and search, and for switching workspaces.
+- [Keyboard shortcuts](/guide/reference/keyboard-shortcuts): every shortcut in mail, calendar, drive, search and the workflow editor, and for switching workspaces.
 - [Supported providers](/guide/reference/supported-providers): the mail, calendar and drive providers you can connect, and what each one supports.
 - [Roles and permissions](/guide/reference/roles-and-permissions): what owners, admins and members can do in a workspace.
 - [Search syntax](/guide/reference/search-syntax): every filter, value and operator you can type in workspace search.

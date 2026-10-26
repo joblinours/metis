@@ -29,6 +29,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Migrations match the schema
+        run: bun run db:check
+
   go:
     name: go (${{ matrix.module }})
     runs-on: ubuntu-latest

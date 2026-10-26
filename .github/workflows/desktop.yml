@@ -22,6 +22,10 @@ jobs:
         id: release
         run: .github/scripts/release-version.sh desktop-v apps/desktop/package.json .version
 
+      - name: Check the changelog has this release
+        if: steps.release.outputs.version != ''
+        run: .github/scripts/changelog-section.sh apps/desktop/CHANGELOG.md "${{ steps.release.outputs.version }}" > /dev/null
+
   build:
     name: ${{ matrix.target }}
     needs: release

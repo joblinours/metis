@@ -5,18 +5,26 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"time"
 
 	updaterv1 "github.com/trymetis/metis/apps/updater/gen/metis/updater/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+type Snapshot struct {
+	TakenAt   time.Time `json:"takenAt"`
+	Installed string    `json:"installed"`
+}
+
 type State struct {
 	Previous *Images
+	Snapshot *Snapshot
 	Last     *updaterv1.Upgrade
 }
 
 type storedState struct {
 	Previous *Images         `json:"previous,omitempty"`
+	Snapshot *Snapshot       `json:"snapshot,omitempty"`
 	Last     json.RawMessage `json:"last,omitempty"`
 }
 
@@ -36,7 +44,7 @@ func (file StateFile) Load() (State, error) {
 	if err := json.Unmarshal(data, &stored); err != nil {
 		return State{}, err
 	}
-	state := State{Previous: stored.Previous}
+	state := State{Previous: stored.Previous, Snapshot: stored.Snapshot}
 	if len(stored.Last) > 0 {
 		state.Last = &updaterv1.Upgrade{}
 		if err := protojson.Unmarshal(stored.Last, state.Last); err != nil {
@@ -47,7 +55,7 @@ func (file StateFile) Load() (State, error) {
 }
 
 func (file StateFile) Save(state State) error {
-	stored := storedState{Previous: state.Previous}
+	stored := storedState{Previous: state.Previous, Snapshot: state.Snapshot}
 	if state.Last != nil {
 		last, err := protojson.Marshal(state.Last)
 		if err != nil {

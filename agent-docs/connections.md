@@ -40,7 +40,7 @@ See also [AGENTS.md](../AGENTS.md), [workspaces.md](workspaces.md), [servers.md]
   - Values are stored as `v1:<iv>:<tag>:<ciphertext>`; the `v1` prefix is what makes key rotation possible.
 - **Anything not sealed with `v1` is rejected:** `open()` logs the column and throws.
 - **The threat model is DB dumps, snapshots and read replicas, not app-server compromise.** `src/db/auth-schema.ts` is generated, so encryption stays out of it: the next regen would drop the annotation.
-- **`src/db/crypto.ts` reads `METIS_ENCRYPTION_KEY` from `process.env` itself.** `src/db/schema.ts` imports it, and drizzle-kit loads that file through a CJS transformer with no react-server condition, so any `import "server-only"` in the chain (as `@/config` has) breaks `db:push` / `db:export`.
+- **`src/db/crypto.ts` reads `METIS_ENCRYPTION_KEY` from `process.env` itself.** `src/db/schema.ts` imports it, and drizzle-kit loads that file through a CJS transformer with no react-server condition, so any `import "server-only"` in the chain (as `@/config` has) breaks `db:push`, `db:export` and `db:check`.
 
 ### Connecting and scopes
 

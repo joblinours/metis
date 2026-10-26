@@ -3,6 +3,8 @@ import { NEEDS_DRAFT, type NodeKindDefinition, SINGLE_OUTPUT, SINGLE_OUTPUT_ERRO
 export const actionSend: NodeKindDefinition<"action.send"> = {
   kind: "action.send",
   label: "Send",
+  category: "action",
+  description: "Sends the outgoing message.",
   scope: "builtin",
   retry: "dispatch",
   input: NEEDS_DRAFT,

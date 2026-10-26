@@ -72,7 +72,7 @@ See also [AGENTS.md](../AGENTS.md), [auth.md](auth.md), [configuration.md](confi
 ### Deploy checks
 
 - **Preflight's warnings reach the owner through the database.** Preflight runs in its own container (or a build step), so `scripts/preflight.ts` stores every ⚠ line it prints, with its kind, as one `preflight_run` row; the dashboard only reads it.
-- **Recording a run never fails a deploy.** A failed insert (for example before `db:push` created the table) is logged and preflight still exits 0.
+- **Recording a run never fails a deploy.** A failed insert is logged and preflight still exits 0.
 - **Acknowledging silences the bar, not the warnings.** `dashboard.system.acknowledgePreflight` stamps the run; the next deploy writes a new, unacknowledged run. It needs no TOTP, because it changes only the badge.
 - **A run is tied to the config version it checked.** When the current version differs, the page says the warnings may no longer apply; the app never recomputes them, because they compare against preflight's environment.
 

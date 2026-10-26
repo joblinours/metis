@@ -16,8 +16,10 @@ export interface HandlerResult {
   detail?: string;
 }
 
+export type ExecutionMode = "live" | "policy" | "test";
+
 export interface NodeContext {
-  pure: boolean;
+  mode: ExecutionMode;
   now: Date;
   runId: string | null;
   signal?: AbortSignal;
@@ -122,6 +124,15 @@ export async function ensureLoaded(
   };
 }
 
+function untouched(node: WorkflowNode, envelope: MessageEnvelope): HandlerResult {
+  return {
+    outputs: [
+      { handle: "out", envelopes: [{ ...envelope, lineage: [...envelope.lineage, node.id] }] },
+    ],
+    detail: "not applied in a test run",
+  };
+}
+
 export async function messageAction(
   node: WorkflowNode,
   envelope: Envelope,
@@ -131,7 +142,8 @@ export async function messageAction(
   if (envelope.port !== "message") {
     return { outputs: [], detail: "no message to act on" };
   }
-  if (ctx.pure) return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "policy") return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "test") return untouched(node, envelope);
 
   const box = await requireMailbox(ctx, envelope.mailboxId);
   const detail = await act(box, envelope);
@@ -155,7 +167,8 @@ export async function moveAction(
   if (envelope.port !== "message") {
     return { outputs: [], detail: "no message to act on" };
   }
-  if (ctx.pure) return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "policy") return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "test") return untouched(node, envelope);
 
   const box = await requireMailbox(ctx, envelope.mailboxId);
   const messageId = await move(box, envelope.messageId);

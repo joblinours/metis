@@ -13,7 +13,6 @@ WORKDIR /app
 COPY --from=deps /app/ .
 COPY --from=pruner /app/out/full/ .
 WORKDIR /app/apps/web
-RUN cp .env.example .env && bun node_modules/drizzle-kit/bin.cjs export > init.sql && rm .env
 RUN bun build scripts/preflight.ts --target=node --conditions=react-server --external libsql --external cpu-features --outfile preflight.mjs
 
 FROM oven/bun:1-alpine AS modules
@@ -30,5 +29,5 @@ WORKDIR /app/apps/web
 ENV NODE_ENV=production
 COPY --from=modules /modules/node_modules /app/node_modules
 COPY --from=build /app/apps/web/preflight.mjs ./preflight.mjs
-COPY --from=build /app/apps/web/init.sql /deploy/init.sql
+COPY --from=build /app/apps/web/migrations ./migrations
 CMD ["node", "preflight.mjs"]

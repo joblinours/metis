@@ -47,8 +47,8 @@ import { setPendingDraft } from "@/components/assistant/pending";
 import { downloadDriveFile } from "@/components/drive-preview/use-drive-preview";
 import type { MemberAdmin } from "@/components/members/member-admin";
 import { customLabelsQuery } from "@/hooks/use-custom-labels";
-import { orpc } from "@/lib/orpc";
-import { getQueryClient } from "@/lib/query-client";
+import { orpc, rpc } from "@/lib/orpc";
+import { getQueryClient, refreshQueries } from "@/lib/query-client";
 import { LABEL_OPTIONS } from "@/mail/label-meta";
 import type {
   EventSearchHitDto,
@@ -202,7 +202,10 @@ function mailActions(ctx: ActionContext, hit: MailSearchHitDto): SearchAction[] 
           ) {
             await attempt(
               ctx,
-              () => orpc.mail.scheduledSend.cancel({ ...scope, id: scheduleId }),
+              async () => {
+                await orpc.mail.scheduledSend.cancel({ ...scope, id: scheduleId });
+                void refreshQueries(rpc.mail.scheduledSend.list.key());
+              },
               "Send cancelled",
             );
           }
@@ -218,7 +221,14 @@ function mailActions(ctx: ActionContext, hit: MailSearchHitDto): SearchAction[] 
               () =>
                 attempt(
                   ctx,
-                  () => orpc.mail.scheduledSend.retry({ ...scope, id: scheduleId }),
+                  async () => {
+                    const result = await orpc.mail.scheduledSend.retry({
+                      ...scope,
+                      id: scheduleId,
+                    });
+                    void refreshQueries(rpc.mail.scheduledSend.list.key());
+                    return result;
+                  },
                   "Send retried",
                 ),
               { keepOpen: true },

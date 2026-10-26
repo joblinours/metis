@@ -1,412 +1,298 @@
 "use client";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@metis/ui/components/alert-dialog";
-
 import "@xyflow/react/dist/style.css";
-import { Button } from "@metis/ui/components/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@metis/ui/components/dropdown-menu";
-import { cn } from "@metis/ui/lib/utils";
-import {
-  addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
   Background,
   BackgroundVariant,
   type Connection,
+  ControlButton,
   Controls,
   type Edge,
+  type EdgeChange,
+  type IsValidConnection,
   MiniMap,
-  Panel,
+  type NodeChange,
   ReactFlow,
-  ReactFlowProvider,
-  useEdgesState,
-  useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
-import { Loader2, Play, Plus, Save, Trash2 } from "lucide-react";
+import { LayoutGrid, Map as MapIcon } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useMemo, useState } from "react";
-
-import { useWorkspaceScope } from "@/hooks/use-workspace-path";
-import { orpc } from "@/lib/orpc";
-import type { WorkflowOutput } from "@/server/schema";
-import type { GraphMailbox, GraphTemplate, WfNode } from "@/workflow/graph";
-import { flowHandle, fromFlow, templateGraph, toFlow } from "@/workflow/graph";
-import { edgeLabel, kindLabel, outputLabel } from "@/workflow/kinds";
-import type { WorkflowNodeKind } from "@/workflow/schema";
 import {
-  ACTION_KINDS,
-  AUTHORABLE_TRIGGER_KINDS,
-  DECISION_KINDS,
+  createContext,
+  type DragEvent,
+  type RefObject,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
+
+import { flowEdges } from "@/components/workflow-graph/edges";
+import { CATEGORY_COLOR } from "@/components/workflow-graph/node-meta";
+import { CARD_WIDTH, flowHandle, layoutGraph } from "@/workflow/graph";
+import { kindCategory, nodeTitle } from "@/workflow/kinds";
+import {
   edgeId,
-  isDecisionKind,
   isMergeKind,
   MERGE_INPUT_PORT,
-  MERGE_KINDS,
   mergeInputIndex,
+  type WorkflowGraph,
+  type WorkflowNodeKind,
+  WORKFLOW_NODE_KINDS,
 } from "@/workflow/schema";
-import { outputPortOf, validateGraph } from "@/workflow/validation";
+import { outputPortOf } from "@/workflow/validation";
 
-import { LabelOptionsProvider } from "./label-options";
-import { nodeTypes } from "./nodes";
-import { useWorkflowActions } from "./workflow-actions";
+import { useEditorEnv, useOverlay } from "./editor-context";
+import { useEditor, useEditorStore } from "./editor-store";
+import { StepNode, type StepFlowNode } from "./step-node";
 
-interface WorkflowCanvasProps {
-  mailboxes: GraphMailbox[];
-  allowDecisionNodes: boolean;
-  workflow: WorkflowOutput | null;
-  template: GraphTemplate;
-  onSaved: (workflow: WorkflowOutput) => void;
-  onDeleted: (id: string) => void;
-  initialStatus?: string | null;
+export const STEP_DRAG_TYPE = "application/x-metis-workflow-step";
+const SNAP = 16;
+
+const nodeTypes = { step: StepNode };
+
+export const CanvasElementContext = createContext<RefObject<HTMLDivElement | null> | null>(null);
+
+type LiveFields = Partial<Pick<StepFlowNode, "measured" | "position" | "dragging">>;
+
+function liveFields(node: StepFlowNode): LiveFields {
+  return node.dragging
+    ? { measured: node.measured, position: node.position, dragging: true }
+    : { measured: node.measured };
 }
 
-const PALETTE: { label: string; kinds: readonly WorkflowNodeKind[] }[] = [
-  { label: "Trigger", kinds: AUTHORABLE_TRIGGER_KINDS },
-  { label: "Data", kinds: ["mailbox.source", "condition", ...MERGE_KINDS] },
-  { label: "Decisions", kinds: DECISION_KINDS },
-  { label: "Action", kinds: ACTION_KINDS },
-];
+function withLive(base: StepFlowNode[], live: ReadonlyMap<string, LiveFields>): StepFlowNode[] {
+  return base.map((node) => {
+    const fields = live.get(node.id);
+    return fields ? { ...node, ...fields } : node;
+  });
+}
 
-function CanvasInner({
-  mailboxes,
-  allowDecisionNodes,
-  workflow,
-  template,
-  onSaved,
-  onDeleted,
-  initialStatus,
-}: WorkflowCanvasProps) {
-  const palette = PALETTE.map((group) => ({
-    ...group,
-    kinds: group.kinds.filter((kind) => allowDecisionNodes || !isDecisionKind(kind)),
-  })).filter((group) => group.kinds.length > 0);
-  const scope = useWorkspaceScope();
+function isStepKind(value: string): value is WorkflowNodeKind {
+  return (WORKFLOW_NODE_KINDS as readonly string[]).includes(value);
+}
+
+export function connectionProblem(graph: WorkflowGraph, connection: Connection | Edge): boolean {
+  if (!connection.source || !connection.target) return true;
+  if (connection.source === connection.target) return true;
+  const source = graph.nodes.find((n) => n.id === connection.source);
+  const target = graph.nodes.find((n) => n.id === connection.target);
+  if (!source || !target) return true;
+  const fromAsk = source.kind === "decision.ask";
+  const toBranch = target.kind === "decision.branch";
+  if (fromAsk !== toBranch) return true;
+  if (isMergeKind(target.kind)) {
+    if (mergeInputIndex(connection.targetHandle) < 0) return true;
+    const port = outputPortOf(graph, source.id);
+    if (port && port !== MERGE_INPUT_PORT) return true;
+    return graph.edges.some(
+      (e) =>
+        e.target === target.id &&
+        (e.targetHandle === connection.targetHandle ||
+          (e.source === source.id && e.sourceHandle === flowHandle(connection.sourceHandle))),
+    );
+  }
+  return graph.edges.some((e) => e.target === target.id);
+}
+
+export function useAddStep() {
+  const rf = useReactFlow();
+  const canvas = useContext(CanvasElementContext);
+  const store = useEditorStore();
+  const { mailboxes } = useEditorEnv();
+  return (kind: WorkflowNodeKind, at?: { x: number; y: number }) => {
+    const rect = canvas?.current?.getBoundingClientRect();
+    const screen = at ?? {
+      x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+      y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
+    };
+    const point = rf.screenToFlowPosition(screen);
+    const position = {
+      x: Math.round((point.x - CARD_WIDTH / 2) / SNAP) * SNAP,
+      y: Math.round((point.y - 40) / SNAP) * SNAP,
+    };
+    return store.getState().addNode(kind, position, mailboxes);
+  };
+}
+
+export function useTidyLayout() {
+  const rf = useReactFlow();
+  const store = useEditorStore();
+  return useCallback(() => {
+    store
+      .getState()
+      .setGraph((graph) => layoutGraph(graph, (id) => rf.getNode(id)?.measured?.height ?? 120));
+    requestAnimationFrame(() => void rf.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }));
+  }, [rf, store]);
+}
+
+export function WorkflowCanvas() {
+  const graph = useEditor((s) => s.graph);
+  const selected = useEditor((s) => s.selected);
+  const store = useEditorStore();
+  const canvas = useContext(CanvasElementContext);
+  const { overlay, live: animate } = useOverlay();
   const { resolvedTheme } = useTheme();
-  const { addNode } = useWorkflowActions();
-  const [initial] = useState(() =>
-    toFlow(workflow?.graph ?? templateGraph(template, mailboxes), mailboxes, workflow?.sources),
-  );
-  const [nodes, setNodes, onNodesChange] = useNodesState<WfNode>(initial.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
-  const [name, setName] = useState(workflow?.name ?? "");
-  const [enabled, setEnabled] = useState(workflow?.enabled ?? true);
-  const [saving, setSaving] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(initialStatus ?? null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const addStep = useAddStep();
+  const tidy = useTidyLayout();
+  const [minimap, setMinimap] = useState(true);
 
-  const isValidConnection = useCallback(
-    (connection: Connection | Edge) => {
-      if (!connection.source || !connection.target) return false;
-      if (connection.source === connection.target) return false;
-      const source = nodes.find((n) => n.id === connection.source);
-      const target = nodes.find((n) => n.id === connection.target);
-      const fromAsk = source?.data.node.kind === "decision.ask";
-      const toBranch = target?.data.node.kind === "decision.branch";
-      if (fromAsk !== toBranch) return false;
-      if (target && isMergeKind(target.data.node.kind)) {
-        if (mergeInputIndex(connection.targetHandle) < 0) return false;
-        const port = outputPortOf(fromFlow(nodes, edges), connection.source);
-        if (port && port !== MERGE_INPUT_PORT) return false;
-        return !edges.some(
-          (e) =>
-            e.target === connection.target &&
-            (e.targetHandle === connection.targetHandle ||
-              (e.source === connection.source &&
-                (e.sourceHandle ?? "out") === (connection.sourceHandle ?? "out"))),
-        );
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const base = useMemo(
+    (): StepFlowNode[] =>
+      graph.nodes.map((node) => ({
+        id: node.id,
+        type: "step",
+        position: node.position,
+        data: { node },
+        selected: selectedSet.has(node.id),
+        ariaLabel: nodeTitle(node),
+      })),
+    [graph.nodes, selectedSet],
+  );
+  const [live, setLive] = useState<ReadonlyMap<string, LiveFields>>(() => new Map());
+  const nodes = useMemo(() => withLive(base, live), [base, live]);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<StepFlowNode>[]) => {
+      const moved = Object.fromEntries(
+        changes.flatMap((c) =>
+          c.type === "position" && c.dragging === false && c.position && !live.get(c.id)?.dragging
+            ? [[c.id, c.position]]
+            : [],
+        ),
+      );
+      if (Object.keys(moved).length > 0) store.getState().moveNodes(moved);
+      setLive((prev) => {
+        const next = applyNodeChanges(changes, withLive(base, prev));
+        return new Map(next.map((n) => [n.id, liveFields(n)]));
+      });
+      const picks = changes.flatMap((c) => (c.type === "select" ? [c] : []));
+      if (picks.length > 0) {
+        const next = new Set(store.getState().selected);
+        for (const pick of picks) {
+          if (pick.selected) next.add(pick.id);
+          else next.delete(pick.id);
+        }
+        store.getState().select([...next]);
       }
-      return !edges.some((e) => e.target === connection.target);
     },
-    [edges, nodes],
+    [base, live, store],
+  );
+
+  const [pickedEdges, setPickedEdges] = useState<ReadonlySet<string>>(() => new Set());
+  const edges = useMemo(
+    () => flowEdges(graph, overlay, { editable: true, animate, selected: pickedEdges }),
+    [graph, overlay, animate, pickedEdges],
+  );
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) =>
+      setPickedEdges((prev) => {
+        const current = edges.map((e) => ({ ...e, selected: prev.has(e.id) }));
+        const next = applyEdgeChanges(changes, current);
+        return new Set(next.filter((e) => e.selected).map((e) => e.id));
+      }),
+    [edges],
+  );
+
+  const isValidConnection: IsValidConnection = useCallback(
+    (connection) => !connectionProblem(graph, connection),
+    [graph],
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
       const handle = flowHandle(connection.sourceHandle);
-      setEdges((current) =>
-        addEdge(
-          {
-            ...connection,
-            sourceHandle: handle,
-            id: edgeId(connection.source, handle, connection.target, connection.targetHandle),
-            type: "smoothstep",
-            animated: true,
-          },
-          current,
-        ),
-      );
+      store.getState().connect({
+        id: edgeId(connection.source, handle, connection.target, connection.targetHandle),
+        source: connection.source,
+        sourceHandle: handle,
+        target: connection.target,
+        ...(connection.targetHandle ? { targetHandle: connection.targetHandle } : {}),
+      });
     },
-    [setEdges],
+    [store],
   );
 
-  const labeledEdges = useMemo(() => {
-    const graph = fromFlow(nodes, edges);
-    return edges.map((edge) => {
-      const ref = {
-        source: edge.source,
-        sourceHandle: flowHandle(edge.sourceHandle),
-        target: edge.target,
-      };
-      return {
-        ...edge,
-        label: outputLabel(graph, ref),
-        ariaLabel: edgeLabel(graph, ref),
-      };
-    });
-  }, [nodes, edges]);
-
-  async function save() {
-    setError(null);
-    setStatus(null);
-    if (!name.trim()) {
-      setError("Give your workflow a name");
-      return;
-    }
-
-    const graph = fromFlow(nodes, edges);
-    const check = validateGraph(graph, {
-      kind: "user",
-      allowedMailboxIds: mailboxes.map((m) => m.mailboxId),
-      aiMailboxIds: mailboxes.filter((m) => m.aiEnabled).map((m) => m.mailboxId),
-      allowDecisionNodes,
-    });
-    if (!check.ok) {
-      setError(check.errors[0]?.message ?? "This workflow is incomplete.");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const body = {
-        ...scope,
-        workflow: { name: name.trim(), enabled, graph },
-      };
-      const result = workflow
-        ? await orpc.workflows.update({ id: workflow.id, ...body })
-        : await orpc.workflows.create(body);
-      if (result.workflow) {
-        const sources = new Map(result.workflow.sources.map((s) => [s.triggerNodeId, s]));
-        setNodes((current) =>
-          current.map((n) => ({
-            ...n,
-            data: { ...n.data, source: sources.get(n.id) },
-          })),
-        );
-        onSaved(result.workflow);
-        setStatus("Saved");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save workflow");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function runNow() {
-    if (!workflow) return;
-    setRunning(true);
-    setError(null);
-    setStatus(null);
-    try {
-      const result = await orpc.workflows.run({ ...scope, id: workflow.id });
-      setStatus(`Queued run ${result.runId.slice(0, 8)}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not queue a run");
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  async function doDelete() {
-    if (!workflow) return;
-    setConfirmDelete(false);
-    try {
-      await orpc.workflows.delete({ ...scope, id: workflow.id });
-      onDeleted(workflow.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not delete");
-    }
-  }
+  const onDrop = useCallback(
+    (event: DragEvent) => {
+      const kind = event.dataTransfer.getData(STEP_DRAG_TYPE);
+      if (!isStepKind(kind)) return;
+      event.preventDefault();
+      addStep(kind, { x: event.clientX, y: event.clientY });
+    },
+    [addStep],
+  );
 
   return (
-    <div className="relative h-full w-full">
+    <div
+      ref={canvas}
+      className="relative size-full"
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes(STEP_DRAG_TYPE)) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={onDrop}
+    >
       <ReactFlow
         nodes={nodes}
-        edges={labeledEdges}
+        edges={edges}
+        nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
-        nodeTypes={nodeTypes}
+        onNodeDragStop={(_event, _node, dragged) =>
+          store.getState().moveNodes(Object.fromEntries(dragged.map((n) => [n.id, n.position])))
+        }
+        onNodesDelete={(deleted) => store.getState().removeNodes(deleted.map((n) => n.id))}
+        onEdgesDelete={(deleted) => store.getState().removeEdges(deleted.map((e) => e.id))}
+        onPaneClick={() => store.getState().select([])}
+        deleteKeyCode={["Backspace", "Delete"]}
+        multiSelectionKeyCode={["Meta", "Control", "Shift"]}
+        snapToGrid
+        snapGrid={[SNAP, SNAP]}
+        minZoom={0.2}
+        maxZoom={1.5}
         fitView
-        fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
         proOptions={{ hideAttribution: true }}
         colorMode={resolvedTheme === "dark" ? "dark" : "light"}
         className="bg-background"
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} className="!bg-background" />
-        <Controls className="!border-border !bg-surface" showInteractive={false} />
-        <MiniMap pannable className="!border-border !bg-surface" maskColor="rgba(0,0,0,0.4)" />
-
-        <Panel position="top-left" className="flex items-center gap-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Untitled workflow"
-            className="w-56 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary/40"
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={SNAP}
+          size={1}
+          className="!bg-background"
+        />
+        <Controls className="!border-border !bg-surface" showInteractive={false}>
+          <ControlButton aria-label="Tidy up the layout" title="Tidy up the layout" onClick={tidy}>
+            <LayoutGrid />
+          </ControlButton>
+          <ControlButton
+            aria-label={minimap ? "Hide the minimap" : "Show the minimap"}
+            aria-pressed={minimap}
+            title={minimap ? "Hide the minimap" : "Show the minimap"}
+            onClick={() => setMinimap((on) => !on)}
+          >
+            <MapIcon />
+          </ControlButton>
+        </Controls>
+        {minimap && (
+          <MiniMap<StepFlowNode>
+            pannable
+            zoomable
+            className="!border-border !bg-surface max-md:hidden"
+            nodeColor={(node) => CATEGORY_COLOR[kindCategory(node.data.node.kind)]}
+            maskColor="rgba(0,0,0,0.35)"
           />
-          <button
-            type="button"
-            onClick={() => setEnabled((on) => !on)}
-            className="flex items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[11px] text-muted-foreground"
-          >
-            <span
-              className={cn(
-                "flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
-                enabled ? "bg-primary" : "bg-active",
-              )}
-            >
-              <span
-                className={cn(
-                  "block h-3 w-3 rounded-full bg-white shadow-sm transition-transform",
-                  enabled ? "translate-x-3.5" : "translate-x-0.5",
-                )}
-              />
-            </span>
-            {enabled ? "Enabled" : "Disabled"}
-          </button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-surface text-[12px] text-muted-foreground dark:bg-surface"
-                />
-              }
-            >
-              <Plus className="size-3.5" /> Add step
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="z-100 w-56">
-              {palette.map((group) => (
-                <DropdownMenuGroup key={group.label}>
-                  <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-                  {group.kinds.map((kind) => (
-                    <DropdownMenuItem key={kind} onClick={() => addNode(kind, mailboxes)}>
-                      {kindLabel(kind)}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuGroup>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </Panel>
-
-        <Panel position="top-right" className="flex items-center gap-2">
-          {status && (
-            <span className="rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] text-muted-foreground">
-              {status}
-            </span>
-          )}
-          {error && (
-            <span className="max-w-72 rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1 text-[11px] text-destructive-text">
-              {error}
-            </span>
-          )}
-          {workflow && (
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Delete workflow"
-              title="Delete workflow"
-              onClick={() => setConfirmDelete(true)}
-              className="bg-surface text-[12px] text-muted-foreground dark:bg-surface"
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          )}
-          {workflow && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={runNow}
-              disabled={running}
-              className="bg-surface text-[12px] text-muted-foreground dark:bg-surface"
-            >
-              {running ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Play className="size-3.5" />
-              )}
-              Run now
-            </Button>
-          )}
-          <Button
-            variant="default"
-            size="sm"
-            onClick={save}
-            disabled={saving}
-            className="text-[12px]"
-          >
-            {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            {workflow ? "Save" : "Create workflow"}
-          </Button>
-        </Panel>
+        )}
       </ReactFlow>
-
-      <AlertDialog
-        open={confirmDelete}
-        onOpenChange={(open) => {
-          if (!open) setConfirmDelete(false);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this workflow?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {workflow
-                ? `"${workflow.name}" will stop running. Runs already in flight finish, and its history stays.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={doDelete}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
-  );
-}
-
-export function WorkflowCanvas(props: WorkflowCanvasProps) {
-  return (
-    <ReactFlowProvider>
-      <LabelOptionsProvider mailboxes={props.mailboxes}>
-        <CanvasInner {...props} />
-      </LabelOptionsProvider>
-    </ReactFlowProvider>
   );
 }

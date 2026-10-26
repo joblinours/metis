@@ -90,7 +90,7 @@ Every external MCP client registered on the instance: **Clients**, **Enabled** a
 <img src="/images/self-hosting/dashboard-audit.png" alt="The Audit log page with the All events card, the search box, the event type list and the empty state" class="dark:hidden" />
 <img src="/images/self-hosting/dashboard-audit-dark.png" alt="The Audit log page with the All events card, the search box, the event type list and the empty state" class="hidden dark:block" />
 
-The **All events** card lists changes such as turned-off two-factor authentication, turned-off sign-in alerts, approved MCP clients, disconnected accounts, removed or detached mailboxes, calendars and drives, role changes, removed members, ownership transfers, invites, and deleted workspaces and accounts. The full list of what is recorded is in [Security activity](/guide/account/security-activity#what-is-recorded). Each change is recorded after it succeeds. Reading mail, events or files is never recorded.
+The **All events** card lists changes such as turned-off two-factor authentication, turned-off sign-in alerts, approved MCP clients, disconnected accounts, removed or detached mailboxes, calendars and drives, role changes, removed members, ownership transfers, invites, deleted workspaces and accounts, and undone upgrades. The full list of what is recorded is in [Security activity](/guide/account/security-activity#what-is-recorded). Each change is recorded after it succeeds. Reading mail, events or files is never recorded.
 
 Each row shows:
 
@@ -151,7 +151,7 @@ Under **System** in the sidebar are these pages:
 
 - **Instance:** the app address, sign-up, the owner, legal consent, drive relay limits and the mail image proxy. See [Sign-up](/self-hosting/configure/sign-up), [Terms and privacy links](/self-hosting/configure/terms-and-privacy), [Drive transfers](/self-hosting/configure/drive-transfers) and [Dashboard settings](/self-hosting/reference/dashboard-settings#instance).
 - **History:** every stored version of the configuration (below).
-- **Updates:** moving between releases. See [Update and roll back](/self-hosting/operate/update-and-roll-back).
+- **Updates:** upgrading to a newer release and undoing the last upgrade. See [Upgrade and undo](/self-hosting/operate/upgrade-and-undo).
 - **Drivers:** **LLM** (with the decision model), **Phishing detection**, **Mail**, **Cache**, **Workflow runner** and **Database**.
 - **Providers:** **Google**, **Microsoft**, **Zoho**, **IMAP**, **CalDAV**, **Cloudflare Email**, **Resend**, **S3**, **WebDAV**, **FTP** and **SFTP**.
 

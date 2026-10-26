@@ -26,7 +26,9 @@
   - Type-aware linting is the `--type-aware` flag in the scripts, because `options.typeAware` is rejected in a nested config.
   - The rule set, its exemptions and the suppression format are in [lint.md](agent-docs/lint.md).
 - **Never hand-edit generated output** (`shadcn add` primitives, `packages/ui/src/components/svgs/`, `packages/updater-proto/src/gen/`, `apps/updater/gen/`, `src/db/auth-schema.ts` beyond its `$type` pass, the drive icons, the privacy rules, the www models and HDRI), not even to satisfy lint. Report what the generator did and ask.
-- **Schema changes reach a database only through `bun run db:push`, which the project owner runs**, never an agent ([database.md](agent-docs/database.md)).
+- **A schema change ships a hand-written, data-preserving migration in `apps/web/migrations/` and passes `bun run db:check`** ([database.md](agent-docs/database.md)).
+- **Migrations reach a database only through preflight or `bun run db:migrate`, which the project owner runs**, never an agent.
+- **A user-visible change adds a line under `## Unreleased` in its release track's changelog**: the root `CHANGELOG.md` for the server (app, images, `compose.yml`, `bootstrap.sh`), `apps/desktop/CHANGELOG.md`, `apps/mobile/CHANGELOG.md`.
 - **Never commit secrets.** `.env*` is gitignored except `apps/web/.env.example` and `e2e/.env.fixture`.
 - **Source copied into the repo gets a `NOTICE` entry.** Dependencies need no license bookkeeping: `apps/web/scripts/licenses.ts` writes `THIRD_PARTY_LICENSES.txt` at image build.
 
@@ -54,7 +56,7 @@
 ## 5. Cross-domain rules
 
 - **The grant is the entity: a mailbox, a calendar and a drive hang off one `connection` row** ([connections.md](agent-docs/connections.md)). **A workspace only borrows a resource** ([workspaces.md](agent-docs/workspaces.md)).
-- **Mail, calendar and drive are peers.** None imports another; shared code lives in neutral modules. The mail↔drive seam lives in the UI only. Anything that handles one resource kind (menus, gates, counts, policy, copy) handles all three.
+- **Mail, calendar and drive are peers.** None imports another; shared code, and code that moves data between them, lives in neutral modules. Anything that handles one resource kind (menus, gates, counts, policy, copy) handles all three.
 - **Rows are keyed by the narrowest true scope with a real FK; never add a per-user toggle over per-mailbox data** ([workspaces.md](agent-docs/workspaces.md)).
 - **Composite ids (the `all` mailbox, `/d/all`) never reach our DB** ([mail.md](agent-docs/mail.md), [drive.md](agent-docs/drive.md)).
 - **Calendar and drive visibility restrictions are app-level product guarantees, never isolation.**
@@ -103,7 +105,7 @@
 | [desktop.md](agent-docs/desktop.md)                   | the Electron shell and the `native` sign-in protocol                                                              |
 | [mobile.md](agent-docs/mobile.md)                     | the Expo shell                                                                                                    |
 | [downloads.md](agent-docs/downloads.md)               | where the desktop and Android apps are published, and the URL of every file                                       |
-| [database.md](agent-docs/database.md)                 | schema, `METIS_DB_DRIVER`, sqld, Drizzle naming                                                                   |
+| [database.md](agent-docs/database.md)                 | schema, migrations and the drift check, `METIS_DB_DRIVER`, sqld, Drizzle naming                                   |
 | [deployment.md](agent-docs/deployment.md)             | compose, bootstrap, preflight, Docker images, release tags, health endpoints, build traps                         |
 | [self-host.md](agent-docs/self-host.md)               | where `bootstrap.sh` and `compose.yml` are published (`sh.trymetis.email`)                                        |
 | [updater.md](agent-docs/updater.md)                   | the updater protocol, the Go updater, dashboard updates                                                           |

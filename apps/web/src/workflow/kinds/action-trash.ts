@@ -9,6 +9,8 @@ import {
 export const actionTrash: NodeKindDefinition<"action.trash"> = {
   kind: "action.trash",
   label: "Move to Trash",
+  category: "action",
+  description: "Moves each message to Trash.",
   scope: "any",
   retry: "safe",
   input: NEEDS_MAIL,

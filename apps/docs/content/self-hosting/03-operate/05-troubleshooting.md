@@ -64,11 +64,21 @@ A setting has a wrong value. The app refuses to start and names the setting. Rea
 sudo docker compose --project-directory /opt/metis-suite logs preflight
 ```
 
+### The app does not start after pinning an older release
+
+The preflight log says the database has changes "which this release does not ship: a newer release migrated it." A newer release already changed your database, and an older release cannot run on it. Pin that newer release again, or a newer one. To go back, use **Undo last upgrade** while it is offered, or restore a backup taken before the newer release. See [Upgrade and undo](/self-hosting/operate/upgrade-and-undo#going-back-further).
+
+### An upgrade or undo failed
+
+Open **Dashboard**, **System**, **Updates**. The **Last upgrade** or **Last undo** card says what the updater did. See [When a step fails](/self-hosting/operate/upgrade-and-undo#when-a-step-fails).
+
 ### The owner dashboard is missing
 
 Only the account whose email matches `METIS_OWNER_EMAIL` sees **Dashboard** in the user menu. If no owner email is set, nobody does. Set it in `.env` and restart the app. See [First run](/self-hosting/install/first-run).
 
 ### Saving a setting fails
+
+For messages in the **Upgrade** and **Undo last upgrade** dialogs, see [Errors in the dialog](/self-hosting/operate/upgrade-and-undo#errors-in-the-dialog).
 
 | Message                                         | What to do                                                                                      |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |

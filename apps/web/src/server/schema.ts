@@ -1834,7 +1834,7 @@ export const dashboardPreflightAcknowledgeInputSchema = z.object({
 
 const UPGRADE_KINDS = ["upgrade", "rollback"] as const;
 const UPGRADE_STATES = ["running", "succeeded", "failed", "rollback-failed"] as const;
-const UPGRADE_STEPS = ["pull", "preflight", "switch", "ready", "restore"] as const;
+const UPGRADE_STEPS = ["pull", "snapshot", "preflight", "switch", "ready", "restore"] as const;
 
 export const dashboardUpgradeSchema = z.object({
   id: z.string(),
@@ -1853,8 +1853,12 @@ export const dashboardUpdatesOutputSchema = z.object({
   reachable: z.boolean(),
   error: z.string().nullable(),
   currentVersion: z.string().nullable(),
-  releases: z.array(z.object({ version: z.string(), newer: z.boolean() })),
+  releases: z.array(
+    z.object({ version: z.string(), newer: z.boolean(), notes: z.string().nullable() }),
+  ),
+  snapshots: z.boolean(),
   rollbackVersion: z.string().nullable(),
+  rollbackSnapshotAt: z.string().nullable(),
   upgrade: dashboardUpgradeSchema.nullable(),
 });
 
@@ -2560,6 +2564,54 @@ export const previewDecisionOutputSchema = z.object({
 });
 
 export type PreviewDecisionOutput = z.infer<typeof previewDecisionOutputSchema>;
+
+export const testWorkflowInputSchema = workspaceScopeSchema.extend({
+  graph: workflowGraphSchema,
+  triggerNodeId: z.string().min(1),
+  messageId: z.string().min(1).max(400).optional(),
+});
+
+export const testWorkflowOutputSchema = z.object({
+  status: runStatusSchema,
+  error: z.string().nullable(),
+  sample: z.object({ subject: z.string(), from: z.string() }).nullable(),
+  steps: z.array(
+    z.object({
+      nodeId: z.string(),
+      status: nodeStatusSchema,
+      count: z.number(),
+      detail: z.string().nullable(),
+    }),
+  ),
+  items: z.array(
+    z.object({
+      nodeId: z.string(),
+      status: nodeStatusSchema,
+      subject: z.string().nullable(),
+      from: z.string().nullable(),
+      outputs: z.array(z.string()),
+      detail: z.string().nullable(),
+      error: z.string().nullable(),
+    }),
+  ),
+});
+
+export type TestWorkflowOutput = z.infer<typeof testWorkflowOutputSchema>;
+
+export const testSamplesInputSchema = workspaceScopeSchema.extend({
+  mailboxId: z.string().min(1),
+});
+
+export const testSamplesOutputSchema = z.object({
+  messages: z.array(
+    z.object({
+      messageId: z.string(),
+      subject: z.string(),
+      from: z.string(),
+      date: z.string().nullable(),
+    }),
+  ),
+});
 
 export const scheduledSendStatusSchema = runStatusSchema;
 

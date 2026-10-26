@@ -8,7 +8,8 @@ export const actionSystem: NodeHandler<"action.system"> = async (node, envelope,
   if (ctx.definition.kind !== "system") {
     throw new BlockedError("Maintenance steps only run in system workflows");
   }
-  if (ctx.pure) return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "policy") return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "test") return { outputs: [], detail: "not run in a test run" };
 
   const passOn = [
     {

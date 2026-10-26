@@ -57,6 +57,8 @@
     "lint:fix": "oxlint --type-aware --report-unused-disable-directives --fix && oxfmt",
     "typecheck": "turbo run typecheck",
     "db:push": "bun run --cwd apps/web db:push",
+    "db:migrate": "bun run --cwd apps/web db:migrate",
+    "db:check": "bun run --cwd apps/web db:check",
     "proto:generate": "buf generate proto --template proto/buf.gen.yaml",
     "build:desktop": "bun run --cwd apps/desktop dist",
     "dev:mobile": "bun run --cwd apps/mobile dev"

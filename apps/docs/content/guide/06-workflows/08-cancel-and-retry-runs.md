@@ -5,7 +5,7 @@ description: Stop a run that is waiting or running, and run the failed or blocke
 
 You can stop a run before it finishes, and you can retry a run that failed or was blocked. Both start from the run's details page. Anyone who can see a run can cancel or retry it.
 
-To open a run, click **Workflows** in the left rail, click **Activity** at the bottom of the list, then click the run.
+To open a run, click **Workflows** in the left rail, click **Activity** at the bottom of the list, then click the run. You can also open a workflow, click a run in the **Runs** tab under the canvas, and click **Details**.
 
 ## Cancel a run
 
@@ -39,7 +39,7 @@ How a retry works:
 
 - **Only the steps that failed or were blocked run again.** Steps that completed keep their results and do not run a second time, so nothing that was already done to your mail is done twice.
 - **The retry uses the version that ran.** Even if you edited the workflow since, the retry follows the saved version the run started with.
-- **The run keeps its place in the history.** It does not appear as a new run. Its status line shows "attempt" and a number.
+- **The run keeps its place in the history.** It does not appear as a new run.
 - **Answered questions are not asked again.** If an **Ask** step already finished, its answers are kept.
 
 ### When a run cannot be retried

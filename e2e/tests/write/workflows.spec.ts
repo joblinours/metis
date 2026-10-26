@@ -16,6 +16,8 @@ export default function workflowSpecs() {
       has: page.getByRole("button", { name: "New workflow", exact: true }),
     });
     const canvas = page.getByRole("application");
+    const inspector = page.getByRole("region", { name: "Inspector" });
+    const workflowName = page.getByRole("textbox", { name: "Workflow name" });
     await page.goto(workspacePath(account, "/workflow"));
     await list.getByRole("button", { name: "New workflow", exact: true }).click();
     await page
@@ -23,23 +25,24 @@ export default function workflowSpecs() {
       .getByRole("menuitem", { name: "One mailbox, on arrival", exact: true })
       .click();
     try {
-      await canvas.getByRole("textbox", { name: "Untitled workflow" }).fill(name);
-      await canvas.getByRole("textbox", { name: "value" }).fill("nobody@discard.harness.test");
-      await canvas.getByRole("button", { name: "Create workflow", exact: true }).click();
-      await expect(canvas.getByRole("button", { name: "Save", exact: true })).toBeVisible();
-      await expect(canvas.getByRole("textbox", { name: "Untitled workflow" })).toHaveValue(name);
+      await workflowName.fill(name);
+      await canvas.getByRole("group", { name: "If", exact: true }).click();
+      await inspector.getByRole("textbox", { name: "Value" }).fill("nobody@discard.harness.test");
+      await page.getByRole("button", { name: "Create workflow", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+      await expect(workflowName).toHaveValue(name);
       await expect(list.getByRole("button", { name, exact: true })).toBeVisible();
       expect((await workflowNamed(rpc, account, name)).enabled).toBe(true);
 
-      await canvas.getByRole("button", { name: "Enabled", exact: true }).click();
-      await expect(canvas.getByRole("button", { name: "Disabled", exact: true })).toBeVisible();
-      await canvas.getByRole("button", { name: "Save", exact: true }).click();
-      await expect(canvas.getByText("Saved", { exact: true })).toBeVisible();
+      await page.getByRole("switch", { name: "Enabled", exact: true }).click();
+      await expect(page.getByText("Disabled", { exact: true })).toBeVisible();
+      await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(page.getByText("Saved", { exact: true })).toBeVisible();
       await expect.poll(async () => (await workflowNamed(rpc, account, name)).enabled).toBe(false);
 
-      const remove = canvas.getByRole("button", { name: /^Delete/ });
-      await expect(remove).toBeVisible();
-      await remove.click();
+      await page.getByRole("button", { name: "More workflow actions", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Delete workflow", exact: true }).click();
       await page
         .getByRole("alertdialog", { name: "Delete this workflow?" })
         .getByRole("button", { name: "Delete", exact: true })
@@ -62,6 +65,90 @@ export default function workflowSpecs() {
           ...workspace(account),
           id: leftover.id,
         });
+    }
+  });
+
+  test("Run now draws the run on the canvas, and a step's name and skip flag save", async ({
+    page,
+    rpc,
+    account,
+  }, testInfo) => {
+    const name = uniqueName(testInfo);
+    const { mailboxes } = await rpc<{ mailboxes: { mailboxId: string; slug: string }[] }>(
+      "workflows.list",
+      workspace(account),
+    );
+    const mailboxId =
+      mailboxes.find((m) => m.slug === account.mailboxSlug)?.mailboxId ??
+      mailboxes[0]?.mailboxId ??
+      "";
+    const { workflow } = await rpc<{ workflow: { id: string } }>("workflows.create", {
+      ...workspace(account),
+      workflow: {
+        name,
+        enabled: true,
+        graph: {
+          nodes: [
+            { id: "manual", kind: "trigger.manual", position: { x: 0, y: 0 } },
+            {
+              id: "inbox",
+              kind: "mailbox.source",
+              position: { x: 352, y: 0 },
+              mailboxId,
+              operation: "list",
+              folder: "inbox",
+              limit: 10,
+            },
+            {
+              id: "none",
+              kind: "condition",
+              position: { x: 704, y: 0 },
+              predicate: {
+                kind: "predicate",
+                field: "subject",
+                op: "contains",
+                value: "e2e-subject-that-matches-nothing",
+              },
+            },
+            { id: "star", kind: "action.star", position: { x: 1056, y: 0 } },
+          ],
+          edges: [
+            { id: "e1", source: "manual", sourceHandle: "out", target: "inbox" },
+            { id: "e2", source: "inbox", sourceHandle: "out", target: "none" },
+            { id: "e3", source: "none", sourceHandle: "matched", target: "star" },
+          ],
+        },
+      },
+    });
+    try {
+      await page.goto(workspacePath(account, `/workflow?id=${workflow.id}`));
+      await expect(page.getByRole("textbox", { name: "Workflow name" })).toHaveValue(name);
+
+      await page.getByRole("button", { name: "Run now", exact: true }).click();
+      await expect(page.getByText(/^Showing run \w{8} on the canvas$/)).toBeVisible();
+      await expect(
+        page.getByRole("list", { name: "Recent runs" }).getByRole("button").first(),
+      ).toContainText("completed", { timeout: 60_000 });
+
+      const canvas = page.getByRole("application");
+      const inspector = page.getByRole("region", { name: "Inspector" });
+      await canvas.getByRole("group", { name: "Star", exact: true }).click();
+      const title = inspector.getByRole("textbox", { name: "Name", exact: true });
+      await title.fill("Star nothing");
+      await title.press("Tab");
+      await inspector.getByRole("switch", { name: "Skip this step" }).click();
+      await expect(canvas.getByRole("group", { name: "Star nothing", exact: true })).toContainText(
+        "Skipped",
+      );
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+      const saved = await workflowNamed(rpc, account, name);
+      const star = saved.graph.nodes.find((n) => n.id === "star");
+      expect(star?.title).toBe("Star nothing");
+      expect(star?.skip).toBe(true);
+    } finally {
+      await rpc("workflows.delete", { ...workspace(account), id: workflow.id });
     }
   });
 

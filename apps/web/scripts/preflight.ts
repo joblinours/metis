@@ -1,7 +1,3 @@
-import { readFileSync } from "node:fs";
-
-import { sql } from "drizzle-orm";
-
 import { decisionEnabled, loadInstanceConfig } from "@/config/runtime";
 import { seedInstanceConfig } from "@/config/seed";
 import { backfillServerIds, reconcileQuarantine } from "@/connections/quarantine";
@@ -13,34 +9,15 @@ import {
 import { recordPreflightRun } from "@/dashboard/preflight";
 import { checkLlm } from "@/dashboard/system-checks";
 import { db } from "@/db";
+import { migrateDatabase } from "@/db/migrations";
 import type { PreflightWarning, PreflightWarningKind } from "@/types/preflight";
 
-const SCHEMA_PATH = process.env.METIS_INIT_SQL ?? "/deploy/init.sql";
-
-const tables = await db.all<{ name: string }>(
-  sql`select name from sqlite_master where type = 'table' and name = 'user'`,
-);
-
-if (tables.length === 0) {
-  let schema: string;
-  try {
-    schema = readFileSync(SCHEMA_PATH, "utf8");
-  } catch {
-    throw new Error(
-      `[preflight] the database has no schema and ${SCHEMA_PATH} is not readable — run 'bun run db:push', or point METIS_INIT_SQL at an exported schema`,
-    );
-  }
-
-  const statements = schema
-    .split(/;\s*\n/)
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-
-  for (const statement of statements) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- schema statements apply in file order; later ones depend on earlier tables
-    await db.run(sql.raw(statement));
-  }
-  console.log(`[preflight] applied ${statements.length} schema statements`);
+const migrated = await migrateDatabase(db.$client);
+if (migrated.baselined) {
+  console.log("[preflight] recorded 0000_baseline for a database created before migrations");
+}
+if (migrated.applied.length > 0) {
+  console.log(`[preflight] applied ${migrated.applied.join(", ")}`);
 }
 
 const warnings: PreflightWarning[] = [];

@@ -1,6 +1,6 @@
 {
   "name": "@metis/web",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "scripts": {
@@ -12,6 +12,8 @@
     "db:push": "drizzle-kit push",
     "db:auth-schema": "bun run scripts/auth-generate.ts",
     "db:export": "drizzle-kit export",
+    "db:migrate": "bun --conditions=react-server run scripts/migrate.ts",
+    "db:check": "bun run scripts/check-migrations.ts",
     "icons:drive": "bun run scripts/update-drive-icons.ts",
     "privacy:rules": "bun run scripts/update-privacy-rules.ts",
     "licenses": "bun run scripts/licenses.ts",

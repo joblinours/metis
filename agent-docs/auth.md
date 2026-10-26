@@ -85,7 +85,7 @@ See also [AGENTS.md](../AGENTS.md), [desktop.md](desktop.md), [connections.md](c
 
 ### Better Auth schema
 
-- **Never hand-edit `src/db/auth-schema.ts` except the `$type` pass below.** Regenerate with `bun run --cwd apps/web db:auth-schema`, then `bun run lint:fix` (the CLI writes unformatted), then re-apply the `$type` pass, then `db:push` ([database.md](database.md)).
+- **Never hand-edit `src/db/auth-schema.ts` except the `$type` pass below.** Regenerate with `bun run --cwd apps/web db:auth-schema`, then `bun run lint:fix` (the CLI writes unformatted), then re-apply the `$type` pass, then write the migration ([database.md](database.md)).
 - **After a `better-auth` bump, regenerate before anything else.** `auth@latest` must match the installed `better-auth`: the CLI's own `@better-auth/core` decides the table shape, and startup schema validation rejects auth requests on a mismatch.
 - **Re-apply `$type<string[]>()` on every array-valued json column of the OAuth tables after every regen.**
   - SQLite has no array type, so the generator emits `text(…, { mode: "json" })` and drizzle infers `unknown` (`{}` when notNull).

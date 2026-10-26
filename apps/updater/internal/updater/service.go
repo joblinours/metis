@@ -22,7 +22,7 @@ func (service Service) GetStatus(ctx context.Context, _ *updaterv1.GetStatusRequ
 }
 
 func (service Service) StartUpgrade(ctx context.Context, req *updaterv1.StartUpgradeRequest) (*updaterv1.StartUpgradeResponse, error) {
-	upgrade, err := service.manager.Upgrade(ctx, req.GetVersion())
+	upgrade, err := service.manager.Upgrade(ctx, req.GetVersion(), req.GetRequestedBy())
 	if err != nil {
 		return nil, err
 	}
@@ -33,8 +33,8 @@ func (service Service) GetUpgrade(context.Context, *updaterv1.GetUpgradeRequest)
 	return &updaterv1.GetUpgradeResponse{Upgrade: service.manager.Last()}, nil
 }
 
-func (service Service) Rollback(context.Context, *updaterv1.RollbackRequest) (*updaterv1.RollbackResponse, error) {
-	upgrade, err := service.manager.Rollback()
+func (service Service) Rollback(_ context.Context, req *updaterv1.RollbackRequest) (*updaterv1.RollbackResponse, error) {
+	upgrade, err := service.manager.Rollback(req.GetRequestedBy())
 	if err != nil {
 		return nil, err
 	}

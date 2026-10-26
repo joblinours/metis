@@ -19,7 +19,7 @@ export interface Workflow {
   name: string;
   enabled: boolean;
   graph: {
-    nodes: { id: string; kind: string; label?: string }[];
+    nodes: { id: string; kind: string; label?: string; title?: string; skip?: boolean }[];
     edges: unknown[];
   };
 }

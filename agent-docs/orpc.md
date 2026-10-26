@@ -62,6 +62,7 @@ See also [AGENTS.md](../AGENTS.md) (scope as explicit input), [auth.md](auth.md)
 - **`drive.*` works through `context.drive.surface`** ([drive.md](drive.md)). The one exception is `drive.quotas`, which reports per drive and so asks each of `context.drive.drives` for its own adapter (`driveQuotas` in `src/drive/quota.ts`).
 - **`workflows.run` queues a durable occurrence and returns its run id** ([workflow-runtime.md](workflow-runtime.md)).
   - `runs`, `getRun`, `cancelRun` and `resumeRun` share one visibility rule ([workflow-runs.md](workflow-runs.md)).
+  - `workflows.test` runs an unsaved graph without side effects and returns its trace ([workflow-graph.md](workflow-graph.md)).
   - `workflows` is top-level and workspace-scoped, because a workflow belongs to the workspace.
 - **`connections.createCredential` and `connections.delete`** are described in [servers.md](servers.md) and [connections.md](connections.md).
 - **`audit.*` is read-only**: `audit.mine` on `appSession`, `audit.workspace` on `workspaceSession` for owners and admins ([audit.md](audit.md)).

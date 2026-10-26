@@ -1,9 +1,11 @@
-import { validCron, validTimezone } from "../cron";
+import { describeSchedule, validCron, validTimezone } from "../cron";
 import { type NodeKindDefinition, SINGLE_OUTPUT, SINGLE_OUTPUT_ERROR } from "./types";
 
 export const triggerSchedule: NodeKindDefinition<"trigger.schedule"> = {
   kind: "trigger.schedule",
   label: "On a schedule",
+  category: "trigger",
+  description: "Starts the workflow on a repeating schedule, in a time zone you pick.",
   scope: "any",
   retry: "safe",
   input: null,
@@ -19,4 +21,8 @@ export const triggerSchedule: NodeKindDefinition<"trigger.schedule"> = {
     }
     return [];
   },
+  card: (node) => [
+    describeSchedule(node.cron) ?? { text: node.cron, mono: true },
+    { text: node.timezone, tone: "muted" },
+  ],
 };

@@ -16,8 +16,12 @@ import {
   UpgradeStep,
 } from "@metis/updater-proto/v1";
 import { ORPCError } from "@orpc/server";
+import { and, eq, sql } from "drizzle-orm";
 
+import { recordAuditEvent } from "@/audit";
 import { config } from "@/config";
+import { db } from "@/db";
+import { auditEvent } from "@/db/schema";
 import type { DashboardUpdates, DashboardUpgrade } from "@/server/schema";
 
 const CALL_OPTIONS: CallOptions = { timeoutMs: 15_000 };
@@ -72,6 +76,8 @@ function stepOf(step: UpgradeStep): DashboardUpgrade["step"] {
   switch (step) {
     case UpgradeStep.PULL:
       return "pull";
+    case UpgradeStep.SNAPSHOT:
+      return "snapshot";
     case UpgradeStep.PREFLIGHT:
       return "preflight";
     case UpgradeStep.SWITCH:
@@ -151,30 +157,68 @@ async function settle<T>(call: Promise<T>): Promise<PromiseSettledResult<T>> {
   }
 }
 
+async function recordUndo(upgrade: Upgrade | undefined): Promise<void> {
+  if (
+    !upgrade?.requestedBy ||
+    upgrade.kind !== UpgradeKind.ROLLBACK ||
+    upgrade.state !== UpgradeState.SUCCEEDED
+  ) {
+    return;
+  }
+  const [recorded] = await db
+    .select({ id: auditEvent.id })
+    .from(auditEvent)
+    .where(
+      and(
+        eq(auditEvent.action, "instance.upgrade_undone"),
+        sql`json_extract(${auditEvent.detail}, '$.upgradeId') = ${upgrade.id}`,
+      ),
+    )
+    .limit(1);
+  if (recorded) return;
+  await recordAuditEvent(
+    { userId: upgrade.requestedBy, via: "app" },
+    {
+      action: "instance.upgrade_undone",
+      targetLabel: `${upgrade.fromVersion || "unpinned"} → ${upgrade.toVersion}`,
+      detail: {
+        upgradeId: upgrade.id,
+        fromVersion: upgrade.fromVersion || null,
+        toVersion: upgrade.toVersion,
+        finishedAt: upgrade.finishedAt ? timestampDate(upgrade.finishedAt).toISOString() : null,
+      },
+    },
+  );
+}
+
 export async function updatesStatus(): Promise<DashboardUpdates> {
   const api = updater();
   const last = await settle(api.getUpgrade({}, CALL_OPTIONS));
   const status = await settle(api.getStatus({}, CALL_OPTIONS));
+  if (last.status === "fulfilled") await recordUndo(last.value.upgrade);
   const error =
     status.status === "rejected"
       ? describe(status.reason)
       : last.status === "rejected"
         ? describe(last.reason)
         : null;
-  const currentVersion = status.status === "fulfilled" ? status.value.currentVersion || null : null;
-  const releases =
-    status.status === "fulfilled"
-      ? status.value.releases.map(({ version }) => ({
-          version,
-          newer: currentVersion !== null && compareVersions(version, currentVersion) > 0,
-        }))
-      : [];
+  const current = status.status === "fulfilled" ? status.value : null;
+  const currentVersion = current?.currentVersion || null;
   return {
-    reachable: status.status === "fulfilled" || last.status === "fulfilled",
+    reachable: current !== null || last.status === "fulfilled",
     error,
     currentVersion,
-    releases,
-    rollbackVersion: status.status === "fulfilled" ? status.value.rollbackVersion || null : null,
+    releases:
+      current?.releases.map(({ version, notes }) => ({
+        version,
+        newer: currentVersion !== null && compareVersions(version, currentVersion) > 0,
+        notes: notes || null,
+      })) ?? [],
+    snapshots: current?.snapshots ?? false,
+    rollbackVersion: current?.rollbackVersion || null,
+    rollbackSnapshotAt: current?.rollbackSnapshotAt
+      ? timestampDate(current.rollbackSnapshotAt).toISOString()
+      : null,
     upgrade: last.status === "fulfilled" ? toUpgrade(last.value.upgrade) : null,
   };
 }
@@ -189,9 +233,9 @@ function started(upgrade: Upgrade | undefined): DashboardUpgrade {
   return result;
 }
 
-export async function startUpgrade(version: string): Promise<DashboardUpgrade> {
+export async function startUpgrade(version: string, userId: string): Promise<DashboardUpgrade> {
   try {
-    const response = await updater().startUpgrade({ version }, CALL_OPTIONS);
+    const response = await updater().startUpgrade({ version, requestedBy: userId }, CALL_OPTIONS);
     return started(response.upgrade);
   } catch (err) {
     if (err instanceof ORPCError) throw err;
@@ -199,9 +243,9 @@ export async function startUpgrade(version: string): Promise<DashboardUpgrade> {
   }
 }
 
-export async function rollbackRelease(): Promise<DashboardUpgrade> {
+export async function rollbackRelease(userId: string): Promise<DashboardUpgrade> {
   try {
-    const response = await updater().rollback({}, CALL_OPTIONS);
+    const response = await updater().rollback({ requestedBy: userId }, CALL_OPTIONS);
     return started(response.upgrade);
   } catch (err) {
     if (err instanceof ORPCError) throw err;

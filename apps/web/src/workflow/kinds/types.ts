@@ -9,6 +9,38 @@ import type {
 
 export type PortType = "signal" | "message" | "draft";
 
+export const PORT_LABELS: Record<PortType, string> = {
+  signal: "Start",
+  message: "Mail",
+  draft: "Outgoing mail",
+};
+
+export const NODE_CATEGORIES = ["trigger", "mail", "logic", "ai", "action", "system"] as const;
+export type NodeCategory = (typeof NODE_CATEGORIES)[number];
+
+export const CATEGORY_LABELS: Record<NodeCategory, string> = {
+  trigger: "Triggers",
+  mail: "Mail",
+  logic: "Logic",
+  ai: "AI",
+  action: "Actions",
+  system: "Maintenance",
+};
+
+export interface CardLine {
+  text: string;
+  tone?: "muted" | "warn";
+  mono?: boolean;
+}
+
+export type CardEntry = CardLine | string | false | null | undefined;
+
+export interface CardContext {
+  graph: GraphShape;
+  mailboxEmail(mailboxId: string): string | null;
+  labelName(key: string): string;
+}
+
 export type NodeOf<K extends WorkflowNodeKind> = Extract<WorkflowNode, { kind: K }>;
 
 export type GraphShape = Pick<WorkflowGraph, "nodes" | "edges">;
@@ -38,6 +70,8 @@ export interface KindCheckContext {
 export interface NodeKindDefinition<K extends WorkflowNodeKind> {
   kind: K;
   label: string;
+  category: NodeCategory;
+  description: string;
   scope: "any" | "builtin" | "system";
   retry: RetryClass;
   input: KindInput | null;
@@ -46,6 +80,7 @@ export interface NodeKindDefinition<K extends WorkflowNodeKind> {
   outputError: string;
   mailboxId?(node: NodeOf<K>): string | null;
   check?(node: NodeOf<K>, ctx: KindCheckContext): string[];
+  card?(node: NodeOf<K>, ctx: CardContext): CardEntry[];
 }
 
 export const SINGLE_OUTPUT: KindOutput[] = [{ id: "out" }];

@@ -997,3 +997,8 @@ export const auditEvent = sqliteTable(
     index("audit_event_workspace_created_idx").on(table.workspaceId, table.createdAt),
   ],
 );
+
+export const schemaMigration = sqliteTable("schema_migration", {
+  id: text("id").primaryKey(),
+  appliedAt: timestamp("applied_at").notNull(),
+});

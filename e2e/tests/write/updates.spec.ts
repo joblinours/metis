@@ -81,73 +81,86 @@ export default function updateSpecs() {
     await updater.reset();
   });
 
-  test("upgrading to a newer release shows its progress, then runs that release with the old one as the rollback", async ({
+  test("upgrading to a newer release shows its notes and progress, then runs that release with an undo", async ({
     page,
   }) => {
     await openUpdates(page);
     await runningVersion(page, "1.1.0");
     await expect(section(page, "Running release")).toContainText("Update available");
-    await expect(releaseRow(page, "1.1.0").getByRole("button")).toHaveCount(0);
+    await expect(section(page, "Releases").getByText("1.1.0", { exact: true })).toHaveCount(0);
+    await expect(section(page, "Releases").getByText("1.0.0", { exact: true })).toHaveCount(0);
+
+    await section(page, "Releases").getByRole("button", { name: "Release notes" }).click();
+    await expect(section(page, "Releases")).toContainText("Faster inbox loading");
 
     await upgradeTo(page, "1.2.0", "Upgrade");
     const last = section(page, "Last upgrade");
     await expect(last).toContainText("1.1.0 → 1.2.0");
     await expect(last).toContainText("Running");
-    await expect(last).toContainText("Pull the release");
+    await expect(last).toContainText("Stop the app and snapshot the database");
 
     await expect(last).toContainText("Succeeded", { timeout: UPGRADE_TIMEOUT });
     await expect(toasts(page).getByText("Now running 1.2.0", { exact: true })).toBeVisible();
     await page.reload();
     await runningVersion(page, "1.2.0");
     await expect(section(page, "Running release")).toContainText("Up to date");
+    await expect(section(page, "Running release")).toContainText("Undo returns to 1.1.0");
     await expect(
-      section(page, "Running release").getByRole("button", {
-        name: "Roll back to 1.1.0",
-      }),
+      section(page, "Running release").getByRole("button", { name: "Undo last upgrade" }),
     ).toBeVisible();
+    await expect(section(page, "Releases")).toContainText("No newer release is published.");
     expect((await updater.state()).settings.current).toBe("1.2.0");
   });
 
-  test("downgrading to an older release runs that release", async ({ page }) => {
+  test("an older release is neither offered nor installed", async ({ page, rpc }) => {
     await openUpdates(page);
-    await upgradeTo(page, "1.0.0", "Downgrade");
-    const last = section(page, "Last upgrade");
-    await expect(last).toContainText("1.1.0 → 1.0.0");
-    await expect(last).toContainText("Succeeded", { timeout: UPGRADE_TIMEOUT });
-    await page.reload();
-    await runningVersion(page, "1.0.0");
-    await expect(
-      section(page, "Running release").getByRole("button", {
-        name: "Roll back to 1.1.0",
-      }),
-    ).toBeVisible();
-    await expect(releaseRow(page, "1.2.0").getByRole("button", { name: "Upgrade" })).toBeVisible();
-    expect((await updater.state()).settings.current).toBe("1.0.0");
+    await runningVersion(page, "1.1.0");
+    await expect(section(page, "Releases").getByText("1.0.0", { exact: true })).toHaveCount(0);
+    await expect(main(page).getByRole("button", { name: "Downgrade" })).toHaveCount(0);
+    await expectRpcError(
+      upgrade(rpc, "1.0.0"),
+      "CONFLICT",
+      "1.0.0 is older than the running 1.1.0; only newer releases can be installed",
+    );
+    expect((await updater.state()).settings.current).toBe("1.1.0");
   });
 
-  test("rolling back returns to the previous release", async ({ page }) => {
+  test("undoing the last upgrade returns to the previous release once and is audited", async ({
+    page,
+    rpc,
+  }) => {
     await openUpdates(page);
     await section(page, "Running release")
-      .getByRole("button", { name: "Roll back to 1.0.0" })
+      .getByRole("button", { name: "Undo last upgrade" })
       .click();
-    await confirmTotp(page, "Roll back to 1.0.0", "Roll back");
-    const last = section(page, "Last rollback");
+    await confirmTotp(page, "Undo last upgrade", "Undo");
+    const last = section(page, "Last undo");
     await expect(last).toContainText("1.1.0 → 1.0.0");
     await expect(last).toContainText("Succeeded", { timeout: UPGRADE_TIMEOUT });
     await page.reload();
     await runningVersion(page, "1.0.0");
     await expect(
-      section(page, "Running release").getByRole("button", {
-        name: "Roll back to 1.1.0",
-      }),
-    ).toBeVisible();
+      section(page, "Running release").getByRole("button", { name: "Undo last upgrade" }),
+    ).toHaveCount(0);
+    await expect(section(page, "Running release")).toContainText("None");
+
+    const { events } = await rpc<{ events: { action: string; targetLabel: string | null }[] }>(
+      "audit.mine",
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({ action: "instance.upgrade_undone", targetLabel: "1.1.0 → 1.0.0" }),
+    );
   });
 
-  test("a release whose preflight fails is never installed and the running release stays", async ({
+  test("an install the updater cannot snapshot has no undo, and a release whose preflight fails is never installed", async ({
     page,
   }) => {
-    await updater.reset({ outcome: "preflight-fails" });
+    await updater.reset({ outcome: "preflight-fails", snapshots: false });
     await openUpdates(page);
+    await expect(section(page, "Running release")).toContainText("Not available");
+    await expect(section(page, "Running release")).toContainText(
+      "Back up the database before upgrading.",
+    );
     await upgradeTo(page, "1.2.0", "Upgrade");
     const last = section(page, "Last upgrade");
     await expect(last).toContainText("Failed", { timeout: UPGRADE_TIMEOUT });
@@ -164,7 +177,7 @@ export default function updateSpecs() {
     const last = section(page, "Last upgrade");
     await expect(last).toContainText("Failed", { timeout: UPGRADE_TIMEOUT });
     await expect(last).toContainText(
-      "1.2.0 did not come up, so the updater switched back to 1.1.0.",
+      "1.2.0 failed, so the updater restored the database snapshot and switched back to 1.1.0.",
     );
     await expect(last).toContainText("was not ready within");
     await runningVersion(page, "1.1.0");
@@ -180,6 +193,7 @@ export default function updateSpecs() {
     });
     await expect(last).toContainText("Switching back to 1.1.0 failed too.");
     await expect(last).toContainText("restoring 1.1.0 also failed");
+    await expect(last).toContainText("the database snapshot is in");
   });
 
   test("the updater's refusals reach the caller as oRPC errors", async ({ page, rpc }) => {
@@ -198,7 +212,7 @@ export default function updateSpecs() {
     await expectRpcError(
       rpc("dashboard.system.rollback", { code: await harness.totp() }),
       "CONFLICT",
-      "there is no previous release to roll back to",
+      "there is no upgrade to undo",
     );
 
     await updater.reset();
@@ -213,9 +227,7 @@ export default function updateSpecs() {
     await expect(section(page, "Last upgrade")).toContainText("Running");
     await expect(releaseRow(page, "1.2.0").getByRole("button", { name: "Upgrade" })).toBeDisabled();
     await expect(
-      section(page, "Running release").getByRole("button", {
-        name: "Roll back to 1.0.0",
-      }),
+      section(page, "Running release").getByRole("button", { name: "Undo last upgrade" }),
     ).toBeDisabled();
   });
 

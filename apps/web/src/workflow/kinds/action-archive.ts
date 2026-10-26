@@ -9,6 +9,8 @@ import {
 export const actionArchive: NodeKindDefinition<"action.archive"> = {
   kind: "action.archive",
   label: "Archive",
+  category: "action",
+  description: "Moves each message to Archive.",
   scope: "any",
   retry: "safe",
   input: NEEDS_MAIL,

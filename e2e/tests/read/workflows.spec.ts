@@ -120,7 +120,7 @@ test("a bad graph shows its validation error and is not saved", async ({ page, a
     .getByRole("menu", { name: "New workflow" })
     .getByRole("menuitem", { name: "One mailbox, on arrival", exact: true })
     .click();
-  await page.getByRole("textbox", { name: "Untitled workflow" }).fill("Invalid on purpose");
+  await page.getByRole("textbox", { name: "Workflow name" }).fill("Invalid on purpose");
   const trigger = page
     .getByRole("application")
     .getByRole("group")
@@ -128,17 +128,19 @@ test("a bad graph shows its validation error and is not saved", async ({ page, a
   await trigger.getByRole("button", { name: "Remove step" }).click();
   await expect(trigger).toHaveCount(0);
   await page.getByRole("button", { name: "Create workflow", exact: true }).click();
-  await expect(page.getByText("Start the workflow with a trigger")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Inspector" }).getByText("Start the workflow with a trigger"),
+  ).toBeVisible();
   expect(creates).toEqual([]);
   await page.reload();
   await expect(sidebar(page).getByRole("listitem")).toHaveCount(SEEDED.length);
   await expect(sidebar(page).getByRole("button", { name: "Invalid on purpose" })).toHaveCount(0);
 });
 
-test("the Add step menu offers Ask and Branch", async ({ page, account }) => {
+test("the step palette offers Ask and Branch", async ({ page, account }) => {
   await page.goto(workspacePath(account, "/workflow"));
-  await page.getByRole("button", { name: "Add step", exact: true }).click();
-  const menu = page.getByRole("menu", { name: "Add step" });
-  await expect(menu.getByRole("menuitem", { name: "Ask", exact: true })).toBeVisible();
-  await expect(menu.getByRole("menuitem", { name: "Branch", exact: true })).toBeVisible();
+  const step = (name: string) =>
+    page.getByRole("option").filter({ has: page.getByText(name, { exact: true }) });
+  await expect(step("Ask")).toBeVisible();
+  await expect(step("Branch")).toBeVisible();
 });

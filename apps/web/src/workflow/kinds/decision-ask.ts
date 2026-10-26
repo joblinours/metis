@@ -1,6 +1,7 @@
 import { questionHandle } from "../decision";
 import { MAX_DECISION_CHOICES, type WorkflowNode } from "../schema";
 import {
+  type CardEntry,
   type KindCheckContext,
   NEEDS_MAIL,
   type NodeKindDefinition,
@@ -66,6 +67,9 @@ function feedsAiOff(node: WorkflowNode, ctx: KindCheckContext): boolean {
 export const decisionAsk: NodeKindDefinition<"decision.ask"> = {
   kind: "decision.ask",
   label: "Ask",
+  category: "ai",
+  description:
+    "Asks the decision model your questions about each message. Connect each question to a Branch step.",
   scope: "any",
   retry: "safe",
   input: NEEDS_MAIL,
@@ -87,5 +91,15 @@ export const decisionAsk: NodeKindDefinition<"decision.ask"> = {
       errors.push("Turn AI on for every mailbox that feeds this Ask step");
     }
     return errors;
+  },
+  card(node) {
+    if (node.questions.length === 0) return [{ text: "Add a question", tone: "warn" }];
+    const lines: CardEntry[] = node.questions.slice(0, 2).map((question, index) => ({
+      text: `Q${index + 1}: ${question.instructions || "(no question text yet)"}`,
+    }));
+    if (node.questions.length > 2) {
+      lines.push({ text: `and ${node.questions.length - 2} more`, tone: "muted" });
+    }
+    return lines;
   },
 };

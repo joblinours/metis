@@ -56,6 +56,7 @@ So the Apple silicon build is `https://downloads.trymetis.email/desktop/latest/m
   - A GitHub release tagged `desktop-v<version>` releases the desktop app; `mobile-v<version>` the mobile app.
   - `<version>` must equal `apps/desktop/package.json` → `version` or `apps/mobile/app.json` → `expo.version`; the `release` job fails the run before building otherwise.
   - Neither is tied to the server's version ([deployment.md](deployment.md)).
+- **Each app has its own changelog**, `apps/desktop/CHANGELOG.md` and `apps/mobile/CHANGELOG.md`. The `release` job fails when it has no `## <version> - <date>` section with entries (`.github/scripts/changelog-section.sh`), and that section is the GitHub release's body.
 - **A pre-release writes only `<app>/v<version>/`.** The links keep serving the last full release, and a tester gets the pre-release from its version folder.
 - **A release writes `<app>/v<version>/` in full, `SHA256SUMS` last, before it touches `<app>/latest/`, and writes `<app>/latest/SHA256SUMS` last.** R2 has no atomic folder swap; this order means `latest/` never lists a checksum for a file that is not there yet.
 - **A release whose `<app>/v<version>/SHA256SUMS` exists is never uploaded again**; `publish` fails instead. A run that failed partway through that folder can be re-run, because `SHA256SUMS` is written last.

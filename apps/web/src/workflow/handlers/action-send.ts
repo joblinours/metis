@@ -8,7 +8,8 @@ export const actionSend: NodeHandler<"action.send"> = async (node, envelope, ctx
   if (envelope.port !== "draft") {
     return { outputs: [], detail: "no draft to send" };
   }
-  if (ctx.pure) return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "policy") return { outputs: [], detail: "skipped in send policy" };
+  if (ctx.mode === "test") return { outputs: [], detail: "not run in a test run" };
 
   const payload = await ctx.payload();
   if (!payload) return { outputs: [], detail: "payload already consumed" };

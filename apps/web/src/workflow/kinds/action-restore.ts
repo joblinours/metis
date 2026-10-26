@@ -9,6 +9,8 @@ import {
 export const actionRestore: NodeKindDefinition<"action.restore"> = {
   kind: "action.restore",
   label: "Move back to Inbox",
+  category: "action",
+  description: "Moves each message back to the Inbox.",
   scope: "builtin",
   retry: "safe",
   input: NEEDS_MAIL,

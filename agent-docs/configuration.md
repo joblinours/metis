@@ -36,7 +36,7 @@ See also [AGENTS.md](../AGENTS.md), [servers.md](servers.md), [database.md](data
   - `src/db/crypto.ts` (`METIS_ENCRYPTION_KEY`, [connections.md](connections.md) has the reason);
   - `src/instrumentation.ts` (Next's `NEXT_RUNTIME` / `NEXT_PHASE`) and `serverlessHost` (the host's own markers);
   - `NODE_ENV` checks for dev-only logging;
-  - outside `src/`: `drizzle.config.ts` (`DATABASE_*`), `next.config.ts` (`NEXT_BUILD_OUTPUT`) and `scripts/preflight.ts` (`METIS_INIT_SQL`).
+  - outside `src/`: `drizzle.config.ts` (`DATABASE_*`) and `next.config.ts` (`NEXT_BUILD_OUTPUT`).
 - **Boot config, permanently** (`bootConfigSchema` sections):
   - the database variables (`METIS_DB_DRIVER`, `DATABASE_*`, `MASTRA_DATABASE_*`);
   - `METIS_ENCRYPTION_KEY`, which seals the stored config's secrets;
@@ -65,7 +65,7 @@ See also [AGENTS.md](../AGENTS.md), [servers.md](servers.md), [database.md](data
 
 - **The database wins once a row exists.** Preflight seeds an empty table, and later only a section the row has never stored; afterwards it only warns for each section the environment or config file sets to something other than the stored value (`suppliedSections`).
 - **One table, one current row.** `is_current` carries a partial unique index; every write is one short transaction that clears the current flag where `version` is the expected one, refuses when that touched nothing, then inserts. SQLite has no `FOR UPDATE`; the conditional update is the fence.
-- **Each secret is its own `encryptedText` column; only the server lists are JSON**, in one sealed `servers` column, because they are variable-shaped lists that carry S3 secret keys. Adding a setting is a schema change and a `db:push` by the project owner.
+- **Each secret is its own `encryptedText` column; only the server lists are JSON**, in one sealed `servers` column, because they are variable-shaped lists that carry S3 secret keys. Adding a setting is a schema change and a migration ([database.md](database.md)).
 - **Cross-section checks (`validateInstanceConfig`, against the boot config) run on every candidate config, and only there.**
   - They cover: a decision switch on with the LLM disabled, a relayed server listed without `METIS_DRIVE_RELAY_SECRET`, and the `internal` runner on a known serverless host.
   - A dashboard save refuses a candidate that fails them.
@@ -105,7 +105,7 @@ See also [AGENTS.md](../AGENTS.md), [servers.md](servers.md), [database.md](data
   - An `https://` `BETTER_AUTH_URL` turns on secure cookies.
   - `MAIL_FROM_AUTH` and `MAIL_FROM_INVITE` fall back to `MAIL_FROM`.
   - Legal consent is off only when both `METIS_TERMS_URL` and `METIS_PRIVACY_URL` are unset.
-  - `METIS_CONFIG_PATH`, `SKIP_ENV_VALIDATION` and `METIS_INIT_SQL` are read outside the schema.
+  - `METIS_CONFIG_PATH` and `SKIP_ENV_VALIDATION` are read outside the schema.
 - **The `console` mail driver** (`METIS_MAIL_DRIVER=console`, `src/services/mailer/drivers/console.ts`) delivers the instance's own mail (every message in `src/services/mailer/send.ts`) to the Metis Cloud console, so a new Cloud user gets it there before setting up a mailer of their own.
   - Its endpoint (`CONSOLE_MAIL_URL`) and the per-tenant bearer credential the console issues (`CONSOLE_MAIL_TOKEN`) are mailer settings stored like a Resend key (`mail_console_url`, `mail_console_token`), so the owner can later switch to their own SMTP or Resend from the dashboard.
   - Each message is one `POST <endpoint>` with `Authorization: Bearer <token>` and a JSON body `{ to, from, subject, html, text }`; any 2xx means accepted, anything else fails the send.

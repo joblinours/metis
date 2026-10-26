@@ -20,7 +20,14 @@ import { triggerManual } from "./trigger-manual";
 import { triggerNewMail } from "./trigger-new-mail";
 import { triggerOnce } from "./trigger-once";
 import { triggerSchedule } from "./trigger-schedule";
-import type { GraphShape, KindOutput, NodeKindDefinition } from "./types";
+import type {
+  CardContext,
+  CardLine,
+  GraphShape,
+  KindOutput,
+  NodeCategory,
+  NodeKindDefinition,
+} from "./types";
 
 export const NODE_KINDS: {
   [K in WorkflowNodeKind]: NodeKindDefinition<K>;
@@ -57,6 +64,26 @@ export function kindLabel(kind: WorkflowNodeKind): string {
   return NODE_KINDS[kind].label;
 }
 
+export function kindCategory(kind: WorkflowNodeKind): NodeCategory {
+  return NODE_KINDS[kind].category;
+}
+
+export function nodeTitle(node: Pick<WorkflowNode, "kind" | "title">): string {
+  return node.title?.trim() || kindLabel(node.kind);
+}
+
+const MAX_CARD_LINES = 4;
+
+export function cardLines(node: WorkflowNode, ctx: CardContext): CardLine[] {
+  const entries = kindOf(node.kind).card?.(node, ctx) ?? [];
+  return entries
+    .flatMap((entry): CardLine[] => {
+      if (!entry) return [];
+      return [typeof entry === "string" ? { text: entry } : entry];
+    })
+    .slice(0, MAX_CARD_LINES);
+}
+
 export function nodeOutputs(node: WorkflowNode, graph: GraphShape): KindOutput[] {
   return kindOf(node.kind).outputs(node, graph);
 }
@@ -80,17 +107,23 @@ export function edgeLabel(
 ): string {
   const title = (id: string) => {
     const node = graph.nodes.find((n) => n.id === id);
-    return node ? kindLabel(node.kind) : "a step";
+    return node ? nodeTitle(node) : "a step";
   };
   const output = outputLabel(graph, edge);
   return `${title(edge.source)}${output ? ` (${output})` : ""} to ${title(edge.target)}`;
 }
 
+export { CATEGORY_LABELS, NODE_CATEGORIES, PORT_LABELS } from "./types";
+
 export type {
+  CardContext,
+  CardEntry,
+  CardLine,
   GraphShape,
   KindCheckContext,
   KindInput,
   KindOutput,
+  NodeCategory,
   NodeKindDefinition,
   NodeOf,
   PortType,

@@ -17,6 +17,7 @@ import {
 } from "@/workflow";
 import { previewDecision } from "@/workflow/preview";
 import { workflowScopeFor } from "@/workflow/scope";
+import { listTestSamples, testRunGraph } from "@/workflow/test-run";
 
 import { workspaceSession } from "../middlewares/workspace-session";
 import {
@@ -36,6 +37,10 @@ import {
   resumeWorkflowRunOutputSchema,
   runWorkflowInputSchema,
   runWorkflowOutputSchema,
+  testSamplesInputSchema,
+  testSamplesOutputSchema,
+  testWorkflowInputSchema,
+  testWorkflowOutputSchema,
   toggleWorkflowInputSchema,
   toggleWorkflowOutputSchema,
   updateWorkflowInputSchema,
@@ -161,6 +166,33 @@ export const workflowsRouter = {
         throw new ORPCError("BAD_REQUEST", { message: preview.message });
       }
       return { items: preview.items };
+    }),
+
+  test: workspaceSession(testWorkflowInputSchema)
+    .output(testWorkflowOutputSchema)
+    .handler(async ({ input, context }) => {
+      const scope = await workflowScopeFor(context.appUser);
+      const result = await testRunGraph({
+        scope,
+        graph: input.graph,
+        triggerNodeId: input.triggerNodeId,
+        messageId: input.messageId,
+      });
+      if (typeof result === "string") {
+        throw new ORPCError("BAD_REQUEST", { message: result });
+      }
+      return result;
+    }),
+
+  testSamples: workspaceSession(testSamplesInputSchema)
+    .output(testSamplesOutputSchema)
+    .handler(async ({ input, context }) => {
+      const scope = await workflowScopeFor(context.appUser);
+      const messages = await listTestSamples(scope, input.mailboxId);
+      if (typeof messages === "string") {
+        throw new ORPCError("BAD_REQUEST", { message: messages });
+      }
+      return { messages };
     }),
 
   resumeRun: workspaceSession(resumeWorkflowRunInputSchema)

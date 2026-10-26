@@ -17,6 +17,7 @@ export const AUDIT_ACTIONS = [
   "workspace_invite.revoked",
   "signup_invite.created",
   "signup_invite.revoked",
+  "instance.upgrade_undone",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -60,6 +61,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "workspace_invite.revoked": "Workspace invite revoked",
   "signup_invite.created": "Sign-up invite sent",
   "signup_invite.revoked": "Sign-up invite revoked",
+  "instance.upgrade_undone": "Instance upgrade undone",
 };
 
 const AUDIT_RESOURCE_NAMES: Record<AuditResourceKind, string> = {

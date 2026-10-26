@@ -8,133 +8,36 @@ import {
   BackgroundVariant,
   ControlButton,
   Controls,
-  Handle,
   type NodeProps,
   type NodeTypes,
   type OnSelectionChangeFunc,
-  Position,
   ReactFlow,
   useNodesState,
 } from "@xyflow/react";
-import { cva } from "class-variance-authority";
 import { Move } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { iconFor, toneFor } from "@/components/workflow-node-meta";
+import { flowEdges } from "@/components/workflow-graph/edges";
+import { NodeCard } from "@/components/workflow-graph/node-card";
+import { runOverlay } from "@/components/workflow-graph/overlay";
+import { resolveLabelName } from "@/mail/label-meta";
 import type { WorkflowRunDetail } from "@/server/schema";
-import { kindLabel } from "@/workflow/kinds";
-import { isMergeKind, mergeInputHandle } from "@/workflow/schema";
 
-import { buildRunEdges, buildRunNodes, type RunGraphNode } from "./run-graph-elements";
-import { StatusIcon, type StepState } from "./run-status";
-
-const nodeVariants = cva(
-  "w-56 rounded-xl border bg-surface shadow-sm transition-[opacity,box-shadow]",
-  {
-    variants: {
-      tone: {
-        completed: "border-status-success/60",
-        failed: "border-destructive-text/70",
-        unknown: "border-brand-text/70",
-        blocked: "border-brand-text/50",
-        active: "border-border",
-        skipped: "border-border border-dashed opacity-75",
-        idle: "border-border border-dashed opacity-50",
-      },
-      selected: {
-        true: "ring-2 ring-primary ring-offset-2 ring-offset-background",
-        false: "",
-      },
-    },
-    defaultVariants: { tone: "active", selected: false },
-  },
-);
-
-function toneOf(state: StepState) {
-  switch (state.status) {
-    case null:
-      return "idle";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "unknown":
-      return "unknown";
-    case "blocked":
-      return "blocked";
-    case "skipped":
-      return "skipped";
-    default:
-      return "active";
-  }
-}
-
-const handleClass = "!h-1.5 !w-1.5 !min-w-0 !min-h-0 !border-0 !bg-muted-foreground/60";
+import { buildRunNodes, type RunGraphNode } from "./run-graph-elements";
+import { StatusIcon } from "./run-status";
 
 function RunGraphNodeView({ data, selected }: NodeProps<RunGraphNode>) {
-  const { kind, mailbox, state, itemCount, inputPorts, outputs } = data;
-  const isTrigger = kind.startsWith("trigger.");
   return (
-    <div className={nodeVariants({ tone: toneOf(state), selected })}>
-      {isMergeKind(kind)
-        ? Array.from({ length: inputPorts }, (_, index) => (
-            <Handle
-              key={index}
-              type="target"
-              id={mergeInputHandle(index)}
-              position={Position.Top}
-              isConnectable={false}
-              style={{ left: `${((index + 1) / (inputPorts + 1)) * 100}%` }}
-              className={handleClass}
-            />
-          ))
-        : !isTrigger && (
-            <Handle
-              type="target"
-              position={Position.Top}
-              isConnectable={false}
-              className={handleClass}
-            />
-          )}
-      <div
-        className={cn(
-          "flex items-center gap-2 rounded-t-xl border-border-soft border-b px-3 py-2",
-          toneFor(kind),
-        )}
-      >
-        {iconFor(kind)}
-        <span className="min-w-0 flex-1 truncate font-medium text-[12px] text-foreground">
-          {kindLabel(kind)}
-        </span>
-      </div>
-      <div className="flex flex-col gap-1 px-3 py-2">
-        {mailbox && (
-          <p className="truncate font-mono text-[11px] text-muted-foreground">{mailbox}</p>
-        )}
-        <p className="flex items-center gap-1.5 text-[11px] text-foreground">
-          <StatusIcon status={state.status} className="size-3.5" />
-          <span className="capitalize">{state.label}</span>
-          {itemCount > 0 && (
-            <span className="text-faint">
-              · {itemCount} item{itemCount === 1 ? "" : "s"}
-            </span>
-          )}
-        </p>
-      </div>
-      {outputs.map((output, index) => (
-        <Handle
-          key={output.id}
-          type="source"
-          id={output.id}
-          position={Position.Bottom}
-          isConnectable={false}
-          title={output.label}
-          style={{ left: `${((index + 0.5) / outputs.length) * 100}%` }}
-          className={handleClass}
-        />
-      ))}
-    </div>
+    <NodeCard
+      node={data.node}
+      inputs={data.inputs}
+      outputs={data.outputs}
+      lines={data.lines}
+      status={data.status}
+      selected={selected}
+      connectable={false}
+    />
   );
 }
 
@@ -172,15 +75,26 @@ export function WorkflowRunGraph({
   onSelect,
 }: {
   run: WorkflowRunDetail;
-  mailboxLabel: (id: string | null) => string | null;
+  mailboxLabel: (id: string) => string | null;
   selectedId: string | null;
   onSelect: (nodeId: string | null) => void;
 }) {
+  const overlay = useMemo(() => runOverlay(run), [run]);
   const built = useMemo(
-    () => buildRunNodes(run, mailboxLabel, selectedId),
-    [run, mailboxLabel, selectedId],
+    () =>
+      buildRunNodes(
+        run,
+        overlay,
+        {
+          graph: run.graph,
+          mailboxEmail: mailboxLabel,
+          labelName: (key) => resolveLabelName(key, []),
+        },
+        selectedId,
+      ),
+    [run, overlay, mailboxLabel, selectedId],
   );
-  const edges = useMemo(() => buildRunEdges(run), [run]);
+  const edges = useMemo(() => flowEdges(run.graph, overlay, { editable: false }), [run, overlay]);
   const coarse = useCoarsePointer();
   const { resolvedTheme } = useTheme();
   const [moving, setMoving] = useState(false);

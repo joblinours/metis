@@ -19,9 +19,12 @@ This page assumes your two databases are hosted outside the stack, on [Turso](ht
 
   </Step>
 
-<Step title="Download the Compose file">
-  ```bash sudo curl -fsSL https://sh.trymetis.email/compose.yml -o compose.yml ```
-</Step>
+  <Step title="Download the Compose file">
+    ```bash
+    sudo curl -fsSL https://sh.trymetis.email/compose.yml -o compose.yml
+    ```
+
+  </Step>
 
   <Step title="Generate the secrets">
     Run this once for each secret you need: `BETTER_AUTH_SECRET`,
@@ -117,3 +120,7 @@ This page assumes your two databases are hosted outside the stack, on [Turso](ht
 </Steps>
 
 See [Environment variables](/self-hosting/reference/environment-variables) for every other value you can put in `.env`.
+
+## Upgrades
+
+You upgrade from the owner dashboard, under **System**, **Updates**. Because your databases are outside the stack, the updater cannot take a snapshot of them first. So an upgrade cannot be undone, and the **Undo** row reads **Not available**. Back up your databases before each upgrade. See [Upgrade and undo](/self-hosting/operate/upgrade-and-undo).

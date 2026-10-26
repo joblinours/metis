@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-const Repository = "ghcr.io/trymetis/metis"
+const (
+	Repository       = "ghcr.io/trymetis/metis"
+	StackDatabaseURL = "http://app.sqld:8080"
+)
 
 var releaseVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
@@ -25,6 +28,10 @@ func ReleaseImages(version string) Images {
 		Preflight: Repository + ":" + version + "-preflight",
 		Worker:    Repository + ":" + version + "-worker",
 	}
+}
+
+func StackRunsSqld(values map[string]string) bool {
+	return values["METIS_DB_DRIVER"] == "sqld" && values["DATABASE_URL"] == StackDatabaseURL
 }
 
 func ImagesFromEnv(values map[string]string) Images {

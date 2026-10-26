@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file metis/updater/v1/updater.proto.
  */
 export const file_metis_updater_v1_updater: GenFile = /*@__PURE__*/
-  fileDesc("Ch5tZXRpcy91cGRhdGVyL3YxL3VwZGF0ZXIucHJvdG8SEG1ldGlzLnVwZGF0ZXIudjEiGgoHUmVsZWFzZRIPCgd2ZXJzaW9uGAEgASgJIhIKEEdldFN0YXR1c1JlcXVlc3QicwoRR2V0U3RhdHVzUmVzcG9uc2USFwoPY3VycmVudF92ZXJzaW9uGAEgASgJEisKCHJlbGVhc2VzGAIgAygLMhkubWV0aXMudXBkYXRlci52MS5SZWxlYXNlEhgKEHJvbGxiYWNrX3ZlcnNpb24YAyABKAkiJgoTU3RhcnRVcGdyYWRlUmVxdWVzdBIPCgd2ZXJzaW9uGAEgASgJIkIKFFN0YXJ0VXBncmFkZVJlc3BvbnNlEioKB3VwZ3JhZGUYASABKAsyGS5tZXRpcy51cGRhdGVyLnYxLlVwZ3JhZGUiEwoRR2V0VXBncmFkZVJlcXVlc3QiQAoSR2V0VXBncmFkZVJlc3BvbnNlEioKB3VwZ3JhZGUYASABKAsyGS5tZXRpcy51cGRhdGVyLnYxLlVwZ3JhZGUiEQoPUm9sbGJhY2tSZXF1ZXN0Ij4KEFJvbGxiYWNrUmVzcG9uc2USKgoHdXBncmFkZRgBIAEoCzIZLm1ldGlzLnVwZGF0ZXIudjEuVXBncmFkZSLKAgoHVXBncmFkZRIKCgJpZBgBIAEoCRIrCgRraW5kGAIgASgOMh0ubWV0aXMudXBkYXRlci52MS5VcGdyYWRlS2luZBIUCgxmcm9tX3ZlcnNpb24YAyABKAkSEgoKdG9fdmVyc2lvbhgEIAEoCRItCgVzdGF0ZRgFIAEoDjIeLm1ldGlzLnVwZGF0ZXIudjEuVXBncmFkZVN0YXRlEisKBHN0ZXAYBiABKA4yHS5tZXRpcy51cGRhdGVyLnYxLlVwZ3JhZGVTdGVwEhAKCHJlc3RvcmVkGAcgASgIEg0KBWVycm9yGAggASgJEi4KCnN0YXJ0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2ZpbmlzaGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCpgCgtVcGdyYWRlS2luZBIcChhVUEdSQURFX0tJTkRfVU5TUEVDSUZJRUQQABIYChRVUEdSQURFX0tJTkRfVVBHUkFERRABEhkKFVVQR1JBREVfS0lORF9ST0xMQkFDSxACKqIBCgxVcGdyYWRlU3RhdGUSHQoZVVBHUkFERV9TVEFURV9VTlNQRUNJRklFRBAAEhkKFVVQR1JBREVfU1RBVEVfUlVOTklORxABEhsKF1VQR1JBREVfU1RBVEVfU1VDQ0VFREVEEAISGAoUVVBHUkFERV9TVEFURV9GQUlMRUQQAxIhCh1VUEdSQURFX1NUQVRFX1JPTExCQUNLX0ZBSUxFRBAEKqkBCgtVcGdyYWRlU3RlcBIcChhVUEdSQURFX1NURVBfVU5TUEVDSUZJRUQQABIVChFVUEdSQURFX1NURVBfUFVMTBABEhoKFlVQR1JBREVfU1RFUF9QUkVGTElHSFQQAhIXChNVUEdSQURFX1NURVBfU1dJVENIEAMSFgoSVVBHUkFERV9TVEVQX1JFQURZEAQSGAoUVVBHUkFERV9TVEVQX1JFU1RPUkUQBTL7AgoOVXBkYXRlclNlcnZpY2USWQoJR2V0U3RhdHVzEiIubWV0aXMudXBkYXRlci52MS5HZXRTdGF0dXNSZXF1ZXN0GiMubWV0aXMudXBkYXRlci52MS5HZXRTdGF0dXNSZXNwb25zZSIDkAIBEl0KDFN0YXJ0VXBncmFkZRIlLm1ldGlzLnVwZGF0ZXIudjEuU3RhcnRVcGdyYWRlUmVxdWVzdBomLm1ldGlzLnVwZGF0ZXIudjEuU3RhcnRVcGdyYWRlUmVzcG9uc2USXAoKR2V0VXBncmFkZRIjLm1ldGlzLnVwZGF0ZXIudjEuR2V0VXBncmFkZVJlcXVlc3QaJC5tZXRpcy51cGRhdGVyLnYxLkdldFVwZ3JhZGVSZXNwb25zZSIDkAIBElEKCFJvbGxiYWNrEiEubWV0aXMudXBkYXRlci52MS5Sb2xsYmFja1JlcXVlc3QaIi5tZXRpcy51cGRhdGVyLnYxLlJvbGxiYWNrUmVzcG9uc2VCR1pFZ2l0aHViLmNvbS90cnltZXRpcy9tZXRpcy9hcHBzL3VwZGF0ZXIvZ2VuL21ldGlzL3VwZGF0ZXIvdjE7dXBkYXRlcnYxYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("Ch5tZXRpcy91cGRhdGVyL3YxL3VwZGF0ZXIucHJvdG8SEG1ldGlzLnVwZGF0ZXIudjEiKQoHUmVsZWFzZRIPCgd2ZXJzaW9uGAEgASgJEg0KBW5vdGVzGAIgASgJIhIKEEdldFN0YXR1c1JlcXVlc3QiwAEKEUdldFN0YXR1c1Jlc3BvbnNlEhcKD2N1cnJlbnRfdmVyc2lvbhgBIAEoCRIrCghyZWxlYXNlcxgCIAMoCzIZLm1ldGlzLnVwZGF0ZXIudjEuUmVsZWFzZRIYChByb2xsYmFja192ZXJzaW9uGAMgASgJEhEKCXNuYXBzaG90cxgEIAEoCBI4ChRyb2xsYmFja19zbmFwc2hvdF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiPAoTU3RhcnRVcGdyYWRlUmVxdWVzdBIPCgd2ZXJzaW9uGAEgASgJEhQKDHJlcXVlc3RlZF9ieRgCIAEoCSJCChRTdGFydFVwZ3JhZGVSZXNwb25zZRIqCgd1cGdyYWRlGAEgASgLMhkubWV0aXMudXBkYXRlci52MS5VcGdyYWRlIhMKEUdldFVwZ3JhZGVSZXF1ZXN0IkAKEkdldFVwZ3JhZGVSZXNwb25zZRIqCgd1cGdyYWRlGAEgASgLMhkubWV0aXMudXBkYXRlci52MS5VcGdyYWRlIicKD1JvbGxiYWNrUmVxdWVzdBIUCgxyZXF1ZXN0ZWRfYnkYASABKAkiPgoQUm9sbGJhY2tSZXNwb25zZRIqCgd1cGdyYWRlGAEgASgLMhkubWV0aXMudXBkYXRlci52MS5VcGdyYWRlIuACCgdVcGdyYWRlEgoKAmlkGAEgASgJEisKBGtpbmQYAiABKA4yHS5tZXRpcy51cGRhdGVyLnYxLlVwZ3JhZGVLaW5kEhQKDGZyb21fdmVyc2lvbhgDIAEoCRISCgp0b192ZXJzaW9uGAQgASgJEi0KBXN0YXRlGAUgASgOMh4ubWV0aXMudXBkYXRlci52MS5VcGdyYWRlU3RhdGUSKwoEc3RlcBgGIAEoDjIdLm1ldGlzLnVwZGF0ZXIudjEuVXBncmFkZVN0ZXASEAoIcmVzdG9yZWQYByABKAgSDQoFZXJyb3IYCCABKAkSLgoKc3RhcnRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDHJlcXVlc3RlZF9ieRgLIAEoCSpgCgtVcGdyYWRlS2luZBIcChhVUEdSQURFX0tJTkRfVU5TUEVDSUZJRUQQABIYChRVUEdSQURFX0tJTkRfVVBHUkFERRABEhkKFVVQR1JBREVfS0lORF9ST0xMQkFDSxACKqIBCgxVcGdyYWRlU3RhdGUSHQoZVVBHUkFERV9TVEFURV9VTlNQRUNJRklFRBAAEhkKFVVQR1JBREVfU1RBVEVfUlVOTklORxABEhsKF1VQR1JBREVfU1RBVEVfU1VDQ0VFREVEEAISGAoUVVBHUkFERV9TVEFURV9GQUlMRUQQAxIhCh1VUEdSQURFX1NUQVRFX1JPTExCQUNLX0ZBSUxFRBAEKsQBCgtVcGdyYWRlU3RlcBIcChhVUEdSQURFX1NURVBfVU5TUEVDSUZJRUQQABIVChFVUEdSQURFX1NURVBfUFVMTBABEhoKFlVQR1JBREVfU1RFUF9QUkVGTElHSFQQAhIXChNVUEdSQURFX1NURVBfU1dJVENIEAMSFgoSVVBHUkFERV9TVEVQX1JFQURZEAQSGAoUVVBHUkFERV9TVEVQX1JFU1RPUkUQBRIZChVVUEdSQURFX1NURVBfU05BUFNIT1QQBjL7AgoOVXBkYXRlclNlcnZpY2USWQoJR2V0U3RhdHVzEiIubWV0aXMudXBkYXRlci52MS5HZXRTdGF0dXNSZXF1ZXN0GiMubWV0aXMudXBkYXRlci52MS5HZXRTdGF0dXNSZXNwb25zZSIDkAIBEl0KDFN0YXJ0VXBncmFkZRIlLm1ldGlzLnVwZGF0ZXIudjEuU3RhcnRVcGdyYWRlUmVxdWVzdBomLm1ldGlzLnVwZGF0ZXIudjEuU3RhcnRVcGdyYWRlUmVzcG9uc2USXAoKR2V0VXBncmFkZRIjLm1ldGlzLnVwZGF0ZXIudjEuR2V0VXBncmFkZVJlcXVlc3QaJC5tZXRpcy51cGRhdGVyLnYxLkdldFVwZ3JhZGVSZXNwb25zZSIDkAIBElEKCFJvbGxiYWNrEiEubWV0aXMudXBkYXRlci52MS5Sb2xsYmFja1JlcXVlc3QaIi5tZXRpcy51cGRhdGVyLnYxLlJvbGxiYWNrUmVzcG9uc2VCR1pFZ2l0aHViLmNvbS90cnltZXRpcy9tZXRpcy9hcHBzL3VwZGF0ZXIvZ2VuL21ldGlzL3VwZGF0ZXIvdjE7dXBkYXRlcnYxYgZwcm90bzM", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message metis.updater.v1.Release
@@ -22,6 +22,11 @@ export type Release = Message<"metis.updater.v1.Release"> & {
    * @generated from field: string version = 1;
    */
   version: string;
+
+  /**
+   * @generated from field: string notes = 2;
+   */
+  notes: string;
 };
 
 /**
@@ -62,6 +67,16 @@ export type GetStatusResponse = Message<"metis.updater.v1.GetStatusResponse"> & 
    * @generated from field: string rollback_version = 3;
    */
   rollbackVersion: string;
+
+  /**
+   * @generated from field: bool snapshots = 4;
+   */
+  snapshots: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp rollback_snapshot_at = 5;
+   */
+  rollbackSnapshotAt?: Timestamp | undefined;
 };
 
 /**
@@ -79,6 +94,11 @@ export type StartUpgradeRequest = Message<"metis.updater.v1.StartUpgradeRequest"
    * @generated from field: string version = 1;
    */
   version: string;
+
+  /**
+   * @generated from field: string requested_by = 2;
+   */
+  requestedBy: string;
 };
 
 /**
@@ -139,6 +159,10 @@ export const GetUpgradeResponseSchema: GenMessage<GetUpgradeResponse> = /*@__PUR
  * @generated from message metis.updater.v1.RollbackRequest
  */
 export type RollbackRequest = Message<"metis.updater.v1.RollbackRequest"> & {
+  /**
+   * @generated from field: string requested_by = 1;
+   */
+  requestedBy: string;
 };
 
 /**
@@ -218,6 +242,11 @@ export type Upgrade = Message<"metis.updater.v1.Upgrade"> & {
    * @generated from field: google.protobuf.Timestamp finished_at = 10;
    */
   finishedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string requested_by = 11;
+   */
+  requestedBy: string;
 };
 
 /**
@@ -332,6 +361,11 @@ export const UpgradeStep = {
    * @generated from enum value: UPGRADE_STEP_RESTORE = 5;
    */
   RESTORE: 5,
+
+  /**
+   * @generated from enum value: UPGRADE_STEP_SNAPSHOT = 6;
+   */
+  SNAPSHOT: 6,
 } as const;
 
 /**

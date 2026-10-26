@@ -13,6 +13,7 @@ import { errorCode } from "./diagnostics";
 import { runNode } from "./handlers";
 import {
   BlockedError,
+  type ExecutionMode,
   type HandlerResult,
   isDispatchNode,
   type NodeContext,
@@ -47,7 +48,7 @@ export interface ExecuteOptions {
   principal: BackgroundPrincipal;
   input: RunInput;
   now: Date;
-  pure?: boolean;
+  mode?: ExecutionMode;
   seedDraft?: DraftFacts;
   signal?: AbortSignal;
   deadline?: number;
@@ -55,6 +56,16 @@ export interface ExecuteOptions {
   payload?: () => Promise<DraftPayload | null>;
   isCancelled?: () => Promise<boolean>;
   heartbeat?: () => Promise<boolean>;
+  trace?: (step: TraceStep) => void;
+}
+
+export interface TraceStep {
+  nodeId: string;
+  envelope: Envelope;
+  status: NodeStatus;
+  outputs: { handle: OutHandle; count: number }[];
+  detail?: string;
+  error?: string;
 }
 
 export interface ExecutionOutcome {
@@ -236,7 +247,7 @@ function resolveStatus(counts: Record<NodeStatus, number>, interrupted: boolean)
 }
 
 export async function executeRun(opts: ExecuteOptions): Promise<ExecutionOutcome> {
-  const pure = opts.pure === true;
+  const mode = opts.mode ?? "live";
   const summary: RunSummaryLine[] = [];
   const counts: Record<NodeStatus, number> = {
     pending: 0,
@@ -308,7 +319,7 @@ export async function executeRun(opts: ExecuteOptions): Promise<ExecutionOutcome
 
   const mailboxCache = new Map<string, Authorization<AuthorizedMailbox>>();
   const ctx: NodeContext = {
-    pure,
+    mode,
     now: opts.now,
     runId: opts.runId,
     signal: opts.signal,
@@ -351,7 +362,7 @@ export async function executeRun(opts: ExecuteOptions): Promise<ExecutionOutcome
   let halted = false;
   let runError: string | undefined;
 
-  const persist = !pure && !!opts.runId && !!opts.leaseToken;
+  const persist = mode === "live" && !!opts.runId && !!opts.leaseToken;
   const fence = {
     runId: opts.runId ?? "",
     leaseToken: opts.leaseToken ?? "",
@@ -474,6 +485,25 @@ export async function executeRun(opts: ExecuteOptions): Promise<ExecutionOutcome
       continue;
     }
 
+    if (node.skip) {
+      outbox.set(
+        outKey(nodeId, "out"),
+        envelopes.map((envelope) => ({ ...envelope, lineage: [...envelope.lineage, node.id] })),
+      );
+      record(node, "skipped", envelopes.length, "this step is skipped in the editor");
+      for (const envelope of envelopes) {
+        opts.trace?.({
+          nodeId,
+          envelope,
+          status: "skipped",
+          outputs: [{ handle: "out", count: 1 }],
+          detail: "skipped in the editor",
+        });
+      }
+      branches.set(nodeId, upstream);
+      continue;
+    }
+
     if (opts.isCancelled && (await opts.isCancelled())) {
       return {
         status: "cancelled",
@@ -556,7 +586,7 @@ export async function executeRun(opts: ExecuteOptions): Promise<ExecutionOutcome
 
         if (!result) {
           try {
-            if (sideEffect && !pure) {
+            if (sideEffect && mode === "live") {
               if (
                 opts.deadline !== undefined &&
                 opts.deadline - Date.now() < (opts.reserveMs ?? 0)
@@ -654,6 +684,7 @@ export async function executeRun(opts: ExecuteOptions): Promise<ExecutionOutcome
               });
             }
             record(node, status, 1, message);
+            opts.trace?.({ nodeId, envelope, status, outputs: [], error: message });
             failedHere += 1;
             runError ??= message;
             own = worse(own, blocked ? "blocked" : "failed");
@@ -679,6 +710,16 @@ export async function executeRun(opts: ExecuteOptions): Promise<ExecutionOutcome
           }
           ok += 1;
           if (result.detail) details.add(result.detail);
+          opts.trace?.({
+            nodeId,
+            envelope,
+            status: "completed",
+            outputs: result.outputs.map((out) => ({
+              handle: out.handle,
+              count: out.envelopes.length,
+            })),
+            detail: result.detail,
+          });
         }
 
         for (const out of result.outputs) {

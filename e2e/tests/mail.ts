@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import type { Rpc } from "./fixtures";
-import type { Account } from "./harness";
+import { type Account, mailPath } from "./harness";
 
 export const BUILT_IN_LABELS = [
   "Action Required",
@@ -38,6 +38,33 @@ export function anyRowLabel(row: Locator): Locator {
 
 export function folders(page: Page): Locator {
   return page.getByRole("complementary", { name: "Folders" });
+}
+
+const FOLDER_LINKS: Record<string, string> = {
+  inbox: "Inbox",
+  sent: "Sent",
+  drafts: "Drafts",
+  starred: "Starred",
+  trash: "Trash",
+  "read-later": "Read later",
+  snoozed: "Snoozed",
+  scheduled: "Scheduled",
+  subscriptions: "Subscriptions",
+  archive: "Archive",
+  spam: "Spam",
+};
+
+export async function goToFolder(page: Page, account: Account, folder = "inbox"): Promise<void> {
+  const target = mailPath(account, folder);
+  const link = FOLDER_LINKS[folder];
+  if (!link || !new URL(page.url(), "http://x").pathname.includes(`/m/${account.mailboxSlug}/`)) {
+    await page.goto(target);
+    return;
+  }
+  await folders(page)
+    .getByRole("link", { name: new RegExp(`^${link}( \\d+)?$`) })
+    .click();
+  await expect(page).toHaveURL((url) => url.pathname === target);
 }
 
 export function messageToolbar(page: Page): Locator {
@@ -98,15 +125,18 @@ export function mailAgent(page: Page): Locator {
 
 export async function snoozeArmed(rpc: Rpc, account: Account, subject: string): Promise<void> {
   await expect
-    .poll(async () => {
-      const { emails } = await rpc<{
-        emails: { subject: string; status: string }[];
-      }>("mail.messages.listSnoozed", {
-        workspaceSlug: account.workspaceSlug,
-        mailboxSlug: account.mailboxSlug,
-      });
-      return emails.find((e) => e.subject === subject)?.status;
-    })
+    .poll(
+      async () => {
+        const { emails } = await rpc<{
+          emails: { subject: string; status: string }[];
+        }>("mail.messages.listSnoozed", {
+          workspaceSlug: account.workspaceSlug,
+          mailboxSlug: account.mailboxSlug,
+        });
+        return emails.find((e) => e.subject === subject)?.status;
+      },
+      { intervals: [1_000] },
+    )
     .toBe("pending");
 }
 

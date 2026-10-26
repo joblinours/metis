@@ -33,12 +33,16 @@ export function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status;
 }
 
+export function worstStatus(statuses: Iterable<NodeStatus>): NodeStatus | null {
+  const seen = new Set(statuses);
+  return STATUS_RANK.find((status) => seen.has(status)) ?? null;
+}
+
 function nodeStatus(node: RunNode): NodeStatus | null {
-  const seen = new Set<NodeStatus>([
+  return worstStatus([
     ...node.lines.map((line) => line.status),
     ...node.items.map((item) => item.status),
   ]);
-  return STATUS_RANK.find((status) => seen.has(status)) ?? null;
 }
 
 export interface StepState {

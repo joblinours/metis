@@ -65,6 +65,9 @@ export function validateGraph(graph: WorkflowGraph, opts: ValidateOptions): Grap
     if (scope === "system" && opts.kind !== "system") {
       push(`"${node.kind}" is reserved for maintenance workflows`, node.id);
     }
+    if (node.skip && kindOf(node.kind).category !== "action") {
+      push("Only an action step can be skipped", node.id);
+    }
   }
 
   const incoming = new Map<string, string[]>();

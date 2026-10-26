@@ -3,6 +3,8 @@ import { type NodeKindDefinition, SINGLE_OUTPUT, SINGLE_OUTPUT_ERROR } from "./t
 export const triggerBeforeSend: NodeKindDefinition<"trigger.beforeSend"> = {
   kind: "trigger.beforeSend",
   label: "Before a message is sent",
+  category: "trigger",
+  description: "Checks each outgoing message just before it is sent, and can add Bcc recipients.",
   scope: "any",
   retry: "safe",
   input: null,
@@ -17,4 +19,9 @@ export const triggerBeforeSend: NodeKindDefinition<"trigger.beforeSend"> = {
     }
     return [];
   },
+  card: (node, ctx) => [
+    node.mailboxId
+      ? { text: `Sent from ${ctx.mailboxEmail(node.mailboxId) ?? "a hidden mailbox"}`, mono: true }
+      : "Sent from any mailbox",
+  ],
 };

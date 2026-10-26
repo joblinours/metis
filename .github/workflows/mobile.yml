@@ -22,6 +22,10 @@ jobs:
         id: release
         run: .github/scripts/release-version.sh mobile-v apps/mobile/app.json .expo.version
 
+      - name: Check the changelog has this release
+        if: steps.release.outputs.version != ''
+        run: .github/scripts/changelog-section.sh apps/mobile/CHANGELOG.md "${{ steps.release.outputs.version }}" > /dev/null
+
   build:
     name: universal-linux-android
     needs: release

@@ -5,7 +5,9 @@ export const UPDATER = "http://localhost:8097";
 const updaterSettingsSchema = z.object({
   current: z.string(),
   releases: z.array(z.string()),
+  notes: z.record(z.string(), z.string()),
   rollback: z.string(),
+  snapshots: z.boolean(),
   outcome: z.enum(["succeed", "preflight-fails", "never-ready", "restore-fails"]),
   stepMs: z.number(),
 });

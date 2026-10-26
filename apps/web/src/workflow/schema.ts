@@ -152,7 +152,14 @@ const probability = z.number().min(0).max(1);
 
 const position = z.object({ x: z.number(), y: z.number() });
 
-const base = { id: z.string().min(1).max(64), position };
+export const MAX_STEP_TITLE = 60;
+
+const base = {
+  id: z.string().min(1).max(64),
+  position,
+  title: z.string().trim().max(MAX_STEP_TITLE).optional(),
+  skip: z.boolean().optional(),
+};
 
 export const askNodeSchema = z.object({
   ...base,

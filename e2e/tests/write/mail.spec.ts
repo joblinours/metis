@@ -2,7 +2,6 @@ import type { Page } from "@playwright/test";
 
 import { expect, type Rpc, RpcError, test, uniqueName } from "../fixtures";
 import type { Account } from "../harness";
-import { mailPath } from "../harness";
 import {
   BUILT_IN_LABELS,
   bulkToolbar,
@@ -10,6 +9,7 @@ import {
   composerBody,
   confirmDialog,
   folders,
+  goToFolder,
   mailRow,
   messageToolbar,
   openMail,
@@ -58,7 +58,7 @@ async function findIn(
 }
 
 async function openTarget(page: Page, account: Account, folder = "inbox", subject = TARGET) {
-  await page.goto(mailPath(account, folder));
+  await goToFolder(page, account, folder);
   if (folder === "inbox") await showTab(page, "All");
   await openMail(page, subject);
 }
@@ -71,6 +71,8 @@ async function compose(page: Page, subject: string) {
   await composerBody(page).click();
   await page.keyboard.type("Sent by the e2e suite.");
 }
+
+const SLOW_POLL = { intervals: [1_000] };
 
 async function unstrand(rpc: Rpc, account: Account) {
   await expect
@@ -87,12 +89,12 @@ async function unstrand(rpc: Rpc, account: Account) {
         });
       }
       return emails.length;
-    })
+    }, SLOW_POLL)
     .toBe(0);
   if (await findIn(rpc, account, "inbox", TARGET)) return;
   const archived = await findIn(rpc, account, "archive", TARGET);
   if (archived) await rpc("mail.messages.restore", { ...scope(account), id: archived.id });
-  await expect.poll(async () => findIn(rpc, account, "inbox", TARGET)).toBeDefined();
+  await expect.poll(async () => findIn(rpc, account, "inbox", TARGET), SLOW_POLL).toBeDefined();
 }
 
 async function addRecipient(page: Page) {
@@ -256,7 +258,7 @@ export default function mailSpecs() {
     await toolbar.getByRole("button", { name: "Read later", exact: true }).click();
     await expect(toolbar.getByRole("button", { name: "Saved", exact: true })).toBeVisible();
     expect((await added).ok()).toBe(true);
-    await page.goto(mailPath(account, "read-later"));
+    await goToFolder(page, account, "read-later");
     await expect(page.getByRole("heading", { level: 1, name: "Read later" })).toBeVisible();
     await expect(mailRow(page, TARGET)).toBeVisible();
     await openMail(page, TARGET);
@@ -316,7 +318,7 @@ export default function mailSpecs() {
     account,
   }, testInfo) => {
     const subject = uniqueName(testInfo);
-    await page.goto(mailPath(account));
+    await goToFolder(page, account);
     await compose(page, subject);
     const sends = recordSends(page);
     await composer(page).getByRole("button", { name: "Send", exact: true }).click();
@@ -332,7 +334,7 @@ export default function mailSpecs() {
 
   test("send later, then cancel the scheduled send", async ({ page, rpc, account }, testInfo) => {
     const subject = uniqueName(testInfo);
-    await page.goto(mailPath(account));
+    await goToFolder(page, account);
     await compose(page, subject);
     const box = composer(page);
     await box.getByRole("button", { name: "Schedule send" }).click();
@@ -343,7 +345,7 @@ export default function mailSpecs() {
     await box.getByRole("button", { name: /^Send .+/ }).click();
     await expect(box).toHaveCount(0);
 
-    await page.goto(mailPath(account, "scheduled"));
+    await goToFolder(page, account, "scheduled");
     const pending = scheduledRow(page, subject);
     await expect(pending).toContainText(`To: ${OUTSIDE}`);
     await pending.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -364,7 +366,7 @@ export default function mailSpecs() {
           timeout: 10_000,
         })
         .toBeUndefined();
-      await page.goto(mailPath(account, "snoozed"));
+      await goToFolder(page, account, "snoozed");
       await expect(page.getByRole("main").getByText(TARGET, { exact: true })).toBeVisible();
       await expect
         .poll(async () => findIn(rpc, account, "inbox", TARGET), {
@@ -389,12 +391,12 @@ export default function mailSpecs() {
       await expect(mailRow(page, TARGET)).toHaveCount(0);
       expect((await snoozed).ok()).toBe(true);
       await snoozeArmed(rpc, account, TARGET);
-      await page.goto(mailPath(account, "snoozed"));
+      await goToFolder(page, account, "snoozed");
       const row = snoozedRow(page, TARGET);
       await expect(row).toContainText("Returns");
       await row.getByRole("button", { name: "Wake now", exact: true }).click();
       await expect(row).toHaveCount(0);
-      await expect.poll(async () => findIn(rpc, account, "inbox", TARGET)).toBeDefined();
+      await expect.poll(async () => findIn(rpc, account, "inbox", TARGET), SLOW_POLL).toBeDefined();
     } finally {
       await unstrand(rpc, account);
     }
@@ -443,7 +445,7 @@ export default function mailSpecs() {
     account,
   }, testInfo) => {
     const subject = uniqueName(testInfo);
-    await page.goto(mailPath(account));
+    await goToFolder(page, account);
     await compose(page, subject);
     try {
       await expect(composer(page).getByRole("button", { name: "Attach files" })).toBeVisible();
@@ -460,7 +462,7 @@ export default function mailSpecs() {
 
   test("create and delete a custom label in the sidebar", async ({ page, account }, testInfo) => {
     const name = uniqueName(testInfo);
-    await page.goto(mailPath(account));
+    await goToFolder(page, account);
     const sidebar = folders(page);
     await sidebar.getByRole("button", { name: "Add custom label" }).click();
     await sidebar.getByRole("textbox", { name: "Label name" }).fill(name);
@@ -504,7 +506,7 @@ export default function mailSpecs() {
     account,
   }) => {
     const subjects = [TARGET, "Your order A-42 has shipped"];
-    await page.goto(mailPath(account));
+    await goToFolder(page, account);
     await showTab(page, "All");
     const select = async () => {
       for (const subject of subjects) {

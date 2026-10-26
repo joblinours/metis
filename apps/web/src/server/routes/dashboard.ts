@@ -218,7 +218,7 @@ export const dashboardRouter = {
           scope: "instance-update",
           message: "Enter your authenticator code to upgrade",
         });
-        return startUpgrade(input.version);
+        return startUpgrade(input.version, context.appUser.userId);
       }),
 
     rollback: ownerSession
@@ -231,9 +231,9 @@ export const dashboardRouter = {
           code: input.code,
           headers: context.headers,
           scope: "instance-update",
-          message: "Enter your authenticator code to roll back",
+          message: "Enter your authenticator code to undo the upgrade",
         });
-        return rollbackRelease();
+        return rollbackRelease(context.appUser.userId);
       }),
   },
 };

@@ -28,7 +28,7 @@ The two mail backends that are separate services speaking one HTTP contract, and
   - `mail/providers/{cloudflare,resend}.ts` hold only `verify`.
 - **A third backend is a new gateway**: a `GATEWAY_PROVIDERS` entry, a `MAIL_ADAPTERS` entry and a driver, all reusing the gateway pieces above.
 - **The contract is written once, in `packages/gateway-contract`, using only APIs both the Workers runtime and Bun have.** A gateway supplies its storage behind `GatewayStore` (D1 + R2, or Postgres + blob storage), its sending through `Gateway.send`, its ingest, and any extra routes of its own (Resend's webhook).
-- **The gateway owns its storage**; Metis's schema and `db:push` never include it.
+- **The gateway owns its storage**; Metis's schema and migrations never include it.
 
 ### Tokens
 

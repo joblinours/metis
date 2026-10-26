@@ -1,9 +1,6 @@
-import type { Edge, Node } from "@xyflow/react";
 import { nanoid } from "nanoid";
 
-import { isRecord } from "@/lib/guards";
-
-import { edgeLabel, nodeMailboxId, outputLabel } from "./kinds";
+import { nodeMailboxId } from "./kinds";
 import type {
   LeafPredicate,
   MergeKind,
@@ -13,7 +10,6 @@ import type {
   WorkflowGraph,
   WorkflowNode,
   WorkflowNodeKind,
-  WorkflowSourceState,
 } from "./schema";
 import {
   DEFAULT_DECISION_STATE_FIELDS,
@@ -30,31 +26,76 @@ export interface GraphMailbox {
   aiEnabled?: boolean;
 }
 
-export interface WfData extends Record<string, unknown> {
-  node: WorkflowNode;
-  mailboxes: GraphMailbox[];
-  source?: WorkflowSourceState;
+export const CARD_WIDTH = 256;
+const COLUMN_GAP = 96;
+const ROW_GAP = 40;
+const ESTIMATED_HEIGHT = 120;
+
+type Point = { x: number; y: number };
+const ORIGIN: Point = { x: 0, y: 0 };
+
+export function layoutGraph(
+  graph: WorkflowGraph,
+  heightOf: (nodeId: string) => number = () => ESTIMATED_HEIGHT,
+): WorkflowGraph {
+  const ids = graph.nodes.map((n) => n.id);
+  const parents = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const children = new Map<string, string[]>(ids.map((id) => [id, []]));
+  for (const edge of graph.edges) {
+    if (!parents.has(edge.target) || !children.has(edge.source)) continue;
+    parents.get(edge.target)?.push(edge.source);
+    children.get(edge.source)?.push(edge.target);
+  }
+
+  const layer = new Map<string, number>();
+  const depthOf = (id: string, seen: Set<string>): number => {
+    const known = layer.get(id);
+    if (known !== undefined) return known;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const up = parents.get(id) ?? [];
+    const depth = up.length === 0 ? 0 : Math.max(...up.map((p) => depthOf(p, seen))) + 1;
+    layer.set(id, depth);
+    return depth;
+  };
+  for (const id of ids) depthOf(id, new Set());
+
+  const columns: string[][] = [];
+  for (const id of ids) {
+    const index = layer.get(id) ?? 0;
+    (columns[index] ??= []).push(id);
+  }
+
+  const y = new Map<string, number>();
+  const order = new Map(ids.map((id, index) => [id, index]));
+  const positions = new Map<string, Point>();
+  const rank = (id: string) => {
+    const up = (parents.get(id) ?? []).map((p) => y.get(p) ?? 0);
+    return up.length > 0 ? up.reduce((a, b) => a + b, 0) / up.length : (order.get(id) ?? 0);
+  };
+  columns.forEach((column, index) => {
+    const sorted = column.toSorted(
+      (a, b) => rank(a) - rank(b) || (order.get(a) ?? 0) - (order.get(b) ?? 0),
+    );
+    const heights = sorted.map(heightOf);
+    const total = heights.reduce((a, b) => a + b, 0) + ROW_GAP * (sorted.length - 1);
+    let top = -total / 2;
+    sorted.forEach((id, row) => {
+      const height = heights[row] ?? ESTIMATED_HEIGHT;
+      y.set(id, top + height / 2);
+      positions.set(id, { x: index * (CARD_WIDTH + COLUMN_GAP), y: Math.round(top) });
+      top += height + ROW_GAP;
+    });
+  });
+
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      position: positions.get(node.id) ?? node.position,
+    })),
+  };
 }
-
-export type WfNode = Node<WfData, WorkflowNodeKind>;
-
-export interface WfKindData<K extends WorkflowNodeKind> extends WfData {
-  node: Extract<WorkflowNode, { kind: K }>;
-}
-
-export type WfKindNode<K extends WorkflowNodeKind> = Node<WfKindData<K>, K>;
-
-function isWfData(data: Record<string, unknown>): data is WfData {
-  return isRecord(data.node) && typeof data.node.kind === "string" && Array.isArray(data.mailboxes);
-}
-
-export function wfData(data: Record<string, unknown> | undefined): WfData | undefined {
-  return data && isWfData(data) ? data : undefined;
-}
-
-export const ROW_Y = [0, 210, 570, 890] as const;
-export const ARRIVAL_ROW_Y = [0, 150, 360, 670] as const;
-export const H_GAP = 280;
 
 export function newNodeId(): string {
   return nanoid(10);
@@ -134,12 +175,11 @@ export function graphEdge(
 }
 
 function listSource(
-  position: { x: number; y: number },
   mailbox: GraphMailbox | undefined,
-): WorkflowNode {
+): Extract<WorkflowNode, { kind: "mailbox.source" }> {
   return {
     id: newNodeId(),
-    position,
+    position: ORIGIN,
     kind: "mailbox.source",
     mailboxId: mailbox?.mailboxId ?? "",
     operation: "list",
@@ -148,13 +188,16 @@ function listSource(
   };
 }
 
-export function branchGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
-  const trigger = newNode("trigger.schedule", { x: 0, y: 0 });
-  const left = listSource({ x: -H_GAP, y: ROW_Y[1] }, mailboxes[0]);
-  const right = listSource({ x: H_GAP, y: ROW_Y[1] }, mailboxes[1] ?? mailboxes[0]);
-  const markRead = newNode("action.markRead", { x: -H_GAP, y: ROW_Y[2] });
-  const label = newNode("action.label", { x: H_GAP, y: ROW_Y[2] });
+function incomingSource(mailbox: GraphMailbox | undefined): WorkflowNode {
+  return { ...listSource(mailbox), operation: "incoming" };
+}
 
+function branchGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
+  const trigger = newNode("trigger.schedule", ORIGIN);
+  const left = listSource(mailboxes[0]);
+  const right = listSource(mailboxes[1] ?? mailboxes[0]);
+  const markRead = newNode("action.markRead", ORIGIN);
+  const label = newNode("action.label", ORIGIN);
   return {
     nodes: [trigger, left, right, markRead, label],
     edges: [
@@ -166,15 +209,11 @@ export function branchGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
   };
 }
 
-export function defaultGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
-  const trigger = newNode("trigger.newMail", { x: 0, y: 0 });
-  const source = newNode("mailbox.source", { x: 0, y: ARRIVAL_ROW_Y[1] }, mailboxes);
-  const condition = newNode("condition", { x: 0, y: ARRIVAL_ROW_Y[2] });
-  const action = newNode("action.archive", {
-    x: -H_GAP / 2,
-    y: ARRIVAL_ROW_Y[3],
-  });
-
+function defaultGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
+  const trigger = newNode("trigger.newMail", ORIGIN);
+  const source = newNode("mailbox.source", ORIGIN, mailboxes);
+  const condition = newNode("condition", ORIGIN);
+  const action = newNode("action.archive", ORIGIN);
   return {
     nodes: [trigger, source, condition, action],
     edges: [
@@ -185,29 +224,13 @@ export function defaultGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
   };
 }
 
-function incomingSource(
-  position: { x: number; y: number },
-  mailbox: GraphMailbox | undefined,
-): WorkflowNode {
-  return {
-    id: newNodeId(),
-    position,
-    kind: "mailbox.source",
-    mailboxId: mailbox?.mailboxId ?? "",
-    operation: "incoming",
-    folder: "inbox",
-    limit: 50,
-  };
-}
-
-export function arrivalGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
-  const leftTrigger = newNode("trigger.newMail", { x: -H_GAP, y: 0 });
-  const rightTrigger = newNode("trigger.newMail", { x: H_GAP, y: 0 });
-  const left = incomingSource({ x: -H_GAP, y: ARRIVAL_ROW_Y[1] }, mailboxes[0]);
-  const right = incomingSource({ x: H_GAP, y: ARRIVAL_ROW_Y[1] }, mailboxes[1] ?? mailboxes[0]);
-  const label = newNode("action.label", { x: -H_GAP, y: ARRIVAL_ROW_Y[2] });
-  const star = newNode("action.star", { x: H_GAP, y: ARRIVAL_ROW_Y[2] });
-
+function arrivalGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
+  const leftTrigger = newNode("trigger.newMail", ORIGIN);
+  const rightTrigger = newNode("trigger.newMail", ORIGIN);
+  const left = incomingSource(mailboxes[0]);
+  const right = incomingSource(mailboxes[1] ?? mailboxes[0]);
+  const label = newNode("action.label", ORIGIN);
+  const star = newNode("action.star", ORIGIN);
   return {
     nodes: [leftTrigger, rightTrigger, left, right, label, star],
     edges: [
@@ -219,13 +242,12 @@ export function arrivalGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
   };
 }
 
-export function mergeGraph(kind: MergeKind, mailboxes: GraphMailbox[]): WorkflowGraph {
-  const trigger = newNode("trigger.schedule", { x: 0, y: 0 });
-  const left = listSource({ x: -H_GAP, y: ROW_Y[1] }, mailboxes[0]);
-  const right = listSource({ x: H_GAP, y: ROW_Y[1] }, mailboxes[1] ?? mailboxes[0]);
-  const merge = newNode(kind, { x: 0, y: ROW_Y[2] });
-  const label = newNode("action.label", { x: 0, y: ROW_Y[3] });
-
+function mergeGraph(kind: MergeKind, mailboxes: GraphMailbox[]): WorkflowGraph {
+  const trigger = newNode("trigger.schedule", ORIGIN);
+  const left = listSource(mailboxes[0]);
+  const right = listSource(mailboxes[1] ?? mailboxes[0]);
+  const merge = newNode(kind, ORIGIN);
+  const label = newNode("action.label", ORIGIN);
   return {
     nodes: [trigger, left, right, merge, label],
     edges: [
@@ -249,7 +271,7 @@ export const TEMPLATE_LABELS: Record<GraphTemplate, string> = {
   join: "Two mailboxes, act once both are read",
 };
 
-export function templateGraph(template: GraphTemplate, mailboxes: GraphMailbox[]): WorkflowGraph {
+function rawTemplate(template: GraphTemplate, mailboxes: GraphMailbox[]): WorkflowGraph {
   if (template === "join") return mergeGraph("merge.join", mailboxes);
   if (template === "append") return mergeGraph("merge.append", mailboxes);
   if (template === "branch") return branchGraph(mailboxes);
@@ -257,54 +279,12 @@ export function templateGraph(template: GraphTemplate, mailboxes: GraphMailbox[]
   return defaultGraph(mailboxes);
 }
 
-export function toFlow(
-  graph: WorkflowGraph,
-  mailboxes: GraphMailbox[],
-  sources: WorkflowSourceState[] = [],
-): { nodes: WfNode[]; edges: Edge[] } {
-  const byTrigger = new Map(sources.map((s) => [s.triggerNodeId, s]));
-  return {
-    nodes: graph.nodes.map((node) => ({
-      id: node.id,
-      type: node.kind,
-      position: node.position,
-      data: { node, mailboxes, source: byTrigger.get(node.id) },
-    })),
-    edges: graph.edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      sourceHandle: edge.sourceHandle,
-      target: edge.target,
-      targetHandle:
-        edge.targetHandle && edge.targetHandle !== DEFAULT_TARGET_HANDLE ? edge.targetHandle : null,
-      type: "smoothstep",
-      animated: true,
-      label: outputLabel(graph, edge),
-      ariaLabel: edgeLabel(graph, edge),
-    })),
-  };
+export function templateGraph(template: GraphTemplate, mailboxes: GraphMailbox[]): WorkflowGraph {
+  return layoutGraph(rawTemplate(template, mailboxes));
 }
 
 export function flowHandle(handle: string | null | undefined): SourceHandle {
   return handle && isSourceHandle(handle) ? handle : "out";
-}
-
-export function fromFlow(nodes: WfNode[], edges: Edge[]): WorkflowGraph {
-  return {
-    nodes: nodes.map((n) => ({ ...n.data.node, position: n.position })),
-    edges: edges.map((e) => {
-      const handle = flowHandle(e.sourceHandle);
-      return {
-        id: e.id,
-        source: e.source,
-        sourceHandle: handle,
-        target: e.target,
-        ...(e.targetHandle && e.targetHandle !== DEFAULT_TARGET_HANDLE
-          ? { targetHandle: e.targetHandle }
-          : {}),
-      };
-    }),
-  };
 }
 
 export function targetsOf(graph: WorkflowGraph, id: string): WorkflowNode[] {
