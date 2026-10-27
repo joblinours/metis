@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { useSession } from "@/auth/client";
 import { CreateWorkspaceDialog } from "@/components/create-workspace-dialog";
+import { PageHeader } from "@/components/page-header";
 import { type WorkspaceItem, workspacesQuery } from "@/hooks/use-workspaces";
 import { orpc } from "@/lib/orpc";
 import { getInitials } from "@/lib/utils";
@@ -59,21 +60,17 @@ export default function GlobalWorkspacesPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-            Workspaces
-          </h1>
-          <p className="mt-1 text-[13px] text-faint">
-            Every workspace you belong to. Your default is where signing in takes you.
-          </p>
-        </div>
-        <CreateWorkspaceDialog
-          onCreated={(created) => {
-            window.location.href = onboardingPath(created.slug);
-          }}
-        />
-      </div>
+      <PageHeader
+        title="Workspaces"
+        description="Every workspace you belong to. Your default is where signing in takes you."
+        action={
+          <CreateWorkspaceDialog
+            onCreated={(created) => {
+              window.location.href = onboardingPath(created.slug);
+            }}
+          />
+        }
+      />
 
       {!workspaces ? (
         <div className="mt-8 flex items-center gap-2 text-[13px] text-faint">
@@ -93,7 +90,7 @@ export default function GlobalWorkspacesPage() {
               >
                 <Link
                   href={href}
-                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-hover"
+                  className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 transition-colors hover:bg-hover"
                 >
                   <span
                     className={cn(
@@ -107,7 +104,7 @@ export default function GlobalWorkspacesPage() {
                       getInitials(w.name).slice(0, 2)
                     )}
                   </span>
-                  <span className="min-w-0 flex-1">
+                  <span className="min-w-32 flex-1">
                     <span className="block truncate text-[13px] font-medium text-foreground">
                       {w.name}
                     </span>
@@ -115,7 +112,7 @@ export default function GlobalWorkspacesPage() {
                       {w.slug} · {w.role}
                     </span>
                   </span>
-                  <span className="shrink-0 text-[12px] text-faint">
+                  <span className="shrink-0 text-[12px] text-faint max-md:w-full max-md:pl-12">
                     {resourceSummary(w.mailboxCount, w.calendarCount, w.driveCount)}
                   </span>
                 </Link>

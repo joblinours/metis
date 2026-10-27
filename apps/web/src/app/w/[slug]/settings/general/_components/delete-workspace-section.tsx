@@ -83,13 +83,13 @@ export function DeleteWorkspaceSection({
           You can't delete your only workspace.
         </p>
       ) : (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row">
           <Input
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             placeholder={`Type “${workspaceName}” to confirm`}
             disabled={busy}
-            className="max-w-72"
+            className="sm:max-w-72 text-[13px]"
           />
           <Button
             variant="destructive"

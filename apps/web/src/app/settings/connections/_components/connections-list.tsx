@@ -25,6 +25,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AccountIdentity } from "@/components/account-identity";
+import { PageHeader } from "@/components/page-header";
 import { ACCOUNT_PROVIDER_META, resourceProviderMeta } from "@/components/provider-meta";
 import {
   type ConnectionProvider,
@@ -140,16 +141,10 @@ export function ConnectionsList() {
   return (
     <TooltipProvider delay={200}>
       <div>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-              Connections
-            </h1>
-            <p className="mt-1 text-[13px] text-faint">
-              The accounts you&rsquo;ve connected, and what you use each one for.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="Connections"
+          description={<>The accounts you&rsquo;ve connected, and what you use each one for.</>}
+        />
 
         {warning && (
           <div className="mt-6 flex items-start gap-2 rounded-xl border border-brand/30 bg-brand-soft p-3">

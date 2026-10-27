@@ -2,7 +2,7 @@ import { nativeApplicationVersion } from "expo-application";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Alert, BackHandler, Platform, View } from "react-native";
-import WebView from "react-native-webview";
+import { WebView } from "react-native-webview";
 import type {
   ShouldStartLoadRequest,
   WebViewErrorEvent,

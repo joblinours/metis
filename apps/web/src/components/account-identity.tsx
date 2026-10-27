@@ -1,3 +1,4 @@
+import { cn } from "@metis/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { providerLine } from "@/components/provider-meta";
@@ -30,15 +31,17 @@ export function AccountIdentity({
   server,
   detail,
   size,
+  className,
 }: VariantProps<typeof emailVariants> & {
   email: string;
   label: string;
   server: string | null;
   detail?: string;
+  className?: string;
 }) {
   const line = providerLine(label, server);
   return (
-    <div className="min-w-0 flex-1">
+    <div className={cn("min-w-0 flex-1", className)}>
       <div className={emailVariants({ size })}>{email}</div>
       <div className={lineVariants({ size })}>{detail ? `${line} · ${detail}` : line}</div>
     </div>

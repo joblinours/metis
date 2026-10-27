@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 import { AccountIdentity } from "@/components/account-identity";
 import { MailboxDialog } from "@/components/mailbox-dialog";
+import { PageHeader } from "@/components/page-header";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
 import { RESOURCE_PROVIDER_META } from "@/components/provider-meta";
 import {
@@ -109,22 +110,18 @@ export function MailboxesList() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-            Mailboxes
-          </h1>
-          <p className="mt-1 text-[13px] text-faint">
-            Every mailbox connected to your account, and which workspaces use it.
-          </p>
-        </div>
-        <MailboxDialog connectHref={connectHref}>
-          <Button variant="outline" size="sm">
-            <Plus className="h-3.5 w-3.5" />
-            Connect mailbox
-          </Button>
-        </MailboxDialog>
-      </div>
+      <PageHeader
+        title="Mailboxes"
+        description="Every mailbox connected to your account, and which workspaces use it."
+        action={
+          <MailboxDialog connectHref={connectHref}>
+            <Button variant="outline" size="sm">
+              <Plus className="h-3.5 w-3.5" />
+              Connect mailbox
+            </Button>
+          </MailboxDialog>
+        }
+      />
 
       <div className="mt-6 flex flex-col gap-2">
         {mailboxes === null && loadError ? (

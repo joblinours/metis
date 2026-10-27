@@ -10,6 +10,7 @@ export function AutoBccForm({ node, patch }: StepFormProps<"action.autoBcc">) {
     <Field>
       <FieldLabel htmlFor="step-bcc">Bcc address</FieldLabel>
       <Input
+        className="text-[13px]"
         id="step-bcc"
         type="email"
         value={node.address}

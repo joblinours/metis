@@ -128,6 +128,7 @@ export function CredentialConnectForm({
       <Field>
         <FieldLabel htmlFor="credential-email">Email address</FieldLabel>
         <Input
+          className="text-[13px]"
           id="credential-email"
           type="email"
           autoComplete="off"
@@ -141,6 +142,7 @@ export function CredentialConnectForm({
         <Field>
           <FieldLabel htmlFor="credential-token">Mailbox token</FieldLabel>
           <Input
+            className="text-[13px]"
             id="credential-token"
             type="password"
             autoComplete="new-password"
@@ -155,6 +157,7 @@ export function CredentialConnectForm({
           <Field>
             <FieldLabel htmlFor="credential-bucket">Bucket</FieldLabel>
             <Input
+              className="text-[13px]"
               id="credential-bucket"
               autoComplete="off"
               required
@@ -165,6 +168,7 @@ export function CredentialConnectForm({
           <Field>
             <FieldLabel htmlFor="credential-prefix">Folder prefix</FieldLabel>
             <Input
+              className="text-[13px]"
               id="credential-prefix"
               autoComplete="off"
               placeholder="Optional — limits this connection to one folder"
@@ -178,6 +182,7 @@ export function CredentialConnectForm({
           <Field>
             <FieldLabel htmlFor="credential-user">Username</FieldLabel>
             <Input
+              className="text-[13px]"
               id="credential-user"
               autoComplete="off"
               placeholder="Defaults to your email address"
@@ -188,6 +193,7 @@ export function CredentialConnectForm({
           <Field>
             <FieldLabel htmlFor="credential-pass">Password</FieldLabel>
             <Input
+              className="text-[13px]"
               id="credential-pass"
               type="password"
               autoComplete="new-password"
@@ -200,6 +206,7 @@ export function CredentialConnectForm({
             <Field>
               <FieldLabel htmlFor="credential-root">Folder</FieldLabel>
               <Input
+                className="text-[13px]"
                 id="credential-root"
                 autoComplete="off"
                 placeholder="Optional — limits this connection to one folder"
@@ -226,6 +233,7 @@ export function CredentialConnectForm({
               <Field>
                 <FieldLabel htmlFor="credential-smtp-user">SMTP username</FieldLabel>
                 <Input
+                  className="text-[13px]"
                   id="credential-smtp-user"
                   autoComplete="off"
                   required
@@ -236,6 +244,7 @@ export function CredentialConnectForm({
               <Field>
                 <FieldLabel htmlFor="credential-smtp-pass">SMTP password</FieldLabel>
                 <Input
+                  className="text-[13px]"
                   id="credential-smtp-pass"
                   type="password"
                   autoComplete="new-password"

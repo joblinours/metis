@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export type ChatEndpoint = "chat" | "calendar-chat" | "drive-chat" | "workspace-chat";
 
-const CHAT_LIMIT = 20;
+const CHAT_LIMIT = 15;
 const CHAT_WINDOW_MS = 60_000;
 const CHAT_MARGIN_MS = 1_000;
 const RATE_SCOPE: Record<ChatEndpoint, string> = {

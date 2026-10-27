@@ -10,7 +10,7 @@
   - `apps/updater` is a Go module outside the bun workspaces; `proto/` is its protocol.
   - The Next.js rules `next dev` generates live in `apps/web/AGENTS.md`.
 - **`src/…` means `apps/web/src/…`** unless a path names another workspace.
-- **Every docs edit under `apps/docs/` (pages, `meta.ts`, screenshot lists, images) goes through the three subagents in `.claude/agents/`, in order: `docs-feature-finder`, `docs-writer`, `docs-verifier`.** Never hand-edit a docs file, not even a one-line fix.
+- **Every edit under `apps/docs/content/` (pages and each folder's `meta.ts`) goes through the three subagents in `.claude/agents/`, in order: `docs-feature-finder`, `docs-writer`, `docs-verifier`.** Never hand-edit a page there, not even a one-line fix. The rest of `apps/docs/` (scripts, screenshot lists, images, config) is edited directly.
 
 ## 2. Toolchain
 
@@ -38,7 +38,7 @@
 - **Microsoft Graph: `@microsoft/microsoft-graph-client` + `@microsoft/microsoft-graph-types`**, never the Kiota `@microsoft/msgraph-sdk-*` packages.
 - **S3: AWS SDK commands only**; never hand-roll the S3 protocol, including the drive relay's SigV4 URLs ([drive.md](agent-docs/drive.md)).
 - **MCP OAuth: `@better-auth/mcp` only.** It is `@better-auth/oauth-provider` preconfigured, so registering both is forbidden.
-- **`ai` and every `@ai-sdk/*` package are bumped together**, so one `@ai-sdk/provider` copy exists.
+- **`ai` and every `@ai-sdk/*` package are pinned exactly and bumped together, to the `@ai-sdk/provider` version `@mastra/core` pins**, so one copy exists ([ai-agents.md](agent-docs/ai-agents.md)).
 - **UI primitives are shadcn on Base UI (`base-nova`)**, installed with `bunx shadcn@latest add` from the consuming app into `packages/ui` ([ui.md](agent-docs/ui.md)).
 
 ## 4. Code

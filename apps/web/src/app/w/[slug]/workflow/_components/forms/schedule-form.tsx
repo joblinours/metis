@@ -111,6 +111,7 @@ export function ScheduleForm({ node, patch }: StepFormProps<"trigger.schedule">)
         <Field>
           <FieldLabel htmlFor="schedule-minute">Minutes past the hour</FieldLabel>
           <Input
+            className="text-[13px]"
             id="schedule-minute"
             type="number"
             min={0}
@@ -140,6 +141,7 @@ export function ScheduleForm({ node, patch }: StepFormProps<"trigger.schedule">)
         <Field>
           <FieldLabel htmlFor="schedule-date">On day</FieldLabel>
           <Input
+            className="text-[13px]"
             id="schedule-date"
             type="number"
             min={1}
@@ -160,6 +162,7 @@ export function ScheduleForm({ node, patch }: StepFormProps<"trigger.schedule">)
         <Field>
           <FieldLabel htmlFor="schedule-time">At</FieldLabel>
           <Input
+            className="text-[13px]"
             id="schedule-time"
             type="time"
             value={clockTime(schedule.hour, schedule.minute)}
@@ -179,7 +182,7 @@ export function ScheduleForm({ node, patch }: StepFormProps<"trigger.schedule">)
             value={node.cron}
             onChange={(e) => patch({ cron: e.target.value })}
             placeholder="0 9 * * 1-5"
-            className="font-mono"
+            className="font-mono text-[13px]"
           />
           <FieldDescription>
             Five fields: minute, hour, day of month, month, day of week.
@@ -196,7 +199,11 @@ export function ScheduleForm({ node, patch }: StepFormProps<"trigger.schedule">)
             if (timezone) patch({ timezone });
           }}
         >
-          <ComboboxInput id="schedule-zone" placeholder="Search time zones" className="w-full" />
+          <ComboboxInput
+            id="schedule-zone"
+            placeholder="Search time zones"
+            className="w-full text-[13px]"
+          />
           <ComboboxContent>
             <ComboboxEmpty>No time zone matches</ComboboxEmpty>
             <ComboboxList>

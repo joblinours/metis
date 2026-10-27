@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 import { AccountIdentity } from "@/components/account-identity";
 import { CalendarDialog } from "@/components/calendar-dialog";
+import { PageHeader } from "@/components/page-header";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
 import { RESOURCE_PROVIDER_META } from "@/components/provider-meta";
 import {
@@ -112,22 +113,18 @@ export function CalendarsList() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-            Calendars
-          </h1>
-          <p className="mt-1 text-[13px] text-faint">
-            Every calendar connected to your account, and which workspaces use it.
-          </p>
-        </div>
-        <CalendarDialog connectHref={connectHref}>
-          <Button variant="outline" size="sm">
-            <Plus className="h-3.5 w-3.5" />
-            Connect calendar
-          </Button>
-        </CalendarDialog>
-      </div>
+      <PageHeader
+        title="Calendars"
+        description="Every calendar connected to your account, and which workspaces use it."
+        action={
+          <CalendarDialog connectHref={connectHref}>
+            <Button variant="outline" size="sm">
+              <Plus className="h-3.5 w-3.5" />
+              Connect calendar
+            </Button>
+          </CalendarDialog>
+        }
+      />
 
       <div className="mt-6 flex flex-col gap-2">
         {calendars === null && loadError ? (

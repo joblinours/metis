@@ -23,7 +23,7 @@
     "lucide-react": "catalog:",
     "next-themes": "catalog:",
     "react-day-picker": "^10.0.2",
-    "react-resizable-panels": "^4.14.3",
+    "react-resizable-panels": "^4.15.0",
     "shadcn": "catalog:",
     "sonner": "catalog:",
     "tailwindcss": "catalog:",

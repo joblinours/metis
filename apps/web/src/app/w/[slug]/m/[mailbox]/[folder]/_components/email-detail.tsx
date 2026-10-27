@@ -782,7 +782,7 @@ export function EmailDetail() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-4 py-3 md:px-6 md:gap-2 border-border-soft">
+      <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b px-4 py-3 scrollbar-none md:flex-wrap md:gap-2 md:overflow-x-visible md:px-6 border-border-soft [&::-webkit-scrollbar]:hidden">
         <ToolBtn onClick={() => setSelectedEmail(null)}>
           <ChevronLeft className="size-3.25" strokeWidth={2} />
           Back

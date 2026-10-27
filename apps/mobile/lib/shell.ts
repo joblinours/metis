@@ -1,4 +1,4 @@
-import NetInfo from "@react-native-community/netinfo";
+import { fetch as fetchNetworkState } from "@react-native-community/netinfo";
 import { Alert, Linking } from "react-native";
 import { create } from "zustand";
 
@@ -128,7 +128,7 @@ export async function reconnect(trigger: string): Promise<{ ok: boolean; reason?
     showLocal("setup");
     return { ok: true };
   }
-  const network = await NetInfo.fetch();
+  const network = await fetchNetworkState();
   if (network.isConnected === false) {
     log("reconnect skipped while offline", { trigger });
     return { ok: false, reason: "offline" };

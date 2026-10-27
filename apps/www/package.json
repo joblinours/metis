@@ -30,7 +30,7 @@
     "@types/three": "^0.186.0",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
-    "postcss": "^8.5.29",
+    "postcss": "^8.5.31",
     "schema-dts": "^2.1.0",
     "tailwindcss": "catalog:",
     "typescript": "catalog:"

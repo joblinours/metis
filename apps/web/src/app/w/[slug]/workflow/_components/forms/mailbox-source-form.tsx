@@ -64,6 +64,7 @@ export function MailboxSourceForm({ node, patch }: StepFormProps<"mailbox.source
           <Field>
             <FieldLabel htmlFor="source-query">Search (optional)</FieldLabel>
             <Input
+              className="text-[13px]"
               id="source-query"
               value={node.query ?? ""}
               onChange={(e) => patch({ query: e.target.value || undefined })}
@@ -74,6 +75,7 @@ export function MailboxSourceForm({ node, patch }: StepFormProps<"mailbox.source
           <Field>
             <FieldLabel htmlFor="source-limit">Take at most</FieldLabel>
             <Input
+              className="text-[13px]"
               id="source-limit"
               type="number"
               min={1}

@@ -57,6 +57,7 @@ export function DriveNameDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <Input
+          className="text-[13px]"
           autoFocus
           aria-label="Name"
           value={value}

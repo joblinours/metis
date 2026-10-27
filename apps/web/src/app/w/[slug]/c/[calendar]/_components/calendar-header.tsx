@@ -11,6 +11,7 @@ import { cn } from "@metis/ui/lib/utils";
 import { Bot, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { CALENDAR_VIEWS, type CalendarViewKey, navigateDate, rangeLabel } from "@/calendar/layout";
+import { MobileAsideTrigger } from "@/components/mobile-aside";
 
 import { useCalendar } from "./calendar-context";
 
@@ -43,6 +44,7 @@ export function CalendarHeader({
 
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+      <MobileAsideTrigger className="-ml-1.5 size-8 shrink-0" />
       <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
         Today
       </Button>

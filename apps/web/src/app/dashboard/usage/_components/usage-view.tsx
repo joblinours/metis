@@ -9,20 +9,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@metis/ui/components/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@metis/ui/components/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@metis/ui/components/table";
 import { cn } from "@metis/ui/lib/utils";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import { AI_USAGE_FEATURE_LABELS } from "@/ai/usage-features";
+import { ScrollTable } from "@/components/dashboard/scroll-table";
 import { useSystemData } from "@/components/dashboard/system-client";
+import { PageHeader } from "@/components/page-header";
 import { rpc } from "@/lib/orpc";
 import type { DashboardUsage, DashboardUsageRange } from "@/server/schema";
 
@@ -83,30 +78,26 @@ export function UsageView() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-            AI usage
-          </h1>
-          <p className="mt-1 text-[13px] text-faint">
-            Tokens recorded on every LLM surface, bucketed by UTC day.
-          </p>
-        </div>
-        <ButtonGroup>
-          {RANGES.map((r) => (
-            <Button
-              key={r.value}
-              size="sm"
-              variant="outline"
-              aria-pressed={range === r.value}
-              onClick={() => setRange(r.value)}
-              className={cn("text-[13px]", range === r.value && "bg-brand-soft text-primary")}
-            >
-              {r.label}
-            </Button>
-          ))}
-        </ButtonGroup>
-      </div>
+      <PageHeader
+        title="AI usage"
+        description="Tokens recorded on every LLM surface, bucketed by UTC day."
+        action={
+          <ButtonGroup>
+            {RANGES.map((r) => (
+              <Button
+                key={r.value}
+                size="sm"
+                variant="outline"
+                aria-pressed={range === r.value}
+                onClick={() => setRange(r.value)}
+                className={cn("text-[13px]", range === r.value && "bg-brand-soft text-primary")}
+              >
+                {r.label}
+              </Button>
+            ))}
+          </ButtonGroup>
+        }
+      />
 
       <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {totalCards.map((card) => (
@@ -185,7 +176,7 @@ export function UsageView() {
           ) : usage.byModel.length === 0 ? (
             <Empty label="No models used in this range." />
           ) : (
-            <Table className="text-[13px]">
+            <ScrollTable className="text-[13px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Model</TableHead>
@@ -218,7 +209,7 @@ export function UsageView() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </ScrollTable>
           )}
         </Section>
 
@@ -230,7 +221,7 @@ export function UsageView() {
           ) : usage.recent.length === 0 ? (
             <Empty label="No AI calls in this range." />
           ) : (
-            <Table className="text-[13px]">
+            <ScrollTable className="text-[13px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>When</TableHead>
@@ -257,7 +248,7 @@ export function UsageView() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </ScrollTable>
           )}
         </Section>
       </div>

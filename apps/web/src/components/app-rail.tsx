@@ -58,7 +58,6 @@ import {
   workflowPath,
 } from "@/workspace/path";
 
-import { MobileAsideTrigger } from "./mobile-aside";
 import { usePlatformPolicy } from "./platform-policy-context";
 import { WorkspaceMenuTile } from "./workspace-menu-tile";
 import { WorkspaceRailSwitcher } from "./workspace-rail-switcher";
@@ -110,8 +109,6 @@ export function AppRail({ user, isOwner, source }: AppRailProps) {
         className="flex w-16 shrink-0 flex-col items-center gap-1.5 border-r border-border bg-panel pt-4 pb-4"
         aria-label="App navigation"
       >
-        <MobileAsideTrigger />
-
         <WorkspaceMenuTile workspace={current} workspaceSlug={workspaceSlug} />
 
         <Divider />
@@ -131,7 +128,9 @@ export function AppRail({ user, isOwner, source }: AppRailProps) {
               </Button>
             }
           />
-          <TooltipContent side="right">Search · Ctrl/⌘ K</TooltipContent>
+          <TooltipContent side="right" className="pointer-coarse:hidden">
+            Search · Ctrl/⌘ K
+          </TooltipContent>
         </Tooltip>
 
         <IconLink label="Inbox" href={inboxHref} active={section === "mail"}>
@@ -183,7 +182,9 @@ export function AppRail({ user, isOwner, source }: AppRailProps) {
                 />
               }
             />
-            <TooltipContent side="right">{user.name}</TooltipContent>
+            <TooltipContent side="right" className="pointer-coarse:hidden">
+              {user.name}
+            </TooltipContent>
           </Tooltip>
           <DropdownMenuContent side="right" align="end" className="w-52">
             <div className="px-2 py-1.5">
@@ -233,7 +234,7 @@ export function AppRail({ user, isOwner, source }: AppRailProps) {
               {isDark ? "Light mode" : "Dark mode"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">
+            <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
               <LogOut />
               Sign out
             </DropdownMenuItem>
@@ -265,7 +266,9 @@ function SourceRailLink({ source }: { source: SourceInfo }) {
           </a>
         }
       />
-      <TooltipContent side="right">Source code · v{source.version}</TooltipContent>
+      <TooltipContent side="right" className="pointer-coarse:hidden">
+        Source code · v{source.version}
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -303,7 +306,9 @@ function IconLink({
           </Link>
         }
       />
-      <TooltipContent side="right">{label}</TooltipContent>
+      <TooltipContent side="right" className="pointer-coarse:hidden">
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }

@@ -134,7 +134,11 @@ function Shell({
   if (mobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" showCloseButton={false} className="h-dvh max-h-dvh gap-0 p-0">
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          className="max-h-dvh gap-0 p-0 data-[side=bottom]:h-dvh"
+        >
           <SheetTitle className="sr-only">Search</SheetTitle>
           <SheetDescription className="sr-only">
             Search mail, events, files, chats, people and everything else in this workspace.

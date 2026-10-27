@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2, Clock, Loader2, RefreshCw, RotateCcw, X } fr
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { MobileAsideTrigger } from "@/components/mobile-aside";
 import { usePollingRefresh } from "@/hooks/use-polling-refresh";
 import { useMailboxScope } from "@/hooks/use-workspace-path";
 import { orpc, rpc } from "@/lib/orpc";
@@ -61,6 +62,7 @@ export function ScheduledView() {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center gap-3 border-b px-7 py-4 border-border-soft">
+        <MobileAsideTrigger className="-ml-1.5 size-8 shrink-0" />
         <Clock className="h-4 w-4 text-brand-text" />
         <h1 className="text-[24px] tracking-tight font-serif text-foreground">Scheduled</h1>
         <span className="text-xs text-faint">{pending.length} queued</span>
@@ -240,7 +242,7 @@ function ScheduledRow({
   const StatusIcon = statusPalette.icon;
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border p-4 transition-colors bg-surface border-border">
+    <div className="flex flex-wrap items-start gap-3 rounded-lg border p-4 transition-colors bg-surface border-border">
       <div
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
         style={{ background: statusPalette.bg }}
@@ -251,8 +253,8 @@ function ScheduledRow({
         />
       </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+      <div className="min-w-48 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2">
           <span
             className="text-[11px] font-medium uppercase tracking-wide"
             style={{ color: statusPalette.color }}

@@ -119,8 +119,8 @@ export function AddClientDialog({ onCreated }: { onCreated: () => void }) {
     >
       <DialogTrigger
         render={
-          <Button className="shrink-0">
-            <Plus className="size-4" />
+          <Button variant="outline" size="sm" className="shrink-0">
+            <Plus className="size-3.5" />
             Add client
           </Button>
         }
@@ -209,7 +209,7 @@ export function AddClientDialog({ onCreated }: { onCreated: () => void }) {
                     setLabelEdited(e.target.value.trim().length > 0);
                   }}
                   placeholder="Claude Code — laptop"
-                  className="mt-1"
+                  className="mt-1 text-[13px]"
                   maxLength={60}
                   required
                 />
@@ -224,7 +224,7 @@ export function AddClientDialog({ onCreated }: { onCreated: () => void }) {
                     value={port}
                     onChange={(e) => setPort(e.target.value)}
                     inputMode="numeric"
-                    className="mt-1"
+                    className="mt-1 text-[13px]"
                     required
                   />
                   <p className="mt-1.5 text-[12px] text-faint">
@@ -242,7 +242,7 @@ export function AddClientDialog({ onCreated }: { onCreated: () => void }) {
                     value={redirectUri}
                     onChange={(e) => setRedirectUri(e.target.value)}
                     placeholder="http://127.0.0.1/callback"
-                    className="mt-1"
+                    className="mt-1 text-[13px]"
                     required
                   />
                 </div>

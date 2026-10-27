@@ -30,7 +30,7 @@ export function ScheduleView() {
           key={group.date.toISOString()}
           className="flex gap-4 border-b border-border-soft px-4 py-3 last:border-b-0"
         >
-          <div className="flex w-24 shrink-0 items-baseline gap-2">
+          <div className="flex w-12 shrink-0 flex-col items-center gap-0.5 md:w-28 md:flex-row md:items-baseline md:gap-2">
             <span
               className={cn(
                 "flex h-8 min-w-8 items-center justify-center rounded-full px-1 text-[18px] font-medium",
@@ -39,8 +39,12 @@ export function ScheduleView() {
             >
               {format(group.date, "d")}
             </span>
-            <span className="text-[10px] uppercase tracking-[1.5px] text-faint">
+            <span className="text-[10px] whitespace-nowrap uppercase tracking-[1.5px] text-faint max-md:hidden">
               {format(group.date, "MMM, EEE")}
+            </span>
+            <span className="flex flex-col items-center pl-[1.5px] text-[10px] uppercase leading-tight tracking-[1.5px] text-faint md:hidden">
+              <span>{format(group.date, "MMM")}</span>
+              <span>{format(group.date, "EEE")}</span>
             </span>
           </div>
 
@@ -55,7 +59,7 @@ export function ScheduleView() {
                   isPast(event) && "opacity-60",
                 )}
               >
-                <span className="w-28 shrink-0 text-[12px] text-muted-foreground">
+                <span className="shrink-0 text-[12px] text-muted-foreground md:w-28">
                   {formatEventTime(event)}
                 </span>
                 <span
@@ -64,14 +68,14 @@ export function ScheduleView() {
                 />
                 <span
                   className={cn(
-                    "truncate text-[13px] text-foreground",
+                    "min-w-0 flex-1 truncate text-[13px] text-foreground",
                     event.status === "cancelled" && "line-through",
                   )}
                 >
                   {event.title}
                 </span>
                 {event.accountEmail && (
-                  <span className="ml-auto shrink-0 truncate font-mono text-[10px] text-faint">
+                  <span className="max-w-[40%] shrink-0 truncate font-mono text-[10px] text-faint max-md:hidden">
                     {event.accountEmail}
                   </span>
                 )}

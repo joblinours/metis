@@ -116,6 +116,7 @@ export function CreateWorkspaceDialog({
               Name
             </label>
             <Input
+              className="text-[13px]"
               id="workspace-name"
               value={name}
               onChange={(e) => setName(e.target.value)}

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
+import { PageHeader } from "@/components/page-header";
 import { useWorkspaceSlug } from "@/hooks/use-workspace-path";
 import { rpc } from "@/lib/orpc";
 import { DEFAULT_THEME_BRAND, isThemeBrand } from "@/theme/brand";
@@ -22,10 +23,10 @@ export default function GeneralSettingsPage() {
 
   return (
     <div>
-      <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">General</h1>
-      <p className="mt-1 text-[13px] text-faint">
-        Members, appearance, and deletion for this workspace.
-      </p>
+      <PageHeader
+        title="General"
+        description="Members, appearance, and deletion for this workspace."
+      />
 
       {error && (
         <p className="mt-4 rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-[13px] text-destructive-text">

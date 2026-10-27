@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Inbox, Loader2, Moon, X } from "lucide-react";
 import { useState } from "react";
 
+import { MobileAsideTrigger } from "@/components/mobile-aside";
 import { usePollingRefresh } from "@/hooks/use-polling-refresh";
 import { useMailboxScope } from "@/hooks/use-workspace-path";
 import { orpc, rpc } from "@/lib/orpc";
@@ -99,6 +100,7 @@ export function SnoozedView() {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center gap-2 border-b border-border-soft px-6 py-4">
+        <MobileAsideTrigger className="-ml-1.5 size-8 shrink-0" />
         <Moon className="h-4 w-4 text-primary" strokeWidth={1.8} />
         <h1 className="text-[18px] font-medium tracking-tight font-serif">Snoozed</h1>
         <span className="text-[12px] text-faint">{emails.length} pending</span>

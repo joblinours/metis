@@ -216,7 +216,7 @@ export function DriveAgentPanel({
           }}
         >
           <PromptInputBody>
-            <PromptInputTextarea placeholder="Ask about these files…" />
+            <PromptInputTextarea className="text-sm" placeholder="Ask about these files…" />
           </PromptInputBody>
           <PromptInputFooter>
             <div className="flex items-center gap-1">

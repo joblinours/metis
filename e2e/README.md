@@ -143,7 +143,7 @@ Playwright:
 
 - Projects, in order: `setup` signs Ana in and opens the first inbox page (as the recorder did); `read` runs in parallel and changes nothing the recordings read; `write` runs in one worker in the order `tests/write/order.list.ts` imports its specs. A failing dependency project skips the ones after it.
 - In `setup` and `write` (one worker each), a test fails if it caused an LLM replay miss. In `read` (four workers) a miss cannot be pinned to one test, so the tests running at the time get an `llm-miss` annotation instead; in every project the run fails if any miss happened at all, and `tests/global-teardown.ts` names each distinct missed request (path, model, key, last user text). `GET /llm-hits` lists every replayed request, for specs that prove no request was made.
-- `read/chats.spec.ts` runs its tests in order in one worker, and `tests/chat.ts` → `paceChat` keeps sends under the app's per-user chat limits (20 a minute, shared by the mailbox, calendar and drive chats, and separately for the workspace chat), so a replayed conversation never meets a 429.
+- `read/chats.spec.ts` runs its tests in order in one worker, and `tests/chat.ts` → `paceChat` keeps its own sends to 15 a minute, under the app's per-user chat limits (20 a minute, shared by the mailbox, calendar and drive chats, and separately for the workspace chat), so the other workers' requests in the same minute still leave a replayed conversation clear of a 429.
 - Specs import only Playwright, generic clients (`clients/`) and `@metis/e2e/lib/*`, never `apps/web`. Reports land in `playwright-report/`, artifacts in `test-results/`.
 
 ## Server addresses

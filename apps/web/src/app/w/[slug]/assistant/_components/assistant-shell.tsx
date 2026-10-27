@@ -26,7 +26,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { usePanelRef } from "react-resizable-panels";
 
-import { ResponsiveAside } from "@/components/mobile-aside";
+import { MobileAsideTrigger, ResponsiveAside } from "@/components/mobile-aside";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useSavedLayout } from "@/hooks/use-saved-layout";
 import { useWorkspaceSlug } from "@/hooks/use-workspace-path";
@@ -216,6 +216,7 @@ export function AssistantShell({ mailboxes, calendars, drives, children }: Assis
   const content = (
     <div className="flex h-full min-w-0 flex-col">
       <header className="flex items-center gap-3 border-border-soft border-b px-6 py-4">
+        <MobileAsideTrigger className="-ml-1.5 size-8 shrink-0" />
         <div className="flex size-9 items-center justify-center rounded-lg bg-brand-soft">
           <Sparkles className="size-4.5 text-brand-text" />
         </div>

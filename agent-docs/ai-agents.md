@@ -86,6 +86,13 @@ The Mastra agents, the toolkit every tool body lives in, the tool roster shared 
 - **An inline reference is a hint**: it saves a listing call and never narrows what may be read. Access is still workspace membership plus per-resource AI policy.
 - **Reference resolution is the authorization check.** `reference-directory.ts` filters by `policy.ai` and validates every id against the caller's scope, and the tool boundary checks again.
 
+### The AI SDK version
+
+- **`ai` and every `@ai-sdk/*` package in `package.json` are pinned exactly, to the releases that depend on the `@ai-sdk/provider` and `@ai-sdk/provider-utils` versions `@mastra/core` pins as `@ai-sdk/provider-v7` and `@ai-sdk/provider-utils-v7`.**
+  - Mastra types agent models against its own pinned copy, so a newer provider whose `LanguageModelV4` widened (a new finish reason) fails `tsc` on every agent's `model` and on `workspaceMemory`.
+  - A caret range lets the lockfile keep a newer release than the floor, so the pins carry no `^`.
+  - Bump the set when a Mastra release moves its pin: read `dependencies` of the new `@mastra/core`, then pick each package's newest release on that provider version.
+
 ## How it works
 
 - **The chat agents.**

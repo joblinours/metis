@@ -122,7 +122,7 @@ function SortableTile({
             </Link>
           }
         />
-        <TooltipContent side="right">
+        <TooltipContent side="right" className="pointer-coarse:hidden">
           {workspace.name}
           <span className="text-muted-foreground">· {workspace.role}</span>
         </TooltipContent>
@@ -230,7 +230,9 @@ export function WorkspaceRailSwitcher() {
             />
           }
         />
-        <TooltipContent side="right">New workspace</TooltipContent>
+        <TooltipContent side="right" className="pointer-coarse:hidden">
+          New workspace
+        </TooltipContent>
       </Tooltip>
     </div>
   );

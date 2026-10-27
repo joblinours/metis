@@ -22,6 +22,7 @@ import { useSession } from "@/auth/client";
 import { AccountIdentity } from "@/components/account-identity";
 import { useConnectServers } from "@/components/connect-servers-context";
 import { MailboxDialog } from "@/components/mailbox-dialog";
+import { PageHeader } from "@/components/page-header";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
 import { attachPolicyNotice, overrideLabel, PolicyBadge } from "@/components/policy-badge";
 import { AiMark, AiToggle, PhishingMark, PhishingToggle } from "@/components/policy-icons";
@@ -151,14 +152,15 @@ export function WorkspaceMailboxesInner() {
 
   return (
     <TooltipProvider delay={200}>
-      <h1 className="mb-2 text-[28px] font-medium tracking-tight font-serif">
-        {isOnboarding ? "Nothing in this workspace yet" : "Mailboxes"}
-      </h1>
-      <p className="mb-4 text-[13px] text-faint">
-        {isOnboarding
-          ? "Add a mailbox here, or a calendar or drive from the settings menu. If you already use another workspace, switch to it instead."
-          : `Sign in once with your email, add any ${providerNames(configuredProviders, "mail")} mailbox, and switch between them without re-authenticating.`}
-      </p>
+      <PageHeader
+        className="mb-4"
+        title={isOnboarding ? "Nothing in this workspace yet" : "Mailboxes"}
+        description={
+          isOnboarding
+            ? "Add a mailbox here, or a calendar or drive from the settings menu. If you already use another workspace, switch to it instead."
+            : `Sign in once with your email, add any ${providerNames(configuredProviders, "mail")} mailbox, and switch between them without re-authenticating.`
+        }
+      />
 
       {errorFromOAuth && (
         <div className="mb-6 rounded-lg border border-destructive/25 bg-destructive/8 px-4 py-3 text-[12px] text-destructive-text">
@@ -227,6 +229,7 @@ export function WorkspaceMailboxesInner() {
                   </div>
                 )}
                 <AccountIdentity
+                  className="min-w-40"
                   email={acc.email}
                   label={meta.label}
                   server={acc.server}

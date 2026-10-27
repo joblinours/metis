@@ -88,4 +88,14 @@ Each section also has its own switcher at the top of its sidebar:
 
 ## On a phone
 
-The rail stays on screen. On pages with a side panel, an **Open sidebar** button at the top of the rail opens it. In settings, the menu becomes a row of tabs that you can scroll sideways.
+The rail stays on screen. Mail, calendar, drive, workflows and Workspace AI hide their side panel. To open it, tap the **Open sidebar** button. It is an icon, the first button at the top of the page:
+
+- In mail, beside the folder name at the top of the message list.
+- In calendar, before **Today**.
+- In drive, before the folder path.
+- In workflows, first in the editor's top bar.
+- In Workspace AI, before the **Workspace Assistant** heading.
+
+The panel slides in from the left. It closes when you pick a page in it, tap outside it, or press **Escape**.
+
+Account settings, workspace settings and the dashboard hide their list of sections. A small bar at the top of the page shows the **Open sidebar** button (an icon) and the area's name: **Settings**, **Workspace** or **Dashboard**. Tap **Open sidebar** to open the list from the left. It closes after you pick a section.

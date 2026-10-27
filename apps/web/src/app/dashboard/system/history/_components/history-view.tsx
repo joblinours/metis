@@ -9,19 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@metis/ui/components/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@metis/ui/components/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@metis/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { ScrollTable } from "@/components/dashboard/scroll-table";
 import { CheckResults, Loading, useSystemResource } from "@/components/dashboard/system-client";
 import { Mono, Section, Sections, ToneBadge } from "@/components/dashboard/system-ui";
 import { TotpConfirmDialog } from "@/components/totp-confirm-dialog";
@@ -252,7 +246,7 @@ export function HistoryView() {
         title="Versions"
         description="Every stored version, newest first. Restoring copies a version forward; it never rewrites history."
       >
-        <Table className="text-[13px]">
+        <ScrollTable className="text-[13px]">
           <TableHeader>
             <TableRow>
               <TableHead>Version</TableHead>
@@ -314,7 +308,7 @@ export function HistoryView() {
               );
             })}
           </TableBody>
-        </Table>
+        </ScrollTable>
       </Section>
 
       <TotpConfirmDialog

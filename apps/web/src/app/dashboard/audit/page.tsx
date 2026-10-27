@@ -1,14 +1,14 @@
+import { PageHeader } from "@/components/page-header";
+
 import { AuditView } from "./_components/audit-view";
 
 export default function DashboardAuditPage() {
   return (
     <div>
-      <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-        Audit log
-      </h1>
-      <p className="mt-1 text-[13px] text-faint">
-        Security-relevant changes by every user on this instance.
-      </p>
+      <PageHeader
+        title="Audit log"
+        description="Security-relevant changes by every user on this instance."
+      />
 
       <div className="mt-6">
         <AuditView />

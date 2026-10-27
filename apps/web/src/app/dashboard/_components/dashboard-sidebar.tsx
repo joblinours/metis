@@ -33,6 +33,7 @@ import {
   SYSTEM_ROOT,
   SYSTEM_UPDATES_NAV,
 } from "@/components/dashboard/system-nav";
+import { ResponsiveAside } from "@/components/mobile-aside";
 import { SourceLink } from "@/components/source-link";
 import { rpc } from "@/lib/orpc";
 import type { SourceInfo } from "@/source-info";
@@ -185,42 +186,44 @@ export function DashboardSidebar({ source }: { source: SourceInfo }) {
     useQuery(rpc.dashboard.system.updatesEnabled.queryOptions()).data?.enabled ?? false;
 
   return (
-    <aside
-      className="sticky top-10 flex h-[calc(100dvh-5rem)] w-52 shrink-0 flex-col pt-1 max-md:static max-md:h-auto max-md:w-full"
-      aria-label="Dashboard"
-    >
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <GuardedLink
-          href={workspaceRootPath()}
-          className="mb-4 flex items-center gap-1.5 text-[13px] text-faint transition-colors hover:text-muted-foreground"
-        >
-          Back
-        </GuardedLink>
+    <ResponsiveAside label="Dashboard">
+      <aside
+        className="sticky top-10 flex h-[calc(100dvh-5rem)] w-52 shrink-0 flex-col pt-1 max-md:static max-md:h-full max-md:w-full max-md:p-4"
+        aria-label="Dashboard"
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <GuardedLink
+            href={workspaceRootPath()}
+            className="mb-4 flex items-center gap-1.5 text-[13px] text-faint transition-colors hover:text-muted-foreground"
+          >
+            Back
+          </GuardedLink>
 
-        <h1 className="mb-4 font-serif text-[22px] font-medium tracking-tight text-foreground">
-          Dashboard
-        </h1>
+          <h1 className="mb-4 font-serif text-[22px] font-medium tracking-tight text-foreground">
+            Dashboard
+          </h1>
 
-        <nav className="flex flex-col gap-px">
-          {DASHBOARD_NAV.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
-            return (
-              <GuardedLink
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={navItemClass(active)}
-              >
-                <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                <span className="truncate">{label}</span>
-              </GuardedLink>
-            );
-          })}
-          <SystemNav pathname={pathname} updatesEnabled={updatesEnabled} />
-        </nav>
-      </div>
-      <PreflightBar />
-      <SourceLink source={source} className="mt-3 shrink-0 px-2.5" />
-    </aside>
+          <nav className="flex flex-col gap-px">
+            {DASHBOARD_NAV.map(({ href, label, icon: Icon }) => {
+              const active = pathname === href;
+              return (
+                <GuardedLink
+                  key={href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={navItemClass(active)}
+                >
+                  <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span className="truncate">{label}</span>
+                </GuardedLink>
+              );
+            })}
+            <SystemNav pathname={pathname} updatesEnabled={updatesEnabled} />
+          </nav>
+        </div>
+        <PreflightBar />
+        <SourceLink source={source} className="mt-3 shrink-0 px-2.5" />
+      </aside>
+    </ResponsiveAside>
   );
 }

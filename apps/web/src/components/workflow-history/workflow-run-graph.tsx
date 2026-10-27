@@ -19,8 +19,10 @@ import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { flowEdges } from "@/components/workflow-graph/edges";
+import { graphFitOptions } from "@/components/workflow-graph/fit";
 import { NodeCard } from "@/components/workflow-graph/node-card";
 import { runOverlay } from "@/components/workflow-graph/overlay";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { resolveLabelName } from "@/mail/label-meta";
 import type { WorkflowRunDetail } from "@/server/schema";
 
@@ -97,6 +99,7 @@ export function WorkflowRunGraph({
   const edges = useMemo(() => flowEdges(run.graph, overlay, { editable: false }), [run, overlay]);
   const coarse = useCoarsePointer();
   const { resolvedTheme } = useTheme();
+  const isMobile = useIsMobile();
   const [moving, setMoving] = useState(false);
   const locked = coarse && !moving;
   const [nodes, setNodes, onNodesChange] = useNodesState<RunGraphNode>(built);
@@ -146,7 +149,7 @@ export function WorkflowRunGraph({
           preventScrolling={false}
           minZoom={0.2}
           fitView
-          fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.2 }}
+          fitViewOptions={graphFitOptions(isMobile, nodes, edges)}
           proOptions={{ hideAttribution: true }}
           colorMode={resolvedTheme === "dark" ? "dark" : "light"}
           className={cn("bg-background", locked && "[&_.react-flow__pane]:!touch-auto")}

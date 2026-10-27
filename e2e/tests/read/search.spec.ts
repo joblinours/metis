@@ -138,6 +138,9 @@ test("on a phone search is a full-height sheet without the preview pane", async 
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(mailPath(account));
+  await expect(
+    page.getByRole("main").getByRole("button", { name: "Open sidebar", exact: true }),
+  ).toBeVisible();
   const dialog = await openSearch(page);
   await typeQuery(page, "rebrand");
   await expect(result(page, /Rebrand kickoff/)).toBeVisible();

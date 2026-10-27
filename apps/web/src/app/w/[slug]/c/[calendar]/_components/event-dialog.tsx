@@ -33,7 +33,7 @@ import { useCalendar } from "./calendar-context";
 import { DatePicker, TimePicker } from "./date-time-field";
 
 const FIELD_CLASS =
-  "border-0 border-b border-border bg-transparent px-0 focus-visible:border-primary focus-visible:ring-0";
+  "rounded-none border-0 border-b border-border bg-transparent px-2.5 text-[13px] focus-visible:border-primary focus-visible:ring-0";
 
 type GuestRow = { email: string };
 

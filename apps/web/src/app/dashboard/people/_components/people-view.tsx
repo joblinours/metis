@@ -8,16 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@metis/ui/components/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@metis/ui/components/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@metis/ui/components/table";
 import { Loader2 } from "lucide-react";
 
+import { ScrollTable } from "@/components/dashboard/scroll-table";
 import { useSystemData } from "@/components/dashboard/system-client";
 import { rpc } from "@/lib/orpc";
 import type { DashboardPeople } from "@/server/schema";
@@ -92,7 +86,7 @@ export function PeopleView() {
           ) : data.recentUsers.length === 0 ? (
             <p className="py-6 text-center text-[13px] text-faint">No accounts yet.</p>
           ) : (
-            <Table className="text-[13px]">
+            <ScrollTable className="text-[13px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -119,7 +113,7 @@ export function PeopleView() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </ScrollTable>
           )}
         </div>
       </section>

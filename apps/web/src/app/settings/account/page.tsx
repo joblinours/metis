@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@/auth/client";
+import { PageHeader } from "@/components/page-header";
 import { SessionsSection } from "@/components/sessions-section";
 
 import { DataExportSection } from "./_components/data-export-section";
@@ -16,10 +17,10 @@ export default function AccountSettingsPage() {
 
   return (
     <div>
-      <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">Account</h1>
-      <p className="mt-1 text-[13px] text-faint">
-        Your Metis Suite account, signed-in devices and data export.
-      </p>
+      <PageHeader
+        title="Account"
+        description="Your Metis Suite account, signed-in devices and data export."
+      />
 
       <section className="mt-8 rounded-xl border border-border bg-surface p-4">
         <h2 className="text-[13px] font-medium text-foreground">Profile</h2>

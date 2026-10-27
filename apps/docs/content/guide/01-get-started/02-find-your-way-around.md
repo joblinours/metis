@@ -73,7 +73,7 @@ The accent color of a workspace is a workspace setting. See [Workspaces](/guide/
 
 ## Settings
 
-Open your user menu and click **Settings**. The settings page has a list of sections on the left. On a phone, the list becomes a row you can scroll sideways.
+Open your user menu and click **Settings**. The settings page has a list of sections on the left. On a phone, the list is hidden. Tap the **Open sidebar** icon, beside **Settings** in the small bar at the top of the page, to open it. The list closes after you pick a section.
 
 <img src="/images/get-started/settings.png" alt="The settings sidebar with its list of sections" class="dark:hidden" />
 <img src="/images/get-started/settings-dark.png" alt="The settings sidebar with its list of sections" class="hidden dark:block" />

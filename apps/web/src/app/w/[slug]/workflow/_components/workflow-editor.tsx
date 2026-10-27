@@ -54,6 +54,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { ChordHint } from "@/components/chord-hint";
+import { MobileAsideTrigger } from "@/components/mobile-aside";
 import { ShortcutsHelp, type ShortcutRow } from "@/components/shortcuts-help";
 import type { GraphOverlay } from "@/components/workflow-graph/overlay";
 import { type ChordBindings, isTypingTarget, useChord } from "@/hooks/use-chord";
@@ -423,6 +424,7 @@ function EditorShell({
 
   const topBar = (
     <div className="flex shrink-0 flex-wrap items-center gap-2 border-border border-b bg-panel px-2 py-1.5">
+      <MobileAsideTrigger className="size-8 shrink-0" />
       {!isMobile && (
         <IconButton
           label={paletteOpen ? "Hide steps" : "Show steps"}
@@ -536,8 +538,12 @@ function EditorShell({
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-border border-b px-2">
         <TabsList variant="line" className="h-full">
-          <TabsTrigger value="runs">Runs</TabsTrigger>
-          <TabsTrigger value="test">Test run</TabsTrigger>
+          <TabsTrigger value="runs" onClick={() => openDock("runs")}>
+            Runs
+          </TabsTrigger>
+          <TabsTrigger value="test" onClick={() => openDock("test")}>
+            Test run
+          </TabsTrigger>
         </TabsList>
         {overlayState.source && (
           <span className="ml-auto flex items-center gap-1 text-[12px] text-muted-foreground">
@@ -562,14 +568,14 @@ function EditorShell({
           {dockOpen ? <ChevronDown /> : <ChevronUp />}
         </IconButton>
       </div>
-      <TabsContent value="runs" className="min-h-0 flex-1">
+      <TabsContent value="runs" className={cn("min-h-0 flex-1", !dockOpen && "hidden")}>
         <RunsPanel
           selectedRunId={selectedRunId}
           onSelectRun={setSelectedRunId}
           revision={workflow?.revision ?? null}
         />
       </TabsContent>
-      <TabsContent value="test" keepMounted className="min-h-0 flex-1">
+      <TabsContent value="test" keepMounted className={cn("min-h-0 flex-1", !dockOpen && "hidden")}>
         <TestPanel />
       </TabsContent>
     </Tabs>

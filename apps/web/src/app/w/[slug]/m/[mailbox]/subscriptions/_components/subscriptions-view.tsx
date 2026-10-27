@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellOff, Check, ExternalLink, Loader2, MailX, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
+import { MobileAsideTrigger } from "@/components/mobile-aside";
 import { useMailboxScope } from "@/hooks/use-workspace-path";
 import { orpc, rpc } from "@/lib/orpc";
 import { refreshQuery } from "@/lib/query-client";
@@ -144,11 +145,12 @@ export function SubscriptionsView() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-soft px-6 py-4">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-soft px-6 py-4">
+        <MobileAsideTrigger className="-ml-1.5 size-8 shrink-0" />
         <MailX className="h-4 w-4 text-primary" strokeWidth={1.8} />
         <h1 className="text-[18px] font-medium tracking-tight font-serif">Subscriptions</h1>
         {!loading && (
-          <span className="text-[12px] text-faint">
+          <span className="text-[12px] text-faint max-md:order-last max-md:w-full">
             {senders.length} {senders.length === 1 ? "sender" : "senders"} found in your latest{" "}
             {scanned} inbox emails
           </span>
@@ -218,7 +220,7 @@ export function SubscriptionsView() {
                   <div
                     key={s.senderEmail}
                     className={cn(
-                      "flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3",
+                      "flex flex-wrap items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3",
                       done && "opacity-60",
                     )}
                   >
@@ -231,9 +233,9 @@ export function SubscriptionsView() {
                       aria-label={`Select ${s.senderName || s.senderEmail}`}
                     />
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-[13px] font-medium text-foreground">
+                    <div className="min-w-48 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="max-w-full truncate text-[13px] font-medium text-foreground">
                           {s.senderName || s.senderEmail}
                         </span>
                         <span className="shrink-0 rounded-full bg-active px-1.5 text-[11px] tabular-nums text-muted-foreground">
@@ -262,7 +264,7 @@ export function SubscriptionsView() {
                       )}
                     </div>
 
-                    <div className="flex shrink-0 items-center">
+                    <div className="ml-auto flex shrink-0 items-center">
                       {done ? (
                         <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-primary">
                           <Check className="h-3 w-3" strokeWidth={2.5} />

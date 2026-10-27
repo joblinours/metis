@@ -18,6 +18,7 @@ export function OnceForm({ node, patch }: StepFormProps<"trigger.once">) {
     <Field>
       <FieldLabel htmlFor="step-at">Fires at</FieldLabel>
       <Input
+        className="text-[13px]"
         id="step-at"
         type="datetime-local"
         value={localDateTimeValue(node.at)}

@@ -1,17 +1,11 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@metis/ui/components/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@metis/ui/components/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@metis/ui/components/table";
 import { cn } from "@metis/ui/lib/utils";
 import { Loader2 } from "lucide-react";
 
+import { ScrollTable } from "@/components/dashboard/scroll-table";
 import { useSystemData } from "@/components/dashboard/system-client";
 import { ACCOUNT_PROVIDER_META } from "@/components/provider-meta";
 import { CONNECTION_PROVIDERS } from "@/connections/types";
@@ -121,7 +115,7 @@ export function ConnectionsView() {
         ) : data.byProvider.length === 0 ? (
           <Empty label="No connections yet." />
         ) : (
-          <Table className="text-[13px]">
+          <ScrollTable className="text-[13px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Provider</TableHead>
@@ -152,7 +146,7 @@ export function ConnectionsView() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </ScrollTable>
         )}
       </Section>
 
@@ -165,7 +159,7 @@ export function ConnectionsView() {
         ) : data.quarantinedList.length === 0 ? (
           <Empty label="Nothing is quarantined." />
         ) : (
-          <Table className="text-[13px]">
+          <ScrollTable className="text-[13px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Account</TableHead>
@@ -188,7 +182,7 @@ export function ConnectionsView() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </ScrollTable>
         )}
       </Section>
     </div>

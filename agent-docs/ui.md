@@ -38,6 +38,12 @@ See also [AGENTS.md](../AGENTS.md), [shortcuts.md](shortcuts.md), [desktop.md](d
 - **Generated primitives, `_components/` imports and the `cn` import follow [AGENTS.md](../AGENTS.md) §2 and §4.**
 - **`cn` is shadcn's `cn` package, re-exported from `packages/ui/src/lib/utils.ts`.** Every `components.json` pins the `utils` alias to `@metis/ui/lib/utils`, so `shadcn add` writes its imports there.
 - **A combobox chip's remove button must have a name.** The generated `ComboboxChip` renders an unnamed remove button, so removable chips use `RemovableChip` (`src/components/removable-chip.tsx`): the primitive with `showRemove={false}` plus a `ChipRemove` labeled "Remove <label>".
+- **A `Sheet` sized by its own class sets it on the side variant** (`data-[side=bottom]:h-dvh`, `data-[side=left]:w-72`): the primitive's `data-[side=…]` sizes outrank a plain `h-*` or `w-*` class.
+- **Text fields render the size their call site gives them; nothing forces 16px.**
+  - iOS zooms into a focused field under 16px, so `src/app/layout.tsx` → `generateViewport` sends `maximumScale: 1` to iPhone, iPad and iPod user agents only; iOS still allows pinch zoom, and Android, which never zooms on focus, keeps pinch zoom untouched.
+  - The generated `Input` and `Textarea` default to `text-base md:text-sm`, so every call site sets its own size (`text-[13px]` for forms, `text-sm` for chat composers).
+- **Page titles use `PageHeader`** (`src/components/page-header.tsx`): the title with its action on one row and the description full width below, wrapping the action under the title only when the row runs out of room. Every settings, workspace-settings, dashboard and members page uses it; profile headers (an MCP client, a member) keep their own layout.
+- **The generated `CommandItem` always renders a trailing check icon**, invisible until the item is checked, and it keeps its width; search result rows hide it on phones (`src/components/search/result-row.tsx`).
 - **Overlays are dialogs.** Anything that covers the page has `role="dialog"`, `aria-modal` and an accessible name: through the shadcn `Dialog`, or set explicitly on a bespoke shell such as the compose window.
 
 ### Brand and theme
@@ -51,11 +57,15 @@ See also [AGENTS.md](../AGENTS.md), [shortcuts.md](shortcuts.md), [desktop.md](d
 ### Shells and the source link
 
 - **`MailShell` is the mail surface's chrome, and only `m/[mailbox]/layout.tsx` mounts it.** It holds the folder sidebar, the resizable folders / main / agent panels, the compose dialog, message drag-and-drop, and the mail chords and help. The workflow builder, the assistant, calendar and drive bring their own shells.
+- **On phones, a surface's aside is a sheet opened from the surface's own titlebar, never from the rail.**
+  - `ResponsiveAside` (`src/components/mobile-aside.tsx`) turns the aside into a left `Sheet` below `48rem`; `MobileAsideTrigger` sits first in the surface's header and renders only while an aside is registered.
+  - The headers that carry it: the mail list and the scheduled, snoozed and subscriptions views, `CalendarHeader`, `DriveToolbar`, the workflow editor's top bar and the assistant header.
+  - `/settings`, `/w/[slug]/settings` and `/dashboard` follow the same pattern: their sidebar is the aside, and `MobileSectionBar` (`src/components/mobile-section-bar.tsx`) at the top of the page carries the trigger and the section name. `/settings` and `/dashboard` sit outside the `/w` layout, so their layouts mount their own `MobileAsideProvider`.
 - **Every page shows an always-visible link to the source with the running version, outside any menu.**
   - AGPL §13 binds anyone who runs a modified version for network users to prominently offer its source, so the link ships in the product; the operator points it at their own source with `METIS_SOURCE_URL` ([configuration.md](configuration.md)).
   - A new surface with no rail or sidebar goes under `src/app/(auth)/`, whose layout lays a transparent footer over the bottom of the page and pads the page's first element so a tall form never runs under it.
-  - `/settings` and `/dashboard` put the full line at the bottom of their sidebar.
-  - Every `/w/*` surface, including `/w/[slug]/settings`, shows a compact `GitBranch` icon and version at the bottom of the rail, which stays on screen on phones, where the section aside becomes a sheet.
+  - `/settings` and `/dashboard` put the full line at the bottom of their sidebar, and on phones, where the sidebar is a sheet, in `MobileSectionBar` beside the section name.
+  - Every `/w/*` surface, including `/w/[slug]/settings`, shows a compact `GitBranch` icon and version at the bottom of the rail, which stays on screen on phones.
   - The icon is `GitBranch` because a fork's source may live on any host; the link points at the configured URL exactly as set.
   - The version is `apps/web/package.json` → `version` ([deployment.md](deployment.md)).
 

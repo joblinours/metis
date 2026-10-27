@@ -6,6 +6,7 @@ import { ChevronRight, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { useMemberAdmin } from "@/components/members/member-admin";
+import { PageHeader } from "@/components/page-header";
 import { useWorkspaceAccess } from "@/components/workspace-access";
 import { useWorkspaceSlug } from "@/hooks/use-workspace-path";
 import { useWorkspaces } from "@/hooks/use-workspaces";
@@ -60,23 +61,20 @@ export default function MembersPage() {
   return (
     <div className="h-full min-w-0 flex-1 overflow-y-auto">
       <main className="mx-auto max-w-3xl px-6 py-10 max-md:px-4 max-md:py-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-              Members
-            </h1>
-            <p className="mt-1 text-[13px] text-faint">
-              Everyone in {workspace?.name ?? "this workspace"}.
-            </p>
-          </div>
-          {isAdmin && workspace && (
-            <InviteMembersDialog
-              workspaceSlug={workspaceSlug}
-              workspaceName={workspace.name}
-              onInvited={load}
-            />
-          )}
-        </div>
+        <PageHeader
+          title="Members"
+          description={`Everyone in ${workspace?.name ?? "this workspace"}.`}
+          action={
+            isAdmin &&
+            workspace && (
+              <InviteMembersDialog
+                workspaceSlug={workspaceSlug}
+                workspaceName={workspace.name}
+                onInvited={load}
+              />
+            )
+          }
+        />
 
         {admin.error && <p className="mt-4 text-xs text-destructive-text">{admin.error}</p>}
 

@@ -1,4 +1,4 @@
-import NetInfo from "@react-native-community/netinfo";
+import { addEventListener } from "@react-native-community/netinfo";
 import { AppState, Linking } from "react-native";
 
 import { log } from "./log";
@@ -10,7 +10,7 @@ export function startShell() {
   if (started) return;
   started = true;
 
-  NetInfo.addEventListener((state) => {
+  addEventListener((state) => {
     setNetworkOnline(state.isConnected !== false);
   });
 

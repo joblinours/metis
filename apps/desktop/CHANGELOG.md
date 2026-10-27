@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Linux builds ship as `.deb` and `.rpm`; the AppImage is gone.
+- Runs on Electron 45.
 
 ## 0.1.0 - 2026-10-24
 

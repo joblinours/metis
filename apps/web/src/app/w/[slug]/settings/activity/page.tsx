@@ -3,6 +3,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { AuditEventList, auditPages, useAuditFilter } from "@/components/audit-event-list";
+import { PageHeader } from "@/components/page-header";
 import { useWorkspaceAccess } from "@/components/workspace-access";
 import { useWorkspaceSlug } from "@/hooks/use-workspace-path";
 import { rpc } from "@/lib/orpc";
@@ -22,13 +23,10 @@ export default function WorkspaceActivityPage() {
 
   return (
     <div>
-      <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-        Activity
-      </h1>
-      <p className="mt-1 text-[13px] text-faint">
-        Role changes, ownership transfers, removed members, invites and detached mailboxes,
-        calendars and drives in this workspace.
-      </p>
+      <PageHeader
+        title="Activity"
+        description="Role changes, ownership transfers, removed members, invites and detached mailboxes, calendars and drives in this workspace."
+      />
 
       <div className="mt-6 rounded-xl border border-border bg-surface p-4">
         {canSee ? (

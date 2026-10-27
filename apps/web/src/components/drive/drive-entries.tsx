@@ -188,7 +188,7 @@ const metaVariants = cva("text-[11px] text-faint", {
 
 const sizeVariants = cva("shrink-0", {
   variants: {
-    view: { list: "w-24 text-right", grid: "" },
+    view: { list: "w-24 text-right max-md:hidden", grid: "" },
     folder: { true: "", false: "" },
   },
   compoundVariants: [{ view: "list", folder: true, className: "opacity-0" }],
@@ -200,7 +200,7 @@ const metaSeparatorVariants = cva("", {
 
 const dateVariants = cva("", {
   variants: {
-    view: { list: "w-28 shrink-0 text-right", grid: "min-w-0 truncate" },
+    view: { list: "shrink-0 text-right md:w-28", grid: "min-w-0 truncate" },
   },
 });
 

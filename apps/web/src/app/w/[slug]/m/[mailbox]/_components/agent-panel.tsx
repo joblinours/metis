@@ -295,7 +295,7 @@ export function AgentPanel() {
           }}
         >
           <PromptInputBody>
-            <PromptInputTextarea placeholder="Ask about your emails…" />
+            <PromptInputTextarea className="text-sm" placeholder="Ask about your emails…" />
           </PromptInputBody>
           <PromptInputFooter>
             <div className="flex items-center gap-1">

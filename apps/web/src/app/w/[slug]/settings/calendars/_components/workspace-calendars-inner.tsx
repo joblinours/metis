@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { AccountIdentity } from "@/components/account-identity";
 import { CalendarDialog } from "@/components/calendar-dialog";
 import { useConnectServers } from "@/components/connect-servers-context";
+import { PageHeader } from "@/components/page-header";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
 import { attachPolicyNotice, overrideLabel, PolicyBadge } from "@/components/policy-badge";
 import { AiMark, AiToggle } from "@/components/policy-icons";
@@ -161,12 +162,11 @@ export function WorkspaceCalendarsInner() {
 
   return (
     <TooltipProvider delay={200}>
-      <h1 className="mb-2 font-serif text-[28px] font-medium tracking-tight text-foreground">
-        Calendars
-      </h1>
-      <p className="mb-6 text-[13px] text-faint">
-        {`Connect your ${providerNames(configuredProviders, "account")} account once and pick which of its calendars this workspace can see.`}
-      </p>
+      <PageHeader
+        className="mb-6"
+        title="Calendars"
+        description={`Connect your ${providerNames(configuredProviders, "account")} account once and pick which of its calendars this workspace can see.`}
+      />
 
       {errorFromOAuth && (
         <div className="mb-6 rounded-lg border border-destructive/25 bg-destructive/8 px-4 py-3 text-[12px] text-destructive-text">
@@ -239,6 +239,7 @@ export function WorkspaceCalendarsInner() {
                     </div>
                   )}
                   <AccountIdentity
+                    className="min-w-40"
                     email={cal.email}
                     label={meta.label}
                     server={cal.server}

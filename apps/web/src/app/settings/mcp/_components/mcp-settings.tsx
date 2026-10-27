@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { McpClientEnableSwitch, McpClientRemoveButton } from "@/components/mcp-client-actions";
 import { McpPresetIcon } from "@/components/mcp-preset-icon";
+import { PageHeader } from "@/components/page-header";
 import { rpc } from "@/lib/orpc";
 import { refreshQuery } from "@/lib/query-client";
 import { formatRelativeDate } from "@/lib/utils";
@@ -46,20 +47,11 @@ export function McpSettings({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 max-sm:flex-col">
-        <div>
-          <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-            MCP clients
-          </h1>
-          <p className="mt-1 text-[13px] text-faint">
-            Connect an AI client to the mailboxes, calendars and drives in your workspaces. Each one
-            gets its own credentials, its own tool permissions and its own list of workspaces —
-            there is no account-wide switch, so a client that is not listed here has no access. A
-            workspace with AI turned off is out of reach for every client.
-          </p>
-        </div>
-        <AddClientDialog onCreated={refresh} />
-      </div>
+      <PageHeader
+        title="MCP clients"
+        description="Connect an AI client to the mailboxes, calendars and drives in your workspaces. Each one gets its own credentials, its own tool permissions and its own list of workspaces — there is no account-wide switch, so a client that is not listed here has no access. A workspace with AI turned off is out of reach for every client."
+        action={<AddClientDialog onCreated={refresh} />}
+      />
 
       {error && (
         <div className="mt-5 rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-[13px] text-destructive-text">

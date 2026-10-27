@@ -67,6 +67,8 @@ See also [AGENTS.md](../AGENTS.md), [auth.md](auth.md), [configuration.md](confi
 - **Diffs show secrets only as changed or unchanged.**
 - **Every link out of a dashboard page is a `GuardedLink`.** While a page has unsaved changes it cancels the navigation (`Link`'s `onNavigate`) and shakes the save bar.
   - Closing or reloading the tab gets the browser's own leave dialog (`beforeunload`, attached only while dirty).
+- **Every dashboard table renders through `ScrollTable`** (`src/components/dashboard/scroll-table.tsx`): on phones its first column stays pinned and the right edge fades while columns remain off-screen; desktop gets the plain table.
+- **On phones the sidebar is a sheet opened from the page's section bar** ([ui.md](ui.md) → shells); the deploy-check bar lives in the sheet and the source link stays on the page.
 - **The sidebar fetches whether the Updates entry shows** (`dashboard.system.updatesEnabled`), because the layout is prerendered by `next build`, which would bake in the build's environment.
 
 ### Deploy checks

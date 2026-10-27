@@ -167,6 +167,7 @@ function PredicateEditor({
             className="w-32 shrink-0"
           />
           <Input
+            className="text-[13px]"
             aria-label="Value"
             value={node.value}
             onChange={(e) => onChange({ ...node, value: e.target.value })}

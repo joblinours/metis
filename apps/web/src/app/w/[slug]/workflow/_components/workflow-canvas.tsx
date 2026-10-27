@@ -30,7 +30,9 @@ import {
 } from "react";
 
 import { flowEdges } from "@/components/workflow-graph/edges";
+import { graphFitOptions } from "@/components/workflow-graph/fit";
 import { CATEGORY_COLOR } from "@/components/workflow-graph/node-meta";
+import { isMobileViewport, useIsMobile } from "@/hooks/use-is-mobile";
 import { CARD_WIDTH, flowHandle, layoutGraph } from "@/workflow/graph";
 import { kindCategory, nodeTitle } from "@/workflow/kinds";
 import {
@@ -124,7 +126,13 @@ export function useTidyLayout() {
     store
       .getState()
       .setGraph((graph) => layoutGraph(graph, (id) => rf.getNode(id)?.measured?.height ?? 120));
-    requestAnimationFrame(() => void rf.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }));
+    requestAnimationFrame(
+      () =>
+        void rf.fitView({
+          ...graphFitOptions(isMobileViewport(), rf.getNodes(), rf.getEdges()),
+          duration: 200,
+        }),
+    );
   }, [rf, store]);
 }
 
@@ -135,6 +143,7 @@ export function WorkflowCanvas() {
   const canvas = useContext(CanvasElementContext);
   const { overlay, live: animate } = useOverlay();
   const { resolvedTheme } = useTheme();
+  const isMobile = useIsMobile();
   const addStep = useAddStep();
   const tidy = useTidyLayout();
   const [minimap, setMinimap] = useState(true);
@@ -259,7 +268,7 @@ export function WorkflowCanvas() {
         minZoom={0.2}
         maxZoom={1.5}
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+        fitViewOptions={graphFitOptions(isMobile, nodes, edges)}
         proOptions={{ hideAttribution: true }}
         colorMode={resolvedTheme === "dark" ? "dark" : "light"}
         className="bg-background"

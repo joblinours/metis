@@ -134,6 +134,7 @@ function McpToolTier({
             <Search className="size-3.5 text-faint" />
           </InputGroupAddon>
           <InputGroupInput
+            className="text-[13px]"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

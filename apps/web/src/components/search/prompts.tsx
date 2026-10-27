@@ -168,6 +168,7 @@ export function useSearchPrompts(workspaceSlug: string): {
             }}
           >
             <Input
+              className="text-[13px]"
               autoFocus
               aria-label={text?.opts.label}
               value={value}

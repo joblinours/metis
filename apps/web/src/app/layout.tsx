@@ -4,6 +4,7 @@ import { cn } from "@metis/ui/lib/utils";
 import "@/lib/orpc.server";
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, DM_Mono, DM_Sans } from "next/font/google";
+import { headers } from "next/headers";
 
 import "@/styles/globals.css";
 import { PlatformPolicyProvider } from "@/components/platform-policy-context";
@@ -41,11 +42,17 @@ export const metadata: Metadata = {
   description: "Smart mail client with AI assistant",
 };
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  interactiveWidget: "resizes-content",
-};
+const IOS_USER_AGENT = /\b(iPhone|iPad|iPod)\b/;
+
+export async function generateViewport(): Promise<Viewport> {
+  const userAgent = (await headers()).get("user-agent") ?? "";
+  return {
+    width: "device-width",
+    initialScale: 1,
+    interactiveWidget: "resizes-content",
+    ...(IOS_USER_AGENT.test(userAgent) && { maximumScale: 1 }),
+  };
+}
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const themeBrand = await resolveThemeBrand();

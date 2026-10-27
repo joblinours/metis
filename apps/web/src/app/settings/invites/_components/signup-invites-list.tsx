@@ -7,6 +7,7 @@ import { Loader2, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { PageHeader } from "@/components/page-header";
 import { orpc, rpc } from "@/lib/orpc";
 import { refreshQuery } from "@/lib/query-client";
 import { createSignupInviteInputSchema, type SignupInvite } from "@/server/schema";
@@ -76,10 +77,10 @@ export function SignupInvitesList() {
 
   return (
     <div>
-      <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">Invites</h1>
-      <p className="mt-1 text-[13px] text-faint">
-        Invite someone to create an account on this instance.
-      </p>
+      <PageHeader
+        title="Invites"
+        description="Invite someone to create an account on this instance."
+      />
 
       <section className="mt-8 rounded-xl border border-border bg-surface p-4">
         <h2 className="text-[13px] font-medium text-foreground">Invite someone</h2>

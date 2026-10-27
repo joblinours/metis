@@ -241,7 +241,7 @@ export function CalendarAgentPanel({ onClose }: { onClose: () => void }) {
           }}
         >
           <PromptInputBody>
-            <PromptInputTextarea placeholder="Ask about your calendar…" />
+            <PromptInputTextarea className="text-sm" placeholder="Ask about your calendar…" />
           </PromptInputBody>
           <PromptInputFooter>
             <div className="flex items-center gap-1">

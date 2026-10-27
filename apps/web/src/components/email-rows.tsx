@@ -99,6 +99,7 @@ export function EmailRows<T extends { email: string }>({
               <Mail className="size-3.5 text-faint" />
             </InputGroupAddon>
             <InputGroupInput
+              className="text-[13px]"
               ref={(node) => {
                 inputs.current[index] = node;
               }}

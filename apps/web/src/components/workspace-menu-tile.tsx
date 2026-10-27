@@ -60,7 +60,7 @@ export function WorkspaceMenuTile({ workspace, workspaceSlug }: WorkspaceMenuTil
             />
           }
         />
-        <TooltipContent side="right">
+        <TooltipContent side="right" className="pointer-coarse:hidden">
           {name}
           {workspace && <span className="text-muted-foreground">· {workspace.role}</span>}
         </TooltipContent>

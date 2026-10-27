@@ -81,6 +81,7 @@ function ItemRows({
         <div key={item.id} className="flex flex-col gap-1.5 rounded-md border border-border p-2">
           <div className="flex items-center gap-1.5">
             <Input
+              className="text-[13px]"
               aria-label={placeholder}
               value={item.name}
               onChange={(e) => update(index, { name: e.target.value })}
@@ -98,6 +99,7 @@ function ItemRows({
             )}
           </div>
           <Input
+            className="text-[13px]"
             aria-label="When it applies"
             value={item.description ?? ""}
             onChange={(e) => update(index, { description: e.target.value || undefined })}
@@ -144,7 +146,7 @@ export function QuestionEditor({
         value={question.instructions}
         onChange={(e) => onChange({ ...question, instructions: e.target.value })}
         placeholder="Is this email a request for a refund?"
-        className="min-h-16"
+        className="min-h-16 text-[13px]"
       />
       {question.type === "choice" && (
         <>

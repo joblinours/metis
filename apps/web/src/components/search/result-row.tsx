@@ -205,7 +205,11 @@ export function ResultRow({
   const row = describe(item);
   const patterns = patternsFor(matcher, row);
   return (
-    <CommandItem value={item.key} onSelect={onSelect} className="group/row items-start gap-3 py-2">
+    <CommandItem
+      value={item.key}
+      onSelect={onSelect}
+      className="group/row items-start gap-3 py-2 max-md:[&>svg:last-child]:hidden"
+    >
       <span className="mt-0.5 flex size-4 items-center justify-center">
         <ItemIcon item={item} />
       </span>

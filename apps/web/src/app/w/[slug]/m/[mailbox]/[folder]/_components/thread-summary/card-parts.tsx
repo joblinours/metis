@@ -20,7 +20,7 @@ export function CardShell({
   children: ReactNode;
 }) {
   return (
-    <div className="@container rounded-lg border border-primary/22 bg-primary/8 px-3.5 py-3">
+    <div className="@container rounded-lg border border-primary/22 bg-primary/8 px-3.5 py-3 wrap-anywhere">
       <div className="mb-1.5 flex items-center gap-1.5">
         <Icon className="size-3.5 text-primary" />
         <span className="text-[10px] font-medium uppercase tracking-[1.5px] text-primary">

@@ -12,6 +12,8 @@ import { Button } from "@metis/ui/components/button";
 import { Input } from "@metis/ui/components/input";
 import { Bot, FolderPlus, LayoutGrid, List, Search, Upload } from "lucide-react";
 
+import { MobileAsideTrigger } from "@/components/mobile-aside";
+
 import type { DriveView } from "./drive-entries";
 
 export interface Crumb {
@@ -46,6 +48,7 @@ export function DriveToolbar({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
+      <MobileAsideTrigger className="-ml-1.5 size-8 shrink-0" />
       <Breadcrumb className="min-w-40 flex-1 overflow-hidden">
         <BreadcrumbList>
           {crumbs.map((crumb, index) => {

@@ -39,7 +39,7 @@ interface MailShellProps {
 
 export function MailShell({ children }: MailShellProps) {
   const { armed, bindings, helpOpen, setHelpOpen } = useKeyboardShortcuts();
-  const { agentOpen } = useMailStore();
+  const { agentOpen, composeOpen } = useMailStore();
   const { groupRef, onLayoutChanged } = useSavedLayout(
     "metis-suite-shell-layout",
     agentOpen ? ["folders", "main", "agent"] : ["folders", "main"],
@@ -63,7 +63,7 @@ export function MailShell({ children }: MailShellProps) {
       <div className="flex h-full min-w-0 flex-1 overflow-hidden bg-background">
         {isMobile ? (
           <>
-            <ResponsiveAside label="Mail folders">
+            <ResponsiveAside label="Mail folders" closeKey={composeOpen ? "compose" : undefined}>
               <Sidebar />
             </ResponsiveAside>
             <main className="flex h-full min-w-0 flex-1 overflow-hidden">{children}</main>

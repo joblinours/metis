@@ -66,7 +66,7 @@ export function WorkflowHistoryView() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-border-soft border-b px-6 py-4">
+      <header className="flex shrink-0 flex-wrap items-center gap-3 border-border-soft border-b px-6 py-4">
         <Button
           aria-label="Back to workflows"
           nativeButton={false}
@@ -79,7 +79,7 @@ export function WorkflowHistoryView() {
         <div className="flex size-9 items-center justify-center rounded-lg bg-brand-soft">
           <History className="size-4.5 text-brand-text" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-40 flex-1">
           <h1 className="font-medium font-serif text-foreground text-lg">Workflow activity</h1>
           <p className="text-faint text-xs">
             Every workflow run in this workspace — refreshes automatically.
@@ -92,7 +92,7 @@ export function WorkflowHistoryView() {
             if (v) setWorkflowFilter(v);
           }}
         >
-          <SelectTrigger className="min-w-44">
+          <SelectTrigger className="min-w-44 max-md:w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

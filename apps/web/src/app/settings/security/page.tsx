@@ -28,6 +28,7 @@ import { useEffect, useState } from "react";
 import { authClient, useSession } from "@/auth/client";
 import { extractTotpSecret } from "@/auth/two-factor-code";
 import { BackupCodesCard } from "@/components/backup-codes-card";
+import { PageHeader } from "@/components/page-header";
 import { TwoFactorInput } from "@/components/two-factor-input";
 import { useTwoFactorCode } from "@/hooks/use-two-factor-code";
 
@@ -184,12 +185,10 @@ export default function SecuritySettingsPage() {
 
   return (
     <div>
-      <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-        Security
-      </h1>
-      <p className="mt-1 text-[13px] text-faint">
-        Manage two-factor authentication, your password and sign-in alerts.
-      </p>
+      <PageHeader
+        title="Security"
+        description="Manage two-factor authentication, your password and sign-in alerts."
+      />
 
       {!twoFactorEnabled ? (
         <div className="mt-8 rounded-xl border border-border bg-surface p-4">
@@ -210,7 +209,10 @@ export default function SecuritySettingsPage() {
               Generates a fresh set of one-time codes. Your previous backup codes stop working
               immediately; your authenticator app is not affected.
             </p>
-            <form className="mt-3 flex gap-2" onSubmit={regenerateCodes}>
+            <form
+              className="mt-3 flex flex-col items-start gap-2 sm:flex-row"
+              onSubmit={regenerateCodes}
+            >
               <Input
                 type="password"
                 placeholder="Account password"
@@ -218,7 +220,7 @@ export default function SecuritySettingsPage() {
                 value={regenSecret}
                 onChange={(e) => setRegenSecret(e.target.value)}
                 disabled={regenBusy}
-                className="max-w-60"
+                className="sm:max-w-60 text-[13px]"
               />
               <Button
                 type="submit"
@@ -245,7 +247,7 @@ export default function SecuritySettingsPage() {
               Shows the QR code for your existing secret so you can scan it with a second
               authenticator. Devices already set up keep working.
             </p>
-            <form className="mt-3 flex gap-2" onSubmit={revealQr}>
+            <form className="mt-3 flex flex-col items-start gap-2 sm:flex-row" onSubmit={revealQr}>
               <Input
                 type="password"
                 placeholder="Account password"
@@ -253,7 +255,7 @@ export default function SecuritySettingsPage() {
                 value={qrSecret}
                 onChange={(e) => setQrSecret(e.target.value)}
                 disabled={qrBusy}
-                className="max-w-60"
+                className="sm:max-w-60 text-[13px]"
               />
               <Button type="submit" variant="outline" disabled={qrBusy || qrSecret.length === 0}>
                 Show QR code
@@ -291,14 +293,17 @@ export default function SecuritySettingsPage() {
             <p className="mt-1 text-[12px] text-faint">
               Requires your current password. Other sessions are signed out.
             </p>
-            <form onSubmit={openPwDialog} className="mt-3 flex gap-2">
+            <form
+              onSubmit={openPwDialog}
+              className="mt-3 flex flex-col items-start gap-2 sm:flex-row"
+            >
               <Input
                 type="password"
                 value={pwCurrent}
                 onChange={(e) => setPwCurrent(e.target.value)}
                 placeholder="Current password"
                 autoComplete="current-password"
-                className="max-w-60"
+                className="sm:max-w-60 text-[13px]"
                 disabled={pwBusy}
               />
               <Input
@@ -307,7 +312,7 @@ export default function SecuritySettingsPage() {
                 onChange={(e) => setPwNew(e.target.value)}
                 placeholder="New password"
                 autoComplete="new-password"
-                className="max-w-60"
+                className="sm:max-w-60 text-[13px]"
                 disabled={pwBusy}
               />
               <Button
@@ -341,7 +346,7 @@ export default function SecuritySettingsPage() {
               Turns off two-factor sign-in and deletes your backup codes. Mail access requires 2FA,
               so you'll be taken back to setup.
             </p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row">
               <Input
                 type="password"
                 placeholder="Account password"
@@ -349,7 +354,7 @@ export default function SecuritySettingsPage() {
                 value={disableSecret}
                 onChange={(e) => setDisableSecret(e.target.value)}
                 disabled={disableBusy}
-                className="max-w-60"
+                className="sm:max-w-60 text-[13px]"
               />
               <Button
                 variant="destructive"

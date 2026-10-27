@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { PageHeader } from "@/components/page-header";
 import { updateCachedPreferences, useUserPreferences } from "@/hooks/use-preferences";
 import { orpc } from "@/lib/orpc";
 import type { UserPreferences } from "@/server/schema";
@@ -108,11 +109,10 @@ export function PrivacySettings({ imageProxy }: { imageProxy: boolean }) {
 
   return (
     <div>
-      <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">Privacy</h1>
-      <p className="mt-1 text-[13px] text-faint">
-        How messages you open talk to their senders. These choices are yours alone and follow you
-        across every mailbox and workspace.
-      </p>
+      <PageHeader
+        title="Privacy"
+        description="How messages you open talk to their senders. These choices are yours alone and follow you across every mailbox and workspace."
+      />
 
       <div className="mt-8 flex flex-col gap-6">
         <section className="flex items-start justify-between gap-4 rounded-xl border border-border bg-surface p-4">

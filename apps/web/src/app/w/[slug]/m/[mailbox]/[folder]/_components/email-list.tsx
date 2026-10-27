@@ -36,6 +36,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { MobileAsideTrigger } from "@/components/mobile-aside";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
 import { useScopePolicy } from "@/components/scope-policy-context";
 import { useCustomLabels } from "@/hooks/use-custom-labels";
@@ -337,8 +338,9 @@ export function EmailList({ folder, view }: EmailListProps) {
         </div>
       )}
       <div className="shrink-0 border-b px-4.5 pb-3 pt-4.5 border-border-soft">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h1 className="text-[22px] font-medium leading-tight tracking-tight font-serif text-foreground">
+        <div className="mb-3 flex items-center gap-2">
+          <MobileAsideTrigger className="-ml-1.5 size-8 shrink-0" />
+          <h1 className="mr-auto text-[22px] font-medium leading-tight tracking-tight font-serif text-foreground">
             {folderLabel}
           </h1>
           {platformAi && (
@@ -506,7 +508,7 @@ export function EmailList({ folder, view }: EmailListProps) {
                 aria-selected={active}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "-mb-px border-b-2 px-3 pb-2 pt-1.5 text-xs transition-colors",
+                  "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 pb-2 pt-1.5 text-xs transition-colors",
                   active ? "border-primary text-primary" : "border-transparent text-faint",
                 )}
               >

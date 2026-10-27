@@ -146,6 +146,7 @@ function StepInspector({ node }: { node: WorkflowNode }) {
         <Field>
           <FieldLabel htmlFor={titleId}>Name</FieldLabel>
           <Input
+            className="text-[13px]"
             id={titleId}
             value={node.title ?? ""}
             maxLength={MAX_STEP_TITLE}

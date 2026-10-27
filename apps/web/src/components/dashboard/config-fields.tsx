@@ -90,6 +90,7 @@ function FieldInput({
       return (
         <div className="flex items-center gap-2">
           <Input
+            className="text-[13px]"
             id={id}
             type="password"
             autoComplete="new-password"
@@ -114,6 +115,7 @@ function FieldInput({
     default:
       return (
         <Input
+          className="text-[13px]"
           id={id}
           type={field.kind === "number" ? "number" : field.kind === "url" ? "url" : "text"}
           autoComplete="off"

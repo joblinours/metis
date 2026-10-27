@@ -1,6 +1,7 @@
 import { Badge } from "@metis/ui/components/badge";
 import { cn } from "@metis/ui/lib/utils";
 
+import { PageHeader } from "@/components/page-header";
 import type { DashboardSecret, SystemTone } from "@/server/schema";
 
 export function SystemPageHeader({
@@ -15,16 +16,13 @@ export function SystemPageHeader({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6">
-      {eyebrow && (
-        <p className="text-[11px] font-medium tracking-wide text-faint uppercase">{eyebrow}</p>
-      )}
-      <h1 className="flex items-center gap-2.5 font-serif text-[28px] font-medium tracking-tight text-foreground">
-        {icon}
-        {title}
-      </h1>
-      <p className="mt-1 text-[13px] text-faint">{description}</p>
-    </div>
+    <PageHeader
+      className="mb-6"
+      eyebrow={eyebrow}
+      icon={icon}
+      title={title}
+      description={description}
+    />
   );
 }
 

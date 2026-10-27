@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { AccountIdentity } from "@/components/account-identity";
 import { DriveDialog } from "@/components/drive-dialog";
+import { PageHeader } from "@/components/page-header";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
 import { RESOURCE_PROVIDER_META } from "@/components/provider-meta";
 import {
@@ -109,22 +110,18 @@ export function DrivesList() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[28px] font-medium tracking-tight text-foreground">
-            Drives
-          </h1>
-          <p className="mt-1 text-[13px] text-faint">
-            Every drive connected to your account, and which workspaces use it.
-          </p>
-        </div>
-        <DriveDialog connectHref={connectHref}>
-          <Button variant="outline" size="sm">
-            <Plus className="h-3.5 w-3.5" />
-            Connect drive
-          </Button>
-        </DriveDialog>
-      </div>
+      <PageHeader
+        title="Drives"
+        description="Every drive connected to your account, and which workspaces use it."
+        action={
+          <DriveDialog connectHref={connectHref}>
+            <Button variant="outline" size="sm">
+              <Plus className="h-3.5 w-3.5" />
+              Connect drive
+            </Button>
+          </DriveDialog>
+        }
+      />
 
       <div className="mt-6 flex flex-col gap-2">
         {drives === null && loadError ? (

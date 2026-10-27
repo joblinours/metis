@@ -87,7 +87,7 @@ export function HourGrid({ days }: { days: Date[] }) {
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex">
           <div className="relative w-16 shrink-0">
-            <span className="absolute top-1 right-2 text-[10px] text-faint">
+            <span className="absolute top-1 right-1 whitespace-nowrap text-[9px] text-faint">
               {viewerOffsetLabel()}
             </span>
             {hours.map((hour, index) => (

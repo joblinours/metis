@@ -11,12 +11,12 @@
     "screenshots": "node scripts/screenshots.ts"
   },
   "dependencies": {
-    "blume": "^1.7.3"
+    "blume": "^2.2.6"
   },
   "devDependencies": {
     "@astrojs/compiler-rs": "^0.5.2",
     "@playwright/test": "catalog:",
-    "astro": "^7.2.0",
+    "astro": "^7.4.2",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "zod": "catalog:"

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { AccountIdentity } from "@/components/account-identity";
 import { useConnectServers } from "@/components/connect-servers-context";
 import { DriveDialog } from "@/components/drive-dialog";
+import { PageHeader } from "@/components/page-header";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
 import { attachPolicyNotice, overrideLabel, PolicyBadge } from "@/components/policy-badge";
 import { AiMark, AiToggle } from "@/components/policy-icons";
@@ -124,12 +125,11 @@ export function WorkspaceDrivesInner() {
 
   return (
     <TooltipProvider delay={200}>
-      <h1 className="mb-2 font-serif text-[28px] font-medium tracking-tight text-foreground">
-        Drives
-      </h1>
-      <p className="mb-6 text-[13px] text-faint">
-        {`Connect your ${providerNames(configuredProviders, "account")} account once and browse its files from this workspace.`}
-      </p>
+      <PageHeader
+        className="mb-6"
+        title="Drives"
+        description={`Connect your ${providerNames(configuredProviders, "account")} account once and browse its files from this workspace.`}
+      />
 
       {errorFromOAuth && (
         <div className="mb-6 rounded-lg border border-destructive/25 bg-destructive/8 px-4 py-3 text-[12px] text-destructive-text">
@@ -194,6 +194,7 @@ export function WorkspaceDrivesInner() {
                     </div>
                   )}
                   <AccountIdentity
+                    className="min-w-40"
                     email={item.email}
                     label={meta.label}
                     server={item.server}

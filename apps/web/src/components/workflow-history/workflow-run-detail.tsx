@@ -75,9 +75,9 @@ function ItemRow({
     return label ? [label] : [];
   });
   return (
-    <li className="flex items-start gap-2 py-1.5">
+    <li className="flex flex-wrap items-start gap-x-2 gap-y-0.5 py-1.5">
       <StatusIcon status={item.status} className="mt-0.5 size-3.5" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-48 flex-1">
         <p className="text-[12px] text-muted-foreground">
           {item.inputs ? "Barrier" : statusLabel(item.status)}
           {mailbox && ` · ${mailbox}`}
@@ -112,7 +112,7 @@ function ItemRow({
           </div>
         )}
       </div>
-      <span className="shrink-0 text-[11px] text-faint">
+      <span className="ml-auto shrink-0 text-[11px] text-faint">
         {when(item.startedAt)}
         {duration && ` · ${duration}`}
       </span>
