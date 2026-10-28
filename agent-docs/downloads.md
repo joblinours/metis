@@ -35,6 +35,10 @@ The desktop app and the mobile app are released separately, each with its own ve
 
 Beside each app's files, its own `SHA256SUMS` lists the SHA-256 of each of them in `sha256sum` format, so `sha256sum -c --ignore-missing SHA256SUMS` checks a download.
 
+`<app>/latest/version.txt` holds the version of the release in `latest/` (`x.y.z` and a newline); the desktop and Android shells read it for their update notices ([desktop.md](desktop.md)). Version folders have none, since no shell reads them.
+
+Each `<app>/v<version>/` also holds `release.md`, that release's section of the app's changelog (`changelog-section.sh`), so a release's notes are at a fixed URL; `latest/` has no copy, since a version is always known before its notes are fetched.
+
 ## URLs
 
 `<app>` is `desktop` or `mobile`, and `<version>` is that app's version.
@@ -58,7 +62,10 @@ So the Apple silicon build is `https://downloads.trymetis.email/desktop/latest/m
   - Neither is tied to the server's version ([deployment.md](deployment.md)).
 - **Each app has its own changelog**, `apps/desktop/CHANGELOG.md` and `apps/mobile/CHANGELOG.md`. The `release` job fails when it has no `## <version> - <date>` section with entries (`.github/scripts/changelog-section.sh`), and that section is the GitHub release's body.
 - **A pre-release writes only `<app>/v<version>/`.** The links keep serving the last full release, and a tester gets the pre-release from its version folder.
-- **A release writes `<app>/v<version>/` in full, `SHA256SUMS` last, before it touches `<app>/latest/`, and writes `<app>/latest/SHA256SUMS` last.** R2 has no atomic folder swap; this order means `latest/` never lists a checksum for a file that is not there yet.
+- **A release writes `<app>/v<version>/` in full (files, then `release.md`), `SHA256SUMS` last, before it touches `<app>/latest/`, and writes `<app>/latest/SHA256SUMS` and then `<app>/latest/version.txt` last.**
+  - R2 has no atomic folder swap; this order means `latest/` never lists a checksum for a file that is not there yet, and no shell sees a version before its files and checksums exist.
+  - `r2-upload.sh` writes `version.txt` only when `VERSION_MANIFEST` is `true`, which `desktop.yml` and `mobile.yml` set and the server's scripts bucket does not.
+  - It writes `release.md` from the changelog its caller names in `CHANGELOG` (`CHANGELOG.md`, `apps/desktop/CHANGELOG.md`, `apps/mobile/CHANGELOG.md`), the same section the GitHub release shows.
 - **A release whose `<app>/v<version>/SHA256SUMS` exists is never uploaded again**; `publish` fails instead. A run that failed partway through that folder can be re-run, because `SHA256SUMS` is written last.
 - **Each app's folder has one workflow writing it**: `desktop/` from `desktop.yml`, `mobile/` from `mobile.yml`.
 - **The nine files and their names are fixed.** Adding or renaming one changes, together: this table, the file lists in `desktop.yml` / `mobile.yml`, `apps/www/src/content/downloads.ts` and the docs download page.
@@ -96,5 +103,5 @@ So the Apple silicon build is `https://downloads.trymetis.email/desktop/latest/m
 ## Deliberate limits
 
 - **No iPhone or iPad download.** iOS installs only from the App Store or TestFlight.
-- **No auto-update.** A new version is a new download over the old install.
+- **No in-place update.** The shells announce a new version and open its file in the browser; installing it is a new download over the old install.
 - **One disk image per CPU on macOS**, because each is smaller than one universal image holding both.

@@ -3,6 +3,7 @@ import { AppState, Linking } from "react-native";
 
 import { log } from "./log";
 import { handleLink, reconnectOrRefresh, route, setNetworkOnline } from "./shell";
+import { checkForUpdatesIfDue } from "./update";
 
 let started = false;
 
@@ -21,6 +22,7 @@ export function startShell() {
     if (!resumed) return;
     log("app resumed");
     void reconnectOrRefresh("resume");
+    void checkForUpdatesIfDue("resume");
   });
 
   Linking.addEventListener("url", ({ url }) => {
@@ -31,4 +33,6 @@ export function startShell() {
     log("app started", { launchedWithLink: Boolean(link) });
     if (!link || !(await handleLink(link, "launch"))) await route();
   });
+
+  void checkForUpdatesIfDue("start");
 }

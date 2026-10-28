@@ -7,6 +7,7 @@ import { drafterAgent } from "./agents/drafter";
 import { driveAgent } from "./agents/drive-agent";
 import { mailboxAgent } from "./agents/mailbox-agent";
 import { summarizerAgent } from "./agents/summarizer";
+import { WORKFLOW_AGENTS, workflowWriterAgent } from "./agents/workflow-agents";
 import { workspaceAgent } from "./agents/workspace-agent";
 import { storage } from "./storage";
 
@@ -19,6 +20,11 @@ export const mastra = new Mastra({
     drafterAgent,
     summarizerAgent,
     classifierAgent,
+    workflowWriterAgent,
+    workflowMailboxAgent: WORKFLOW_AGENTS.mailbox,
+    workflowCalendarAgent: WORKFLOW_AGENTS.calendar,
+    workflowDriveAgent: WORKFLOW_AGENTS.drive,
+    workflowWorkspaceAgent: WORKFLOW_AGENTS.workspace,
   },
   storage,
 });

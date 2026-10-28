@@ -1,0 +1,20 @@
+appId: email.trymetis.suite
+name: Setup and the sign-in screen
+---
+- clearState
+- launchApp
+- assertVisible: "Connect to your Metis Suite server"
+- inputText: "localhost:8099"
+- tapOn: "Continue"
+- assertVisible: "No Metis server answered at https://localhost:8099."
+- eraseText: 40
+- inputText: "http://localhost:3000"
+- tapOn: "Continue"
+- assertVisible: "Sign in with browser, then come back here"
+- assertVisible: "http://localhost:3000"
+- assertVisible: "Sign in with browser"
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- assertVisible: "http://localhost:3000"
+- tapOn: "Close settings"
+- assertVisible: "Sign in with browser"

@@ -466,11 +466,29 @@ export const cacheConfigSchema = withDefaultDriver(
 export const CRON_TICK_ROUTE_MAX_SECONDS = 60;
 const CRON_TICK_BUDGET_MAX_MS = (CRON_TICK_ROUTE_MAX_SECONDS - 5) * 1000;
 
+const trustedProxiesSchema = z
+  .union([z.array(z.string()), z.string()])
+  .transform((value) =>
+    (Array.isArray(value) ? value : value.split(",")).map((entry) => entry.trim()).filter(Boolean),
+  )
+  .pipe(
+    z
+      .array(
+        z.string().regex(/^[0-9a-fA-F.:]+(\/\d{1,3})?$/, "must be an IP address or CIDR range"),
+      )
+      .max(50),
+  )
+  .default([]);
+
 const workflowRunnerShared = {
   cadenceSec: z.coerce.number().int().min(1).max(86_400).default(60),
   tickBudgetMs: z.coerce.number().int().min(1_000).max(600_000).default(45_000),
   batchSize: z.coerce.number().int().min(1).max(500).default(25),
   concurrency: z.coerce.number().int().min(1).max(64).default(4),
+  stepDataDays: z.coerce.number().int().min(0).max(365).default(7),
+  historyDays: z.coerce.number().int().min(1).max(3650).default(90),
+  publicUrl: z.url().optional(),
+  trustedProxies: trustedProxiesSchema,
 };
 
 export const workflowRunnerConfigSchema = withDefaultDriver(

@@ -1,0 +1,26 @@
+{
+  "name": "@metis/shell-core",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    "./links": "./src/links.ts",
+    "./navigation": "./src/navigation.ts",
+    "./store": "./src/store.ts",
+    "./update": "./src/update.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

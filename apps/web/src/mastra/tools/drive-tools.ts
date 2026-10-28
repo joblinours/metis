@@ -2,8 +2,9 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import * as drive from "@/ops/drive";
+
 import { getDriveCtx } from "../runtime-context";
-import * as drive from "../toolkit/drive";
 import { withToolErrors } from "../toolkit/resolve";
 import {
   createFolderFields,

@@ -9,6 +9,7 @@ import type { ScheduledSendItem as ScheduledSendView } from "@/server/schema";
 import { enforceRateLimit } from "@/services/rate-limit";
 import type { DraftPayload } from "@/types/mail";
 
+import { expr, literal } from "../expr";
 import { newNodeId } from "../graph";
 import {
   findUnconfirmedSend,
@@ -20,18 +21,18 @@ import {
   type UnconfirmedSend,
 } from "../reconcile";
 import { type RunResume, resumeCheckedRun } from "../resume";
-import type { NodeResolution } from "../runtime";
-import type { RunStatus, WorkflowGraph } from "../schema";
+import type { StepResolution } from "../runtime";
+import { GRAPH_VERSION, type RunStatus, type WorkflowGraph } from "../schema";
 import {
   type CancelResult,
   cancelBuiltinWorkflow,
   type DefinitionRow,
-  getPayload,
-  latestRunId,
+  getDraftBlob,
+  latestRun,
   listBuiltins,
-  listSendNodeRuns,
+  listSendStepRuns,
   loadDefinition,
-  putPayload,
+  putDraftBlob,
   saveDefinition,
   setDefinitionEnabled,
 } from "../store";
@@ -39,55 +40,43 @@ import { prepareOutgoing } from "./before-send";
 
 function sendGraph(opts: { mailboxId: string; at: Date }): WorkflowGraph {
   const trigger = newNodeId();
-  const source = newNodeId();
   const send = newNodeId();
+  const sent = newNodeId();
   const tag = newNodeId();
-
   return {
+    version: GRAPH_VERSION,
     nodes: [
       {
         id: trigger,
-        kind: "trigger.once",
+        step: "trigger.once",
         position: { x: 0, y: 0 },
-        at: opts.at.toISOString(),
+        params: { at: literal(opts.at.toISOString()) },
       },
       {
-        id: source,
-        kind: "mailbox.source",
-        position: { x: 0, y: 170 },
-        mailboxId: opts.mailboxId,
-        operation: "draft",
-        folder: "drafts",
-        limit: 1,
+        id: send,
+        step: "mail.sendScheduled",
+        position: { x: 352, y: 0 },
+        params: { mailbox: literal(opts.mailboxId) },
       },
-      { id: send, kind: "action.send", position: { x: 0, y: 340 } },
+      {
+        id: sent,
+        step: "logic.filter",
+        position: { x: 704, y: 0 },
+        params: { condition: expr('item.id != ""') },
+      },
       {
         id: tag,
-        kind: "action.label",
-        position: { x: 0, y: 510 },
-        label: "scheduled",
+        step: "mail.label",
+        position: { x: 1056, y: 0 },
+        params: { message: expr("item"), label: literal("scheduled"), action: literal("add") },
       },
     ],
     edges: [
-      {
-        id: `${trigger}:out->${source}`,
-        source: trigger,
-        sourceHandle: "out",
-        target: source,
-      },
-      {
-        id: `${source}:out->${send}`,
-        source: source,
-        sourceHandle: "out",
-        target: send,
-      },
-      {
-        id: `${send}:out->${tag}`,
-        source: send,
-        sourceHandle: "out",
-        target: tag,
-      },
+      { id: `${trigger}:out->${send}`, source: trigger, sourceHandle: "out", target: send },
+      { id: `${send}:out->${sent}`, source: send, sourceHandle: "out", target: sent },
+      { id: `${sent}:out->${tag}`, source: sent, sourceHandle: "out", target: tag },
     ],
+    settings: {},
   };
 }
 
@@ -116,7 +105,7 @@ export async function scheduleSend(opts: {
     graph: sendGraph({ mailboxId: opts.mailboxId, at: opts.at }),
   });
 
-  await putPayload(saved.definition.id, prepared);
+  await putDraftBlob(saved.definition.id, prepared);
   await setDefinitionEnabled(saved.definition.id, true);
 
   return { id: saved.definition.id, scheduledFor: opts.at.toISOString() };
@@ -188,15 +177,15 @@ export async function retryScheduledSend(
   ) {
     return null;
   }
-  const runId = await latestRunId(workflowId);
-  if (!runId) return null;
-  return resumeCheckedRun(runId);
+  const run = await latestRun(workflowId);
+  if (!run) return null;
+  return resumeCheckedRun(run.id);
 }
 
 async function scopedSend(
   workflowId: string,
   mailboxIds: string[],
-  nodeRunId?: string,
+  stepRunId?: string,
 ): Promise<UnconfirmedSend | "none" | null> {
   const loaded = await loadDefinition(workflowId);
   if (
@@ -207,7 +196,7 @@ async function scopedSend(
   ) {
     return null;
   }
-  const send = await findUnconfirmedSend(workflowId, nodeRunId);
+  const send = await findUnconfirmedSend(workflowId, stepRunId);
   if (!send || !mailboxIds.includes(send.mailboxId)) return "none";
   return send;
 }
@@ -216,7 +205,7 @@ export type UnconfirmedSendView =
   | { state: "none" }
   | {
       state: "unconfirmed";
-      nodeRunId: string;
+      stepRunId: string;
       settled: boolean;
       dispatchedAt: Date | null;
       error: string | null;
@@ -237,10 +226,10 @@ export async function inspectUnconfirmedSend(
     : { ok: true as const, candidates: [], notice: null };
   return {
     state: "unconfirmed",
-    nodeRunId: send.nodeRun.id,
+    stepRunId: send.stepRun.id,
     settled: send.settled,
-    dispatchedAt: send.nodeRun.startedAt,
-    error: send.nodeRun.error,
+    dispatchedAt: send.stepRun.startedAt,
+    error: send.stepRun.error,
     candidates: found.ok ? found.candidates : [],
     lookupError: found.ok ? null : found.reason,
     notice: found.ok ? found.notice : null,
@@ -250,11 +239,11 @@ export async function inspectUnconfirmedSend(
 export async function resolveScheduledSend(opts: {
   workflowId: string;
   mailboxIds: string[];
-  nodeRunId: string;
+  stepRunId: string;
   userId: string;
   decision: SendDecision;
 }): Promise<SendResolution | null> {
-  const send = await scopedSend(opts.workflowId, opts.mailboxIds, opts.nodeRunId);
+  const send = await scopedSend(opts.workflowId, opts.mailboxIds, opts.stepRunId);
   if (!send || send === "none") return null;
   return resolveUnconfirmedSend({
     send,
@@ -264,8 +253,8 @@ export async function resolveScheduledSend(opts: {
 }
 
 export interface ScheduledSendResolution {
-  outcome: NodeResolution["outcome"];
-  reason: NodeResolution["reason"];
+  outcome: StepResolution["outcome"];
+  reason: StepResolution["reason"];
   note: string | null;
   resolvedAt: Date;
   resolvedByUserId: string | null;
@@ -287,31 +276,31 @@ export interface ScheduledSendItem {
 
 export async function listScheduledSends(mailboxIds: string[]): Promise<ScheduledSendItem[]> {
   const rows = await listBuiltins({ kind: "scheduled-send", mailboxIds });
-  const sends = await listSendNodeRuns({
+  const sends = await listSendStepRuns({
     workflowIds: rows.map((row) => row.definition.id),
     nodeIds: rows.flatMap((row) =>
-      row.graph.nodes.filter((node) => node.kind === "action.send").map((node) => node.id),
+      row.graph.nodes.filter((node) => node.step === "mail.sendScheduled").map((node) => node.id),
     ),
   });
   const outcome = (workflowId: string) => {
     const own = sends.filter((send) => send.workflowId === workflowId);
-    const resolved = own.find((send) => send.nodeRun.resolvedAt);
+    const resolved = own.find((send) => send.stepRun.resolvedAt);
     const resolution: ScheduledSendResolution | null =
-      resolved?.nodeRun.resolution && resolved.nodeRun.resolvedAt
+      resolved?.stepRun.resolution && resolved.stepRun.resolvedAt
         ? {
-            outcome: resolved.nodeRun.resolution.outcome,
-            reason: resolved.nodeRun.resolution.reason,
-            note: resolved.nodeRun.resolution.note,
-            resolvedAt: resolved.nodeRun.resolvedAt,
-            resolvedByUserId: resolved.nodeRun.resolvedByUserId,
+            outcome: resolved.stepRun.resolution.outcome,
+            reason: resolved.stepRun.resolution.reason,
+            note: resolved.stepRun.resolution.note,
+            resolvedAt: resolved.stepRun.resolvedAt,
+            resolvedByUserId: resolved.stepRun.resolvedByUserId,
           }
         : null;
     return {
       unconfirmed: own.some(
         (send) =>
           send.runSettled &&
-          !send.nodeRun.resolvedAt &&
-          (send.nodeRun.status === "dispatching" || send.nodeRun.status === "unknown"),
+          !send.stepRun.resolvedAt &&
+          (send.stepRun.status === "dispatching" || send.stepRun.status === "unknown"),
       ),
       resolution,
     };
@@ -319,9 +308,10 @@ export async function listScheduledSends(mailboxIds: string[]): Promise<Schedule
 
   const items = await Promise.all(
     rows.map(async (row) => {
-      const at = row.graph.nodes.find((n) => n.kind === "trigger.once");
+      const at = row.graph.nodes.find((n) => n.step === "trigger.once")?.params.at;
       const scheduledFor =
-        row.wakeAt ?? (at && at.kind === "trigger.once" ? new Date(at.at) : new Date());
+        row.wakeAt ??
+        (at?.kind === "literal" && typeof at.value === "string" ? new Date(at.value) : new Date());
       return {
         id: row.definition.id,
         mailboxId: row.definition.mailboxId ?? "",
@@ -330,13 +320,13 @@ export async function listScheduledSends(mailboxIds: string[]): Promise<Schedule
           ? ("blocked" as const)
           : row.armed
             ? ("pending" as const)
-            : (row.status ?? "pending"),
+            : (row.run?.status ?? "pending"),
         error: row.definition.enabled
-          ? row.error
+          ? (row.run?.error ?? null)
           : "This message was never armed — cancel it and schedule again",
         sent: row.sent,
         ...outcome(row.definition.id),
-        payload: await getPayload(row.definition.id),
+        payload: await getDraftBlob(row.definition.id),
         scheduledByUserId: row.definition.principalUserId,
         definition: row.definition,
       };

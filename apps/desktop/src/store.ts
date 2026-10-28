@@ -1,59 +1,35 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import {
+  isRestorablePath,
+  normalizeServer,
+  type PendingLogin,
+  parseStored,
+  type Stored,
+} from "@metis/shell-core/store";
 import { app } from "electron";
-import { z } from "zod";
 
-const pendingLoginSchema = z.object({
-  server: z.string(),
-  state: z.string(),
-  verifier: z.string(),
-  expiresAt: z.number(),
-});
-export type PendingLogin = z.infer<typeof pendingLoginSchema>;
-
-const storedSchema = z.object({
-  server: z.string().optional().catch(undefined),
-  pendingLogin: pendingLoginSchema.optional().catch(undefined),
-  settings: z.unknown().optional(),
-  lastPath: z.string().optional().catch(undefined),
-});
-type Stored = z.infer<typeof storedSchema>;
-
-const RESTORABLE_PATH = /^\/w\/[^/?#\\]+(\/[^?#\\]*)?(\?[^#\\]*)?$/;
-
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+let cached: Stored | null = null;
 
 function file(): string {
   return path.join(app.getPath("userData"), "config.json");
 }
 
 function read(): Stored {
+  if (cached) return cached;
   try {
-    return storedSchema.catch({}).parse(JSON.parse(readFileSync(file(), "utf8")));
+    cached = parseStored(JSON.parse(readFileSync(file(), "utf8")));
   } catch {
-    return {};
+    cached = {};
   }
+  return cached;
 }
 
 function write(next: Stored): void {
   mkdirSync(path.dirname(file()), { recursive: true });
   writeFileSync(file(), JSON.stringify(next, null, 2), { mode: 0o600 });
-}
-
-export function normalizeServer(input: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(input.trim());
-  } catch {
-    return null;
-  }
-  if (url.username || url.password) return null;
-  if (url.protocol === "https:") return url.origin;
-  if (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname)) {
-    return url.origin;
-  }
-  return null;
+  cached = next;
 }
 
 export function readServer(): string | null {
@@ -64,10 +40,6 @@ export function readServer(): string | null {
 export function writeServer(server: string | null): void {
   const { pendingLogin: _, server: __, lastPath: ___, ...rest } = read();
   write(server ? { ...rest, server } : rest);
-}
-
-export function isRestorablePath(pathname: string): boolean {
-  return RESTORABLE_PATH.test(pathname) && !pathname.includes("//");
 }
 
 export function readLastPath(): string | null {

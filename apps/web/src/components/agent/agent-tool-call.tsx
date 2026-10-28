@@ -531,10 +531,10 @@ function toolCopy(part: AnyToolPart, mailboxEmails: MailboxEmailMap): ToolCopy {
     case "applyWorkflows": {
       return {
         icon: Wrench,
-        loading: "Running your workflows...",
+        loading: "Queueing the workflow run...",
         approval:
-          "Approve running every enabled workflow now — this can archive, delete, star, or label matching emails",
-        success: "Workflows finished running",
+          "Approve running this workflow now — its steps may change or send mail, events or files",
+        success: "Workflow run queued",
       };
     }
     default: {

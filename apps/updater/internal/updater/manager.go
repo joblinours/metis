@@ -79,7 +79,7 @@ func (manager *Manager) Status(ctx context.Context) (*updaterv1.GetStatusRespons
 	if err != nil {
 		return nil, err
 	}
-	list, err := manager.releases.List(ctx)
+	list, err := manager.releases.List(ctx, current.Version())
 	if err != nil {
 		return nil, connect.Errorf(connect.CodeUnavailable, "listing releases in %s: %v", Repository, err)
 	}

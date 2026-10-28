@@ -58,8 +58,8 @@ const FIXED: Record<string, PageInfo> = {
     title: "Email Automation Workflows with AI",
     og: "Rules that run on their own.",
     description:
-      "Email automation that runs on its own: on new mail, on a schedule or before a send. Label, archive, star, mute or Bcc, with AI decisions and a run history.",
-    updated: "2026-10-21",
+      "Automation across mail, calendars and drives: on new mail, event changes, new files, webhooks or a schedule. Waits, approvals, AI steps and a run history.",
+    updated: "2026-10-27",
   },
   "/mcp": {
     label: "MCP",

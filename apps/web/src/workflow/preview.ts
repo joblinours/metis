@@ -1,19 +1,18 @@
 import "server-only";
 import { recordAiUsage } from "@/ai/usage";
 import { type MailScope, policyForMailbox } from "@/mail/session";
+import { mailValue, readMail } from "@/ops/values";
 import { decideOne, decisionEnabled, decisionUsageProvider } from "@/services/decision";
 import { enforceRateLimit } from "@/services/rate-limit";
-import type { Email } from "@/types/mail";
 
 import {
-  buildDecisionState,
   type DecisionAnswer,
-  needsFullFacts,
+  decisionState,
+  nodeQuestions,
   toDecisionAnswer,
   wireQuestion,
 } from "./decision";
-import { factsFromEmail } from "./nodes";
-import type { WorkflowNode } from "./schema";
+import type { GraphNode } from "./schema";
 
 export interface DecisionPreviewItem {
   messageId: string;
@@ -26,10 +25,19 @@ export type DecisionPreview =
   | { ok: true; items: DecisionPreviewItem[] }
   | { ok: false; message: string };
 
+const FULL_FIELDS = new Set(["body", "attachments", "hasAttachments"]);
+
+function includeOf(node: Pick<GraphNode, "params">): string[] {
+  const bound = node.params.include;
+  return bound?.kind === "literal" && Array.isArray(bound.value)
+    ? bound.value.map(String)
+    : ["from", "subject", "snippet"];
+}
+
 export async function previewDecision(args: {
   userId: string;
   mail: Pick<MailScope, "userId" | "workspaceId" | "adapter" | "mailboxes" | "isAggregate"> | null;
-  node: Extract<WorkflowNode, { kind: "decision.ask" }>;
+  node: Pick<GraphNode, "params">;
   limit: number;
 }): Promise<DecisionPreview> {
   await enforceRateLimit(args.userId, {
@@ -38,46 +46,39 @@ export async function previewDecision(args: {
     windowSec: 60,
   });
   if (!decisionEnabled("workflowNode")) {
-    return {
-      ok: false,
-      message: "Ask and Branch steps are turned off on this instance",
-    };
+    return { ok: false, message: "Ask and Branch steps are turned off on this instance" };
   }
-  if (args.node.questions.length === 0) {
+  const questions = nodeQuestions(args.node);
+  if (questions.length === 0)
     return { ok: false, message: "Add a question to this Ask step first" };
-  }
 
   const { mail } = args;
   const mailbox = mail?.mailboxes[0];
-  if (!mail || mail.isAggregate || !mailbox) {
+  if (!mail || mail.isAggregate || !mailbox)
     return { ok: false, message: "That mailbox is not in this workspace" };
-  }
   if (!policyForMailbox(mail, mailbox.mailboxId).ai) {
     return { ok: false, message: "AI is turned off for this mailbox" };
   }
 
+  const include = includeOf(args.node);
+  const full = include.length === 0 || include.some((field) => FULL_FIELDS.has(field));
+  const handle = {
+    mailboxId: mailbox.mailboxId,
+    email: mailbox.mailboxEmail,
+    adapter: mail.adapter,
+  };
   const listed = await mail.adapter.listMessages("inbox", undefined, args.limit);
   const emails = (listed.emails ?? []).slice(0, args.limit);
-  const full = needsFullFacts(args.node.state.fields);
-  const questions = Object.fromEntries(
-    args.node.questions.map((question) => [question.id, wireQuestion(question)]),
+  const wire = Object.fromEntries(
+    questions.map((question) => [question.id, wireQuestion(question)]),
   );
-
-  const load = async (email: Email): Promise<Email> => {
-    if (!full) return email;
-    const [message, attachments] = await Promise.all([
-      mail.adapter.getMessage(email.id),
-      mail.adapter.listAttachments(email.id),
-    ]);
-    return { ...email, ...message, id: email.id, attachments };
-  };
 
   const items = await Promise.all(
     emails.map(async (email): Promise<DecisionPreviewItem> => {
-      const loaded = await load(email);
+      const value = full ? await readMail(handle, email.id, email) : mailValue(handle, email);
       const outcome = await decideOne({
-        state: buildDecisionState(factsFromEmail(loaded, full), args.node.state.fields),
-        questions,
+        state: decisionState(value, include),
+        questions: wire,
       });
       if (!outcome.refused) {
         recordAiUsage({
@@ -92,9 +93,9 @@ export async function previewDecision(args: {
       const answers = outcome.refused
         ? null
         : Object.fromEntries(
-            args.node.questions.map((question) => [
+            questions.map((question) => [
               question.id,
-              toDecisionAnswer((outcome.answers as Record<string, unknown>)[question.id]),
+              toDecisionAnswer(Object.fromEntries(Object.entries(outcome.answers))[question.id]),
             ]),
           );
       return {
@@ -105,6 +106,5 @@ export async function previewDecision(args: {
       };
     }),
   );
-
   return { ok: true, items };
 }

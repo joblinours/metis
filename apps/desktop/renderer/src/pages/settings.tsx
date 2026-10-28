@@ -1,39 +1,28 @@
 import { Button } from "@metis/ui/components/button";
 import { ButtonGroup } from "@metis/ui/components/button-group";
-import { Checkbox } from "@metis/ui/components/checkbox";
-import { Input } from "@metis/ui/components/input";
 import { Label } from "@metis/ui/components/label";
 import { Switch } from "@metis/ui/components/switch";
 import { cn } from "@metis/ui/lib/utils";
-import {
-  Download,
-  Info,
-  type LucideIcon,
-  Search,
-  Server,
-  SlidersHorizontal,
-  SpellCheck,
-  Wrench,
-} from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { Download, Info, type LucideIcon, Server, SlidersHorizontal, Wrench } from "lucide-react";
+import { type KeyboardEvent, type ReactNode, useEffect, useState } from "react";
 
 import type {
   DownloadMode,
   SettingsPayload,
+  SettingsSection,
   Settings as SettingsValues,
+  UpdateInfo,
 } from "../../../src/settings-types";
-import { mount } from "../mount";
+import { mount, queryParam } from "../mount";
 
 const SECTION_KEY = "metis-settings-section";
-const LANGUAGE_LIMIT = 10;
 
-type SectionId = "general" | "server" | "downloads" | "spelling" | "advanced" | "about";
+type SectionId = SettingsSection;
 
 const SECTIONS: { id: SectionId; label: string; icon: LucideIcon }[] = [
   { id: "general", label: "General", icon: SlidersHorizontal },
   { id: "server", label: "Server", icon: Server },
   { id: "downloads", label: "Downloads", icon: Download },
-  { id: "spelling", label: "Spelling", icon: SpellCheck },
   { id: "advanced", label: "Advanced", icon: Wrench },
   { id: "about", label: "About", icon: Info },
 ];
@@ -43,10 +32,15 @@ const DOWNLOAD_MODES: { mode: DownloadMode; label: string }[] = [
   { mode: "folder", label: "Save to a folder" },
 ];
 
+function sectionFrom(value: string | null): SectionId | null {
+  return SECTIONS.find((section) => section.id === value)?.id ?? null;
+}
+
 function readSection(): SectionId | null {
+  const requested = sectionFrom(queryParam("section"));
+  if (requested) return requested;
   try {
-    const stored = window.localStorage.getItem(SECTION_KEY);
-    return SECTIONS.find((section) => section.id === stored)?.id ?? null;
+    return sectionFrom(window.localStorage.getItem(SECTION_KEY));
   } catch {
     return null;
   }
@@ -57,14 +51,6 @@ function writeSection(section: SectionId) {
     window.localStorage.setItem(SECTION_KEY, section);
   } catch {
     return;
-  }
-}
-
-function languageLabel(names: Intl.DisplayNames, code: string): string {
-  try {
-    return `${names.of(code) ?? code} (${code})`;
-  } catch {
-    return code;
   }
 }
 
@@ -144,79 +130,6 @@ function ValueText({ children }: { children: ReactNode }) {
   );
 }
 
-function Languages({
-  available,
-  selected,
-  onChange,
-}: {
-  available: string[];
-  selected: string[];
-  onChange: (languages: string[]) => void;
-}) {
-  const [filter, setFilter] = useState("");
-  const entries = useMemo(() => {
-    const names = new Intl.DisplayNames(undefined, { type: "language" });
-    return available
-      .map((code) => ({ code, label: languageLabel(names, code) }))
-      .toSorted((a, b) => a.label.localeCompare(b.label));
-  }, [available]);
-  const query = filter.trim().toLowerCase();
-  const shown = entries.filter((entry) => !query || entry.label.toLowerCase().includes(query));
-  const full = selected.length >= LANGUAGE_LIMIT;
-
-  function toggle(code: string) {
-    const next = selected.includes(code)
-      ? selected.filter((entry) => entry !== code)
-      : [...selected, code];
-    if (next.length > LANGUAGE_LIMIT) return;
-    onChange(next);
-  }
-
-  return (
-    <div className="px-4 py-3">
-      <div className="flex items-baseline justify-between gap-6">
-        <span className="block text-sm font-medium">Languages</span>
-        <span className="text-xs text-muted-foreground">
-          {selected.length} of {LANGUAGE_LIMIT} selected
-        </span>
-      </div>
-      <div className="relative mt-3">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Filter languages"
-          aria-label="Filter languages"
-          className="pl-8"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-      </div>
-      <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border py-1">
-        {shown.map(({ code, label }) => {
-          const checked = selected.includes(code);
-          const id = `language-${code}`;
-          return (
-            <div key={code} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted">
-              <Checkbox
-                id={id}
-                checked={checked}
-                disabled={full && !checked}
-                onCheckedChange={() => toggle(code)}
-              />
-              <Label htmlFor={id} className="truncate text-sm font-normal">
-                {label}
-              </Label>
-            </div>
-          );
-        })}
-      </div>
-      {shown.length === 0 ? (
-        <p className="px-1 pt-2 text-xs text-muted-foreground">No languages match.</p>
-      ) : null}
-    </div>
-  );
-}
-
 function DownloadModePicker({
   value,
   onChoose,
@@ -257,17 +170,36 @@ function DownloadModePicker({
   );
 }
 
+function updateText(update: UpdateInfo, version: string): string {
+  switch (update.state) {
+    case "idle":
+      return `You have version ${version}.`;
+    case "checking":
+      return "Checking for updates…";
+    case "current":
+      return "Up to date.";
+    case "available":
+      return `Version ${update.version} is available.`;
+    case "failed":
+      return "Could not check for updates. Try again later.";
+  }
+}
+
 function SettingsWindow() {
   const [payload, setPayload] = useState<SettingsPayload | null>(null);
   const [section, setSection] = useState<SectionId>(() => readSection() ?? "general");
   const [cacheStatus, setCacheStatus] = useState("Keeps you signed in.");
 
   useEffect(() => {
-    void window.metis.getSettings().then(setPayload);
+    async function load() {
+      setPayload(await window.metis.getSettings());
+      if (queryParam("check") !== "1") return;
+      setPayload((previous) => previous && { ...previous, update: { state: "checking" } });
+      const next = await window.metis.checkForUpdates();
+      if (next) setPayload(next);
+    }
+    void load();
   }, []);
-
-  const hidden = new Set<SectionId>(payload?.platform === "darwin" ? ["spelling"] : []);
-  const current = hidden.has(section) ? "general" : section;
 
   function show(next: SectionId) {
     setSection(next);
@@ -292,6 +224,12 @@ function SettingsWindow() {
     await update({ downloadMode: mode });
   }
 
+  async function checkForUpdates() {
+    setPayload((previous) => previous && { ...previous, update: { state: "checking" } });
+    const next = await window.metis.checkForUpdates();
+    if (next) setPayload(next);
+  }
+
   async function clearCache() {
     const cleared = await window.metis.clearCache();
     setCacheStatus(cleared ? "Cache cleared." : "Could not clear the cache.");
@@ -307,14 +245,14 @@ function SettingsWindow() {
       >
         <h1 className="mb-4 px-2.5 text-lg font-semibold tracking-tight">Settings</h1>
         <nav className="flex flex-col gap-px">
-          {SECTIONS.filter((entry) => !hidden.has(entry.id)).map(({ id, label, icon: Icon }) => (
+          {SECTIONS.map(({ id, label, icon: Icon }) => (
             <Button
               key={id}
               variant="ghost"
-              aria-current={current === id ? "page" : undefined}
+              aria-current={section === id ? "page" : undefined}
               className={cn(
                 "w-full justify-start gap-2.5 text-muted-foreground",
-                current === id && "bg-muted font-medium text-foreground",
+                section === id && "bg-muted font-medium text-foreground",
               )}
               onClick={() => show(id)}
             >
@@ -329,7 +267,7 @@ function SettingsWindow() {
         <div className="mx-auto w-full max-w-2xl px-10 py-8">
           {settings && payload ? (
             <>
-              {current === "general" ? (
+              {section === "general" ? (
                 <Panel
                   title="General"
                   description="How Metis Suite starts and closes on this computer."
@@ -373,11 +311,18 @@ function SettingsWindow() {
                       checked={settings.restoreLastPage}
                       onChange={update}
                     />
+                    <SwitchRow
+                      id="checkForUpdates"
+                      title="Check for updates"
+                      description="Asks downloads.trymetis.email once a day whether a newer version exists. Your server is never contacted."
+                      checked={settings.checkForUpdates}
+                      onChange={update}
+                    />
                   </Rows>
                 </Panel>
               ) : null}
 
-              {current === "server" ? (
+              {section === "server" ? (
                 <Panel title="Server" description="The Metis instance this app opens.">
                   <Rows>
                     <Row
@@ -400,7 +345,7 @@ function SettingsWindow() {
                 </Panel>
               ) : null}
 
-              {current === "downloads" ? (
+              {section === "downloads" ? (
                 <Panel
                   title="Downloads"
                   description="Where files you download from Metis Suite are saved."
@@ -437,27 +382,7 @@ function SettingsWindow() {
                 </Panel>
               ) : null}
 
-              {current === "spelling" ? (
-                <Panel title="Spelling" description="Spell checking in everything you type.">
-                  <Rows>
-                    <SwitchRow
-                      id="spellcheck"
-                      title="Check spelling while typing"
-                      checked={settings.spellcheck}
-                      onChange={update}
-                    />
-                    {settings.spellcheck ? (
-                      <Languages
-                        available={payload.spellcheckLanguages}
-                        selected={settings.spellcheckLanguages}
-                        onChange={(languages) => void update({ spellcheckLanguages: languages })}
-                      />
-                    ) : null}
-                  </Rows>
-                </Panel>
-              ) : null}
-
-              {current === "advanced" ? (
+              {section === "advanced" ? (
                 <Panel
                   title="Advanced"
                   description="Troubleshooting for this app on this computer."
@@ -497,7 +422,7 @@ function SettingsWindow() {
                 </Panel>
               ) : null}
 
-              {current === "about" ? (
+              {section === "about" ? (
                 <Panel title="About" description="Versions and logs for bug reports.">
                   <dl className="divide-y divide-border rounded-xl border border-border">
                     {(
@@ -516,6 +441,24 @@ function SettingsWindow() {
                       </div>
                     ))}
                   </dl>
+                  <Rows>
+                    <Row
+                      title="Updates"
+                      description={updateText(payload.update, payload.about.version)}
+                    >
+                      {payload.update.state === "available" ? (
+                        <Button onClick={() => void window.metis.downloadUpdate()}>Download</Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          disabled={payload.update.state === "checking"}
+                          onClick={() => void checkForUpdates()}
+                        >
+                          Check now
+                        </Button>
+                      )}
+                    </Row>
+                  </Rows>
                   <Rows>
                     <Row title="Log file" description={<ValueText>{payload.logFile}</ValueText>}>
                       <Button variant="outline" onClick={() => void window.metis.showLog()}>

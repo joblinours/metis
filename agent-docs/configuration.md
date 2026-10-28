@@ -111,6 +111,9 @@ See also [AGENTS.md](../AGENTS.md), [servers.md](servers.md), [database.md](data
   - Each message is one `POST <endpoint>` with `Authorization: Bearer <token>` and a JSON body `{ to, from, subject, html, text }`; any 2xx means accepted, anything else fails the send.
   - The driver has no verification request, so the dashboard's mail check skips it and a save stores it unchecked.
 - **Structured outputs on `openai-compatible`.** Off, the endpoint gets `json_object` mode and the schema goes into the prompt (`structuredOutput` in `src/services/llm/structured-output.ts`, decided per call), so summaries need a much larger context window. Turn it on only when the endpoint supports `json_schema`.
+- **The runner section also carries workflow retention and inbound settings**: `stepDataDays` and `historyDays` ([workflow-runs.md](workflow-runs.md)), and `publicUrl` and `trustedProxies` ([workflow-graph.md](workflow-graph.md)).
+  - Webhook and push addresses use `publicUrl`, else `BETTER_AUTH_URL` (`inboundBase`); push subscriptions start only while `publicUrl` is set.
+  - `trustedProxies` takes a list or one comma-separated string; the dashboard edits it as text.
 - **A keyless SystemOne server.** With `METIS_DECISION_API_KEY` unset, the driver sends `KEYLESS_PLACEHOLDER` (`src/services/decision/drivers/systemone.ts`), because the TypeSafe provider always sends a bearer; preflight warns.
 
 ## Deliberate limits

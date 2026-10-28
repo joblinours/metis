@@ -4,6 +4,7 @@ import type { Drive, DriveItem } from "@microsoft/microsoft-graph-types";
 import { relayUnsupported } from "@/drive/relay";
 import { bind } from "@/lib/bind";
 import { ProviderError } from "@/lib/errors/provider-error";
+import { errorStatus } from "@/lib/token-map";
 import type {
   DriveDownloadTarget,
   DriveEntry,
@@ -13,7 +14,7 @@ import type {
   NewUpload,
 } from "@/types/drive";
 
-import type { DriveAdapter } from "../adapter";
+import type { DriveAdapter, DriveChangeSignal } from "../adapter";
 import { textDriveSearch } from "../text-search";
 
 export function microsoftDrive(accessToken: string): DriveAdapter {
@@ -35,6 +36,7 @@ export function microsoftDrive(accessToken: string): DriveAdapter {
       move,
       delete: deleteEntry,
       quota,
+      changes,
     },
     accessToken,
   );
@@ -52,6 +54,43 @@ interface GraphPage {
 }
 
 type DownloadableItem = DriveItem & { [DOWNLOAD_URL]?: string };
+
+const DELTA_PAGES = 20;
+
+interface DeltaPage {
+  value?: (DriveItem & { deleted?: unknown })[];
+  "@odata.nextLink"?: string;
+  "@odata.deltaLink"?: string;
+}
+
+async function changes(
+  accessToken: string,
+  folderId: string | null,
+  cursor: string | null,
+): Promise<DriveChangeSignal | null> {
+  const client = getGraphClient(accessToken);
+  let url = cursor ?? "/me/drive/root/delta?token=latest";
+  let changed = false;
+  try {
+    for (let page = 0; page < DELTA_PAGES; page += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each delta page needs the previous page's link
+      const res: DeltaPage = await client.api(url).get();
+      if (cursor) {
+        for (const item of res.value ?? []) {
+          if (item.deleted || !folderId || item.parentReference?.id === folderId) changed = true;
+        }
+      }
+      if (res["@odata.deltaLink"]) return { cursor: res["@odata.deltaLink"], changed };
+      const next = res["@odata.nextLink"];
+      if (!next) return null;
+      url = next;
+    }
+  } catch (err) {
+    if (errorStatus(err) === 410) return { cursor: "", changed: true, expired: true };
+    throw err;
+  }
+  return null;
+}
 
 function getGraphClient(accessToken: string): Client {
   return Client.init({

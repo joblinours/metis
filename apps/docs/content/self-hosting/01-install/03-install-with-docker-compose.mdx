@@ -47,17 +47,24 @@ This page assumes your two databases are hosted outside the stack, on [Turso](ht
     METIS_ENCRYPTION_KEY=<secret>
     METIS_DRIVE_RELAY_SECRET=<secret>
     METIS_DB_DRIVER=turso
-    DATABASE_URL=libsql://<app database>.turso.io
+    DATABASE_URL=<app database URL>
     DATABASE_AUTH_TOKEN=<token>
-    MASTRA_DATABASE_URL=libsql://<ai memory database>.turso.io
+    MASTRA_DATABASE_URL=<AI memory database URL>
     MASTRA_DATABASE_AUTH_TOKEN=<token>
     METIS_SETUP_CODE=<setup code>
     METIS_OWNER_EMAIL=you@example.com
     ```
 
+    Use the URL that `turso db show <database> --url` prints for each
+    database. It starts with `libsql://`. To create the two Turso databases
+    and their tokens, see
+    [Create the databases on Turso](/self-hosting/reference/environment-variables#create-the-databases-on-turso).
+
     For your own sqld server, set `METIS_DB_DRIVER=sqld` and use its
-    `https://` addresses instead. `MASTRA_DATABASE_URL` is the AI memory
-    database. It must be a separate database on the same driver.
+    `http(s)://` or `ws(s)://` addresses instead. Both tokens are required
+    with sqld too: `DATABASE_AUTH_TOKEN` and `MASTRA_DATABASE_AUTH_TOKEN`.
+    `MASTRA_DATABASE_URL` is the AI memory database. It must be a separate
+    database on the same driver.
 
     To install a specific release, add the four image pins, with your
     version in place of `X.Y.Z`:

@@ -13,7 +13,7 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
 | Updater entry and socket           | `apps/updater/cmd/metis-updater/main.go` → `main`, `listenUnix`                                                                                                                                                                                    |
 | Settings and their defaults        | `apps/updater/internal/updater/config.go` → `ConfigFromEnv`                                                                                                                                                                                        |
 | Releases in the registry           | `apps/updater/internal/updater/releases.go` → `Releases.List`, `fetchReleases` · image refs `images.go` → `Repository`, `ReleaseImages`, `Images.Env`, `Images.Version`                                                                            |
-| Release notes                      | `apps/updater/internal/updater/releases.go` → `fetchNotes`, `NotesURL` (GitHub Releases of `trymetis/metis`, tags `app-v<version>`)                                                                                                                |
+| Release notes                      | `apps/updater/internal/updater/releases.go` → `fetchNotesLocked`, `fetchNotes`, `NotesURL` (`https://sh.trymetis.email/v<version>/release.md`, [self-host.md](self-host.md))                                                                       |
 | The upgrade and undo sequences     | `apps/updater/internal/updater/manager.go` → `Manager.Upgrade`, `Manager.upgrade`, `Manager.Rollback`, `Manager.undo`, `Manager.restore`, `Manager.resume`, `Manager.switchTo`                                                                     |
 | Docker and compose calls           | `apps/updater/internal/updater/stack.go` → `Stack.Pull`, `Stack.Preflight`, `Stack.Switch`, `Stack.StopApp`, `WaitReady`                                                                                                                           |
 | Database snapshots                 | `apps/updater/internal/updater/stack.go` → `Stack.SaveSnapshot`, `Stack.RestoreSnapshot`, `Stack.PromoteSnapshot`, `Stack.SnapshotDir` · capability `images.go` → `StackRunsSqld`                                                                  |
@@ -55,7 +55,7 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
 
 `metis.updater.v1.UpdaterService` (`updater.proto`), Connect protocol over HTTP/1.1 or h2c on the socket; all four procedures are unary. Versions are bare `X.Y.Z` strings with no `v`. An `Upgrade` record is what every write returns and what `GetUpgrade` reports.
 
-- **Empty means none.** `current_version` is empty when the running images are not a release, `rollback_version` and `rollback_snapshot_at` when there is nothing to undo, a release's `notes` when GitHub has none for it, and `GetUpgrade` returns no `upgrade` when none ever ran.
+- **Empty means none.** `current_version` is empty when the running images are not a release, `rollback_version` and `rollback_snapshot_at` when there is nothing to undo, a release's `notes` when its version folder has no `release.md`, and `GetUpgrade` returns no `upgrade` when none ever ran.
 - **`snapshots`** says whether this install can snapshot its database; `rollback_version` is set only when it can and a snapshot is kept.
 - **Errors are Connect codes**, returned by `manager.go` and `releases.go` and mapped by the app in `toOrpcError`.
 
@@ -84,7 +84,9 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
   - `Manager.switchTo` writes the three pins into `.env` (`EnvFile.Set`, an atomic rename keeping the file's mode), then `Stack.Switch` recreates the preflight container without starting it and runs `docker compose up -d --no-deps app`, leaving sqld, Caddy and the updater untouched.
   - Restoring calls `switchTo` with the previous images, removing a key that was unset before.
 - **State** lives in `<install>/.updater-state.json`: the images before the last successful upgrade, when its snapshot was taken, and the last record. A record still `RUNNING` when the updater starts becomes `ROLLBACK_FAILED`, because the process died mid-upgrade.
-- **Release notes** are the body of each `app-v<version>` GitHub release, fetched anonymously with the release list and cached for the same TTL; a failed fetch keeps the last notes, and the list never waits on GitHub past 10 s.
+- **Release notes** are `https://sh.trymetis.email/v<version>/release.md`, the release's changelog section, fetched directly by version for each listed release newer than the running one (all while the running version is unknown).
+  - A version's notes never change, so fetched notes are kept for the life of the process; a version with none yet (404, or a release older than the file) is asked again once per TTL.
+  - The fetches share a 10 s budget per pass, and a failed one only leaves that release without notes.
 
 ### The dashboard
 
@@ -100,7 +102,7 @@ See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [configurati
 - **Only images move.** A release that changes `compose.yml` needs `bootstrap.sh` run again, which downloads the compose file ([self-host.md](self-host.md)). The updater image moves only that way too, so a change to the updater reaches an install when bootstrap runs.
 - **One snapshot, one undo.** The snapshot costs a full copy of the sqld volume on the host and a short downtime on every upgrade; older states need the operator's own backups.
 - **An undo is audited only once an owner opens Updates on the restored release**, since nothing else runs `updatesStatus`.
-- **An undo replays scheduled work that already ran after the upgrade.** The snapshot holds the scheduled sends, snoozes, workflow triggers and occurrences as they were before the upgrade, so the runtime finds them due again on its first tick after the restore ([workflow-runtime.md](workflow-runtime.md)).
+- **An undo replays scheduled work that already ran after the upgrade.** The snapshot holds the scheduled sends, snoozes, workflow triggers, events and waits as they were before the upgrade, so the runtime finds them due again on its first tick after the restore ([workflow-runtime.md](workflow-runtime.md)).
   - A scheduled message sent after the upgrade is sent a second time; nothing checks the provider for an earlier send.
   - A scheduled workflow that ran since then runs once more (missed slots collapse into one run), and a snooze whose time passed wakes again.
   - Changes already made at the providers (mail sent, labels, moves) are not reversed. The customer page `apps/docs/content/self-hosting/03-operate/02-upgrade-and-undo.mdx` warns operators.

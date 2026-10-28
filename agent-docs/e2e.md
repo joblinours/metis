@@ -1,6 +1,6 @@
 # End-to-end tests
 
-The black-box rule every e2e test and fixture follows, which suite a test belongs in, where the stack, harness, suites and seed generators live, and how model calls are recorded and replayed.
+The black-box rule every e2e test and fixture follows, which suite a test belongs in, where the stack, harness, suites and seed generators live, how model calls are recorded and replayed, and the shell smoke tests.
 Paths are from the repository root.
 See also [AGENTS.md](../AGENTS.md), [mcp.md](mcp.md), [updater.md](updater.md), `e2e/README.md` (the stack, environment files, seed data, server addresses, running the tests), `e2e/E2E_MISSES.md` (what e2e does not cover).
 
@@ -16,7 +16,9 @@ See also [AGENTS.md](../AGENTS.md), [mcp.md](mcp.md), [updater.md](updater.md), 
 | The Playwright suite (UI)                                                           | `e2e/playwright.config.ts` · `e2e/tests/` → `setup/`, `read/`, `write/` (run order in `write/order.list.ts`), shared helpers at its top · `bun run test:browser`                                                                                                                        |
 | The Vitest suite (no browser)                                                       | `e2e/vitest.config.ts` (projects `mcp`, `rpc`, `workflows`, `gateway`, `system`) · `e2e/api/` → `global-setup.ts` (HTTP sign-in into the gitignored `api/.state/`), `support/`, one folder per project · `bun run test:api`                                                             |
 | Driver switches                                                                     | `e2e/api/system/` · `support/config.ts` → `setSection`                                                                                                                                                                                                                                  |
-| Clients both suites share                                                           | `e2e/clients/` → `harness.ts`, `mcp.ts`, `rpc.ts`, `llm-misses.ts`                                                                                                                                                                                                                      |
+| Desktop shell smoke tests (Playwright `_electron`)                                  | `e2e/desktop.config.ts` · `e2e/desktop/` → `shell.ts` (`launchShell`, `signInThroughBrowser`), `shell.spec.ts` · `bun run test:desktop`                                                                                                                                                 |
+| Android shell smoke flow (Maestro, run by hand)                                     | `e2e/mobile/setup.yaml`                                                                                                                                                                                                                                                                 |
+| Clients both suites share                                                           | `e2e/clients/` → `harness.ts`, `mcp.ts`, `rpc.ts`, `llm-misses.ts`, `sign-in.ts` (HTTP sign-in)                                                                                                                                                                                         |
 | MCP tool cases                                                                      | `e2e/api/mcp/tools.test.ts` → `CASES`, `ALONE`, `UNCOVERED` · generic checks `e2e/api/mcp/checks.test.ts`                                                                                                                                                                               |
 | Fixtures written with generic clients                                               | `e2e/seed/`                                                                                                                                                                                                                                                                             |
 | Shared helpers (`@metis/e2e/lib/*`)                                                 | `e2e/lib/` · client names `e2e/lib/mcp-clients.ts`                                                                                                                                                                                                                                      |
@@ -38,6 +40,11 @@ See also [AGENTS.md](../AGENTS.md), [mcp.md](mcp.md), [updater.md](updater.md), 
   - Fixtures: talk to IMAP, CalDAV, S3, WebDAV, FTP and SFTP directly with standard clients.
   - A generic client that fails against the app is a server bug.
 - **The seed generators are the one place that runs the app's own code**, so they live in `apps/web/scripts/e2e/`; `@metis/e2e/lib` is the only code they share with `e2e/`.
+- **The shell smoke tests drive the desktop shell through its windows and OS-level hooks only**: they launch the built `apps/desktop` with the `electron` binary and import nothing from it.
+  - `shell.openExternal` is the OS boundary, so it is replaced through `electronApp.evaluate` to capture the sign-in URL instead of opening a browser.
+  - The deep link arrives as a second-instance launch argument, as the OS would deliver it on Linux and Windows.
+  - That second launch passes `--no-sandbox`, as Playwright's `_electron.launch` does for the first, because a development copy's `chrome-sandbox` is not root-owned and Chromium aborts without it.
+  - Each test gets a fresh `XDG_CONFIG_HOME`, which on Linux holds the shell's `userData`, its autostart entry and its scheme registration.
 - **A value belongs in `e2e/.env` only if it unlocks something outside the stack** (a paid API, a real account); everything else, including values that look like secrets, is seed data in `e2e/.env.fixture`. Only `generate:record` reads `e2e/.env`.
 
 ### Suites
@@ -100,4 +107,10 @@ See also [AGENTS.md](../AGENTS.md), [mcp.md](mcp.md), [updater.md](updater.md), 
   - A child that fails, times out or crashes fails only its scenario; scenarios whose `from` did not finish are `blocked`.
   - Before exiting, a child waits until none of its requests are pending and it has been quiet for `QUIET_MS`, so fire-and-forget calls land; workspace chats first wait for the thread's title (`steps/chats.ts` → `titled`), which Mastra requests only after saving the turn.
   - At the end `mergeOutputs` writes `llm-seed.json` and `llm-manifest.json` atomically, a fragment per finished scenario, and rewrites the journal down to what the seed file does not hold. Ctrl-C kills the children and still merges.
+- **`test:desktop`** runs its own Playwright config, separate from `test:browser`, against the stack at `http://localhost:3000`.
+  - Setup rejects an address with no Metis server and accepts the app; "App settings" opens the Settings window.
+  - Sign-in captures `/native/login`, signs Ana in over HTTP as the API suite's global setup does, posts `/api/auth/native/code` and delivers `metis-suite://auth?…`.
+  - It needs `bun run --cwd apps/desktop build` first and runs under `xvfb-run -a`, even on a desktop, so the shell's windows stay off screen and no stray keystroke lands in them; CI does not run it, and neither does `bun run test`.
+  - Every launch passes `--ozone-platform=x11`, because Electron 38 and later run as a native Wayland app in a Wayland session and would ignore Xvfb's display.
+- **The Maestro flow** checks Android setup and the sign-in screen on an emulator with a development build installed; it is run by hand.
 - **The harness** loads `seed.sql` and every `record/*.sql` into the app database and every `mastra/*.sql` into `sqld-mastra` on first start, and replays recorded model calls, so a run spends no credit.

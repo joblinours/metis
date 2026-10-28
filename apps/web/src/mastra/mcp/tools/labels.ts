@@ -2,7 +2,6 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import * as labels from "@/mastra/toolkit/labels";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   createLabelFields,
@@ -10,6 +9,7 @@ import {
   messageTarget,
   setLabelsFields,
 } from "@/mastra/toolkit/schema";
+import * as labels from "@/ops/labels";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace, workspaceTarget } from "../schema";

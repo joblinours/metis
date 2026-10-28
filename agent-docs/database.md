@@ -4,18 +4,18 @@ Where the schema lives and how it reaches a database through migrations, the one
 
 ## Code map
 
-| Concern                            | Where                                                                                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Schema, the single source of truth | `src/db/schema.ts` (re-exports Better Auth's tables from `src/db/auth-schema.ts`) · `timestamp` helper                               |
-| App client                         | `src/db/index.ts` → `db`, `Executor`                                                                                                 |
-| Column encryption                  | `src/db/crypto.ts` → `encryptedText` ([connections.md](connections.md))                                                              |
-| Mastra's store                     | `src/mastra/storage.ts` → `storage` (`LibSQLStore` over `config.db.mastra`)                                                          |
-| Driver and connection shapes       | `src/config/schema.ts` → `dbConfigSchema`                                                                                            |
-| Migrations                         | `migrations/NNNN_name.sql`, starting with `0000_baseline.sql` · applied rows in `schema_migration`                                   |
-| The runner                         | `src/db/migrations.ts` → `migrateDatabase`, `readMigrations` · run by `scripts/preflight.ts` and `scripts/migrate.ts` (`db:migrate`) |
-| The drift check                    | `scripts/check-migrations.ts` (`db:check`, run in CI)                                                                                |
-| `db:push` / `db:export`            | `drizzle.config.ts`                                                                                                                  |
-| sqld key and token generation      | `bootstrap.sh` (repository root) → `gen_sqld_auth`; `bash bootstrap.sh sqld-auth` prints a pair                                      |
+| Concern                            | Where                                                                                                                                                                       |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema, the single source of truth | `src/db/schema.ts` (re-exports Better Auth's tables from `src/db/auth-schema.ts`) · `timestamp` helper                                                                      |
+| App client                         | `src/db/index.ts` → `db`, `Executor`                                                                                                                                        |
+| Column encryption                  | `src/db/crypto.ts` → `encryptedText` ([connections.md](connections.md))                                                                                                     |
+| Mastra's store                     | `src/mastra/storage.ts` → `storage` (`LibSQLStore` over `config.db.mastra`)                                                                                                 |
+| Driver and connection shapes       | `src/config/schema.ts` → `dbConfigSchema`                                                                                                                                   |
+| Migrations                         | `migrations/NNNN_name.ts`, each exporting a `Migration`, listed in order in `migrations/index.ts` → `MIGRATIONS`, from `0000_baseline` · applied rows in `schema_migration` |
+| The runner and the interface       | `src/db/migrations.ts` → `migrateDatabase`, `Migration`, `MigrationDb`, `schemaMigration` · run by `scripts/preflight.ts` and `scripts/migrate.ts` (`db:migrate`)           |
+| The drift check                    | `scripts/check-migrations.ts` (`db:check`, run in CI)                                                                                                                       |
+| `db:push` / `db:export`            | `drizzle.config.ts`                                                                                                                                                         |
+| sqld key and token generation      | `bootstrap.sh` (repository root) → `gen_sqld_auth`; `bash bootstrap.sh sqld-auth` prints a pair                                                                             |
 
 ## Rules
 
@@ -23,7 +23,11 @@ Where the schema lives and how it reaches a database through migrations, the one
 - **A schema change ships a hand-written migration in the same change, and `bun run db:check` passes.**
   - The check applies every migration to an empty database and compares it with `drizzle-kit export` of `schema.ts`, table by table: columns, indexes and foreign keys.
 - **Migrations are forward-only and never edited once released.** A fix is a new migration.
-- **Statements in a migration are separated by a `--> statement-breakpoint` line**, so a statement may contain `;`.
+- **Every migration is a TypeScript module with one shape, `{ id, up(db) }`, listed in number order in `migrations/index.ts`.**
+  - A schema-only change is `schemaMigration(id, statements)`, one string per statement.
+  - A migration that moves data reads with `db.read`, computes the new rows, then calls `db.apply` once with every statement.
+  - `db.apply` runs the statements and the `schema_migration` row as one `client.migrate()` batch with foreign keys off, so a migration commits or rolls back whole. SQLite ignores `PRAGMA foreign_keys` inside an open transaction, so a migration never opens its own.
+- **A migration is frozen: from `src/` it imports only the interface in `src/db/migrations.ts`.** It carries its own copy of every shape it reads or writes, so running it on an old database later behaves as it did when released.
 - **A migration preserves data.** A rename is `ALTER TABLE … RENAME`, never a drop and an add; a backfill is an `UPDATE` in the same file.
 - **A change SQLite's `ALTER TABLE` cannot make follows SQLite's table rebuild:** create `__new_<table>`, `INSERT … SELECT`, drop the old table, rename the new one, recreate its indexes.
   - The runner turns foreign keys off around each migration, so dropping a parent table cascades into nothing.
@@ -48,9 +52,9 @@ Where the schema lives and how it reaches a database through migrations, the one
 - **Migrating** (`migrateDatabase`).
   - A database with a `user` table but no `schema_migration` table predates migrations: the runner creates the table and records `0000_baseline` as applied without running it.
   - It refuses a database holding a migration id the release does not ship, because a newer release migrated it; preflight fails and the updater restores its snapshot ([updater.md](updater.md)).
-  - Each pending migration runs through `@libsql/client`'s `migrate()`: foreign keys off, one transaction with the migration's statements and its `schema_migration` row, foreign keys back on. A failing statement rolls back that migration only.
+  - Each pending migration's `up` runs, and its one `db.apply` goes through `@libsql/client`'s `migrate()`: foreign keys off, one transaction with the statements and the `schema_migration` row, foreign keys back on. A failing statement rolls back that migration only, and an `up` that never applies fails.
   - After the run it compares `PRAGMA foreign_key_check` with the count before and fails when the migrations added violations.
-- **Where the files come from.** The preflight image copies `migrations/` next to `preflight.mjs`; a source checkout reads `apps/web/migrations`. Both resolve `migrations` from the working directory, which is `apps/web`.
+- **Migrations are bundled, not read from disk.** Preflight, `db:migrate` and `db:check` import `MIGRATIONS`, so `preflight.mjs` carries every migration and the preflight image ships no migration files.
 
 ## Deliberate limits
 

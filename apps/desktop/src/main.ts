@@ -1,5 +1,8 @@
 import path from "node:path";
 
+import { parseDeepLink, SCHEME, USER_AGENT_TOKEN } from "@metis/shell-core/links";
+import { decide, parse } from "@metis/shell-core/navigation";
+import { isRestorablePath, normalizeServer } from "@metis/shell-core/store";
 import {
   app,
   BrowserWindow,
@@ -27,28 +30,28 @@ import {
 } from "./auth";
 import { applyAutostart, launchedHidden } from "./autostart";
 import { handleDownloads } from "./downloads";
-import { findDeepLink, parseDeepLink, SCHEME, USER_AGENT_TOKEN } from "./links";
+import { findDeepLink } from "./links";
 import { log, logFile, urlPath } from "./log";
 import { attachNavigation } from "./navigation";
 import { DEFAULT_SETTINGS, MAX_ZOOM, MIN_ZOOM, readSettings, writeSettings } from "./settings";
-import type { OfflineReason, Settings, SettingsPayload } from "./settings-types";
-import {
-  isRestorablePath,
-  normalizeServer,
-  readLastPath,
-  readServer,
-  resetStore,
-  writeLastPath,
-  writeServer,
-} from "./store";
+import type { OfflineReason, Settings, SettingsPayload, SettingsSection } from "./settings-types";
+import { readLastPath, readServer, resetStore, writeLastPath, writeServer } from "./store";
 import { hasTray, setTray } from "./tray";
+import {
+  checkForUpdates,
+  downloadUpdate,
+  markAnnounced,
+  scheduleUpdateChecks,
+  updateStatus,
+} from "./update";
 
 const PARTITION = "persist:metis-suite";
 const HOME_PATH = "/w";
 const BACKGROUND = "#0a0a0a";
 const LIGHT_BACKGROUND = "#ffffff";
-const ICON = path.join(__dirname, "..", "static", "icon.png");
-const PRELOAD = path.join(__dirname, "preload.js");
+const APP_PATH = app.getAppPath();
+const ICON = path.join(APP_PATH, "static", "icon.png");
+const PRELOAD = path.join(APP_PATH, "dist", "preload.js");
 const ZOOM_STEP = 0.1;
 const ALLOWED_PERMISSIONS = new Set(["clipboard-sanitized-write", "fullscreen", "notifications"]);
 
@@ -105,7 +108,7 @@ function webPreferences(): BrowserWindowConstructorOptions["webPreferences"] {
 }
 
 function rendererPage(page: string): string {
-  return path.join(__dirname, "renderer", `${page}.html`);
+  return path.join(APP_PATH, "dist", "renderer", `${page}.html`);
 }
 
 function isAborted(error: unknown): boolean {
@@ -367,13 +370,30 @@ function zoomBy(delta: number) {
   setZoom(readSettings().zoomFactor + delta);
 }
 
-function applySpellcheck(settings: Settings) {
-  const session = appSession();
-  session.setSpellCheckerEnabled(settings.spellcheck);
-  if (process.platform === "darwin") return;
-  const available = new Set(session.availableSpellCheckerLanguages);
-  const languages = settings.spellcheckLanguages.filter((code) => available.has(code));
-  if (languages.length > 0) session.setSpellCheckerLanguages(languages);
+function openAbout() {
+  openSettings({ section: "about" });
+}
+
+function checkForUpdatesFromMenu() {
+  openSettings({ section: "about", check: true });
+}
+
+function historyTarget(step: -1 | 1): number | null {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  const history = mainWindow.webContents.navigationHistory;
+  const server = readServer();
+  const count = history.length();
+  for (let index = history.getActiveIndex() + step; index >= 0 && index < count; index += step) {
+    const url = parse(history.getEntryAtIndex(index).url);
+    if (url && decide(url, server) === "allow") return index;
+  }
+  return null;
+}
+
+function navigateHistory(step: -1 | 1) {
+  const index = historyTarget(step);
+  if (index === null || !mainWindow) return;
+  mainWindow.webContents.navigationHistory.goToIndex(index);
 }
 
 function applySettings(previous: Settings | null, next: Settings) {
@@ -391,13 +411,16 @@ function applySettings(previous: Settings | null, next: Settings) {
   if (previous?.restoreLastPage && !next.restoreLastPage) writeLastPath(null);
   setTray(next.closeToTray, {
     show: focus,
-    settings: openSettings,
+    settings: () => openSettings(),
+    checkForUpdates: checkForUpdatesFromMenu,
     quit: () => {
       quitting = true;
       app.quit();
     },
   });
-  applySpellcheck(next);
+  if (!previous || previous.checkForUpdates !== next.checkForUpdates) {
+    scheduleUpdateChecks(next.checkForUpdates, openAbout);
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.setZoomFactor(next.zoomFactor);
   }
@@ -435,7 +458,7 @@ function createWindow(hidden = false): BrowserWindow {
       showLocal("signin");
     },
     connect: (url) => void connectInBrowser(url),
-    settings: openSettings,
+    settings: () => openSettings(),
     childWindowOptions: () => ({
       parent: created,
       autoHideMenuBar: true,
@@ -468,6 +491,14 @@ function createWindow(hidden = false): BrowserWindow {
   created.webContents.on("zoom-changed", (_event, direction) => {
     zoomBy(direction === "in" ? ZOOM_STEP : -ZOOM_STEP);
   });
+  created.on("app-command", (_event, command) => {
+    if (command === "browser-backward") navigateHistory(-1);
+    else if (command === "browser-forward") navigateHistory(1);
+  });
+  created.on("swipe", (_event, direction) => {
+    if (direction === "left") navigateHistory(-1);
+    else if (direction === "right") navigateHistory(1);
+  });
 
   created.on("close", (event) => {
     if (quitting || !readSettings().closeToTray || !hasTray()) return;
@@ -492,8 +523,18 @@ function focus() {
   target.focus();
 }
 
-function openSettings() {
+function settingsQuery(options: { section?: SettingsSection; check?: boolean }) {
+  const query: Record<string, string> = {};
+  if (options.section) query.section = options.section;
+  if (options.check) query.check = "1";
+  return query;
+}
+
+function openSettings(options: { section?: SettingsSection; check?: boolean } = {}) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
+    if (options.section) {
+      void settingsWindow.loadFile(rendererPage("settings"), { query: settingsQuery(options) });
+    }
     settingsWindow.show();
     settingsWindow.focus();
     return;
@@ -525,7 +566,7 @@ function openSettings() {
   created.on("closed", () => {
     if (settingsWindow === created) settingsWindow = null;
   });
-  void created.loadFile(rendererPage("settings"));
+  void created.loadFile(rendererPage("settings"), { query: settingsQuery(options) });
   settingsWindow = created;
 }
 
@@ -543,11 +584,10 @@ function settingsPayload(): SettingsPayload {
     settings,
     platform: process.platform,
     server: readServer(),
-    spellcheckLanguages:
-      process.platform === "darwin" ? [] : appSession().availableSpellCheckerLanguages,
     restartRequired: settings.hardwareAcceleration !== launchHardwareAcceleration,
     defaultDownloadFolder: app.getPath("downloads"),
     logFile: logFile(),
+    update: updateStatus(),
     about: {
       version: app.getVersion(),
       electron: process.versions.electron,
@@ -594,7 +634,7 @@ function registerIpc() {
     if (!server) {
       return {
         ok: false,
-        error: "Enter an https:// address, for example https://mail.example.com",
+        error: "Enter your server's address, for example mail.example.com",
       };
     }
     if (!(await checkServer(appSession(), server))) {
@@ -621,6 +661,19 @@ function registerIpc() {
   ipcMain.handle("metis:retry-connection", async (event) => {
     if (!fromLocalPage(event)) return { ok: false };
     return reconnect("button");
+  });
+
+  ipcMain.handle("metis:reopen", async (event) => {
+    if (!fromLocalPage(event)) return;
+    log("reopen from loading screen");
+    await route();
+  });
+
+  ipcMain.on("metis:history", (event, direction: unknown) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return;
+    if (process.platform !== "darwin") return;
+    if (direction === "back") navigateHistory(-1);
+    else if (direction === "forward") navigateHistory(1);
   });
 
   ipcMain.on("metis:network", (event, online: unknown) => {
@@ -675,6 +728,17 @@ function registerIpc() {
     return settingsPayload();
   });
 
+  ipcMain.handle("metis:check-for-updates", async (event) => {
+    if (!fromLocalPage(event)) return null;
+    markAnnounced(await checkForUpdates());
+    return settingsPayload();
+  });
+
+  ipcMain.handle("metis:download-update", (event) => {
+    if (!fromLocalPage(event)) return;
+    downloadUpdate();
+  });
+
   ipcMain.handle("metis:show-log", (event) => {
     if (!fromLocalPage(event)) return;
     log("log file opened from settings");
@@ -717,7 +781,11 @@ function buildMenu() {
   const settingsItem: MenuItemConstructorOptions = {
     label: "Settings…",
     accelerator: "CmdOrCtrl+,",
-    click: openSettings,
+    click: () => openSettings(),
+  };
+  const updatesItem: MenuItemConstructorOptions = {
+    label: "Check for updates…",
+    click: checkForUpdatesFromMenu,
   };
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
@@ -728,6 +796,7 @@ function buildMenu() {
               { role: "about" },
               { type: "separator" },
               settingsItem,
+              updatesItem,
               { type: "separator" },
               { role: "services" },
               { type: "separator" },
@@ -744,7 +813,7 @@ function buildMenu() {
       label: "File",
       submenu: [
         { label: "Home", click: () => void showServer(HOME_PATH) },
-        ...(isMac ? [] : [settingsItem]),
+        ...(isMac ? [] : [settingsItem, updatesItem]),
         { type: "separator" },
         { label: "Sign out", click: () => void signOutAndRoute() },
         { label: "Change server…", click: () => void changeServer() },
@@ -765,6 +834,17 @@ function buildMenu() {
     {
       label: "View",
       submenu: [
+        {
+          label: "Back",
+          accelerator: isMac ? "Cmd+[" : "Alt+Left",
+          click: () => navigateHistory(-1),
+        },
+        {
+          label: "Forward",
+          accelerator: isMac ? "Cmd+]" : "Alt+Right",
+          click: () => navigateHistory(1),
+        },
+        { type: "separator" },
         { role: "reload" },
         ...(DEVTOOLS ? [{ role: "toggleDevTools" } satisfies MenuItemConstructorOptions] : []),
         { type: "separator" },

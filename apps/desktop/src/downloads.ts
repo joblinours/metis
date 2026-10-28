@@ -51,6 +51,14 @@ function notifyDone(item: DownloadItem): void {
   notification.show();
 }
 
+function notifyFailed(item: DownloadItem): void {
+  if (!Notification.isSupported()) return;
+  new Notification({
+    title: "Download failed",
+    body: path.basename(item.getSavePath() || item.getFilename()),
+  }).show();
+}
+
 export function handleDownloads(session: Session, window: () => BrowserWindow | null): void {
   session.on("will-download", (_event, item) => {
     const settings = readSettings();
@@ -68,6 +76,7 @@ export function handleDownloads(session: Session, window: () => BrowserWindow | 
     item.once("done", (_doneEvent, state) => {
       active.delete(item);
       updateProgress(window());
+      if (state === "interrupted") notifyFailed(item);
       if (state !== "completed") return;
       if (readSettings().downloadMode === "ask") {
         writeSettings({ lastDownloadFolder: path.dirname(item.getSavePath()) });

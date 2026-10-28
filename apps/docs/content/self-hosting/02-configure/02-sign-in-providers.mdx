@@ -1,7 +1,9 @@
 ---
-title: Sign-in providers
+title: OAuth providers
 description: Create OAuth clients for Google, Microsoft and Zoho so users can connect Gmail, Outlook, Zoho Mail and their calendars and drives.
 ---
+
+People sign in to Metis Suite with their email and password, or with a magic link, and then with two-factor authentication. Google, Microsoft and Zoho play no part in that sign-in. This page sets up those providers for one job only: letting users connect their mail, calendars and drives.
 
 Users connect Google, Microsoft and Zoho accounts by signing in to the provider and giving Metis Suite permission. For that, your instance needs its own OAuth client (an app registration) at each provider you want to offer. Only providers you configure appear in the connect dialog.
 
@@ -38,50 +40,135 @@ https://mail.example.com/api/connections/zoho/callback
 
 <Tabs>
   <Tab title="Google">
-    In the Google Cloud console:
+    In the Google Cloud console, create a project or pick an existing one.
+    Then:
 
-    1. Create a project, or pick an existing one.
-    2. Enable the Gmail API, the Google Calendar API and the Google Drive API.
-    3. Set up the OAuth consent screen.
-    4. Create an OAuth client ID of type **Web application**, and add your
-       redirect URI as an authorized redirect URI.
-    5. Copy the client ID and the client secret.
+    1. Enable the [Gmail API](https://console.cloud.google.com/apis/enableflow;apiid=gmail.googleapis.com),
+       the [Google Calendar API](https://console.cloud.google.com/apis/enableflow;apiid=calendar-json.googleapis.com)
+       and the [Google Drive API](https://console.cloud.google.com/apis/enableflow;apiid=drive.googleapis.com).
+       With the gcloud CLI, you can run
+       `gcloud services enable gmail.googleapis.com calendar-json.googleapis.com drive.googleapis.com`
+       instead.
+    2. Open [Google Auth platform](https://console.developers.google.com/auth/overview).
+       If it says "Google Auth platform not configured yet", click
+       **Get Started**. Enter an **App name** and a **User support email**,
+       choose the audience (**External** or **Internal**), enter a contact
+       email address, agree to the Google API Services User Data Policy,
+       and click **Create**.
+    3. Under [Data Access](https://console.developers.google.com/auth/scopes),
+       click **Add or Remove Scopes**, add the permissions listed below, and
+       click **Save**. The page then lists which of them are sensitive and
+       which are restricted.
+    4. Under **Clients**, click **Create Client**. Set **Application type**
+       to **Web application** and enter a **Name**. Under
+       **Authorized redirect URIs**, click **Add URI** and paste your
+       redirect URI. Click **Create**.
+    5. Copy the client ID and the client secret. Google shows the full
+       secret only once, when you create the client. After that, the
+       console shows only its last four characters.
 
     Metis Suite asks users for these permissions, depending on what they
     connect: `openid`, `email` and `profile`; `gmail.modify` and `gmail.send`
     for mail; `calendar` for calendars; `drive` for drives.
 
+    **Who can connect.** Choose the audience under
+    [Audience](https://console.developers.google.com/auth/audience):
+
+    - **Internal:** only members of your Google Cloud organization.
+    - **External**, in **Testing**: only the test users you add under
+      **Test users**, at most 100. Google ends a test user's access seven
+      days after they give it.
+    - **External**, in production: any Google account, after you click
+      **Publish app**.
+
+    **Google verification.** `gmail.modify` and `drive` are restricted
+    scopes. An app that is in production and open to everyone needs
+    Google's verification for them, including a security assessment by an
+    assessor Google approves, repeated at least every 12 months. Google
+    makes exceptions for personal use by a few people you know, for an
+    internal app, and for apps in testing. See Google's guide to
+    [restricted scope verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification).
+
+    Google's own guides: [configure the consent screen](https://developers.google.com/workspace/guides/configure-oauth-consent),
+    [create a client](https://developers.google.com/workspace/guides/create-credentials)
+    and [manage the audience](https://support.google.com/cloud/answer/15549945).
+
   </Tab>
   <Tab title="Microsoft">
-    In the Microsoft Entra admin center:
+    In the [Microsoft Entra admin center](https://entra.microsoft.com):
 
-    1. Create a new app registration.
-    2. For supported account types, choose accounts in any organizational
-       directory and personal Microsoft accounts. Metis Suite signs users in
-       through Microsoft's common endpoint, which serves both.
-    3. Add a **Web** platform with your redirect URI.
-    4. Create a client secret, and copy its value along with the
-       application (client) ID.
+    1. Open **Entra ID**, **App registrations**, and click
+       **New registration**. Enter a **Name**. You need at least the
+       Application Developer role.
+    2. Under **Supported account types**, choose
+       **Any Entra ID Tenant + Personal Microsoft accounts**. Older screens
+       call it "Accounts in any organizational directory (Any Microsoft
+       Entra directory - Multitenant) and personal Microsoft accounts (such
+       as Skype, Xbox)". Its
+       `signInAudience` value is `AzureADandPersonalMicrosoftAccount`.
+       Metis Suite connects accounts through Microsoft's common endpoint,
+       which serves both work and personal accounts. Click **Register**.
+    3. Copy the **Application (client) ID** from the **Overview** page.
+    4. Under **Authentication**, open the **Redirect URI configuration**
+       tab and click **Add Redirect URI**. Choose **Web**, enter your
+       redirect URI under **Redirect URI**, and click **Configure**.
+    5. Under **Certificates & secrets**, **Client secrets**, click
+       **New client secret**. Choose an expiry of at most 24 months, then
+       click **Add**. Copy the **Value** right away: Microsoft never shows
+       it again after you leave the page. Before it expires, create a new
+       secret and enter it in the dashboard.
 
     Metis Suite asks users for these Microsoft Graph permissions, depending
     on what they connect: `openid`, `email`, `profile`, `User.Read` and
     `offline_access`; `Mail.ReadWrite` and `Mail.Send` for mail;
     `Calendars.ReadWrite` for calendars; `Files.ReadWrite` for drives.
 
+    **Admin consent.** Users give these permissions when they connect,
+    unless an admin of their organization has already consented. To
+    consent for a whole organization, add the permissions under
+    **API permissions**, **Add a permission**, **Microsoft Graph**,
+    **Delegated permissions**. An admin can then click
+    **Grant admin consent for**, followed by the name of the organization.
+
+    **Publisher verification.** Microsoft can block users in other
+    organizations from consenting to a multitenant app whose publisher is
+    not verified. They see an unverified publisher warning. Verification
+    is free. It needs a Microsoft AI Cloud Partner Program account and a
+    domain of your own, not `*.onmicrosoft.com`. An app registered with a
+    personal Microsoft account cannot be verified. See Microsoft's guide to
+    [publisher verification](https://learn.microsoft.com/en-us/entra/identity-platform/publisher-verification-overview).
+
+    Microsoft's own guides: [register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app),
+    [add a redirect URI](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-redirect-uri)
+    and [add a client secret](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-credentials).
+
   </Tab>
   <Tab title="Zoho">
-    In the Zoho API console for your region:
+    Use the Zoho API console of the data center your users' Zoho accounts
+    live in:
 
-    1. Add a server-based application.
-    2. Add your redirect URI as an authorized redirect URI.
-    3. Copy the client ID and the client secret.
+    | **Region** in Metis Suite | API console                                         |
+    | ------------------------- | --------------------------------------------------- |
+    | `com` (the default)       | [api-console.zoho.com](https://api-console.zoho.com) |
+    | `eu`                      | [api-console.zoho.eu](https://api-console.zoho.eu)   |
+    | `in`                      | [api-console.zoho.in](https://api-console.zoho.in)   |
+    | `com.au`                  | [api-console.zoho.com.au](https://api-console.zoho.com.au) |
+    | `jp`                      | [api-console.zoho.jp](https://api-console.zoho.jp)   |
 
-    Set the **Region** to the data center your users' Zoho accounts live in:
-    `com` (the default), `in`, `eu`, `com.au` or `jp`.
+    1. Click **GET STARTED**, or **ADD CLIENT** if you already have
+       clients. Hover over **Server-based Applications** and click
+       **CREATE NOW**.
+    2. Enter a **Client Name**, your app's address as the **Homepage URL**,
+       and your redirect URI under **Authorized Redirect URIs**. Click
+       **CREATE**.
+    3. Copy the client ID and the client secret from the **Client Secret**
+       tab.
 
     Metis Suite asks users for `AaaServer.profile.READ`; `ZohoMail.messages.ALL`,
     `ZohoMail.folders.ALL` and `ZohoMail.accounts.READ` for mail; and
     `ZohoCalendar.calendar.ALL` and `ZohoCalendar.event.ALL` for calendars.
+
+    Zoho's own guide: [set up an OAuth client](https://www.zoho.com/accounts/protocol/oauth-setup.html).
 
   </Tab>
 </Tabs>

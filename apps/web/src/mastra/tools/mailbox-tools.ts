@@ -2,12 +2,12 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import * as labels from "@/ops/labels";
+import * as mail from "@/ops/mail";
+import { analyzePhishing } from "@/ops/phishing";
 import { phishingDetectionEnabled } from "@/services/phishing-detection";
 
 import { getMailboxCtx } from "../runtime-context";
-import * as labels from "../toolkit/labels";
-import * as mail from "../toolkit/mail";
-import { analyzePhishing } from "../toolkit/phishing";
 import { withToolErrors } from "../toolkit/resolve";
 import { folderEnum } from "../toolkit/schema";
 

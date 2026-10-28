@@ -1,40 +1,53 @@
 # Desktop shell — Electron over the user's own instance
 
-The Electron window onto a running Metis server: its own pages, the `native` sign-in protocol and connection tickets the mobile shell shares, downloads, settings, connectivity and packaged-build lockdown.
+The Electron window onto a running Metis server: its own pages, the `native` sign-in protocol and connection tickets the mobile shell shares, the shell core both shells import, downloads, settings, update notices, history, connectivity and packaged-build lockdown.
 Paths without a workspace prefix are in `apps/desktop/`; web paths are written in full.
 See also [AGENTS.md](../AGENTS.md), [mobile.md](mobile.md), [auth.md](auth.md), [connections.md](connections.md), [downloads.md](downloads.md), [ui.md](ui.md).
 
 ## Code map
 
-| Concern                               | Where                                                                                                                                                                                                          |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Main process                          | `src/main.ts` → `route`, `openSettings`, `reconnectOrRefresh`, `fromLocalPage`                                                                                                                                 |
-| Navigation rules                      | `src/navigation.ts` → `attachNavigation`, `SIGN_IN_PATHS`, `BROWSER_ONLY_PREFIXES`                                                                                                                             |
-| Login, session, tickets               | `src/auth.ts` → `beginLogin`, `connectTicketUrl` · `src/http.ts` → `requestJson`                                                                                                                               |
-| Deep links and constants              | `src/links.ts` → `SCHEME`, `USER_AGENT_TOKEN`, `SETTINGS_PATH`, `parseDeepLink`                                                                                                                                |
-| Stored state (`userData/config.json`) | `src/store.ts` → `readServer`                                                                                                                                                                                  |
-| Settings                              | `src/settings-types.ts` → `Settings` · `src/settings.ts` → `readSettings`, `writeSettings` · `src/tray.ts`, `src/autostart.ts`                                                                                 |
-| Preload                               | `src/preload.ts` (`contextBridge.exposeInMainWorld("metis", …)`, typed `MetisBridge`)                                                                                                                          |
-| Downloads                             | `src/downloads.ts` → `handleDownloads`                                                                                                                                                                         |
-| Step log                              | `src/log.ts` → `log`                                                                                                                                                                                           |
-| Renderer pages                        | `renderer/*.html` → `renderer/src/pages/*.tsx` · shared page frame `renderer/src/screen.tsx` → `Screen`, `useServer` · `renderer/src/mount.tsx` · `renderer/src/styles.css` · `vite.config.mts`                |
-| Packaging                             | `package.json` → `build.electronFuses`, `desktopName` · icons `static/icon.png`, `icons/` ([ui.md](ui.md))                                                                                                     |
-| Web: native plugin                    | `apps/web/src/auth/native.ts` → `native`                                                                                                                                                                       |
-| Web: ticket consumption               | `apps/web/src/auth/native-ticket.ts` → `consumeNativeConnectTicket` · `apps/web/src/app/api/connections/start/[provider]/[resource]/route.ts`, `apps/web/src/app/api/connections/[provider]/callback/route.ts` |
-| Web: link builders                    | `apps/web/src/auth/native-link.ts` → `NATIVE_SCHEME`, `NATIVE_USER_AGENT_TOKEN`, `isNativeUserAgent`                                                                                                           |
-| Web: browser pages                    | `apps/web/src/app/(auth)/native/{login,return,settings}/`                                                                                                                                                      |
-| Web: "App settings" menu item         | `apps/web/src/components/app-rail.tsx`                                                                                                                                                                         |
+| Concern                               | Where                                                                                                                                                                                                                                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main process                          | `src/main.ts` → `route`, `openSettings`, `reconnectOrRefresh`, `fromLocalPage`                                                                                                                                                                                                                      |
+| Shell core (both shells)              | `packages/shell-core/src/` → `links.ts` (`SCHEME`, `USER_AGENT_TOKEN`, `SETTINGS_PATH`, `parseDeepLink`), `navigation.ts` (`decide`, `SIGN_IN_PATHS`, `BROWSER_ONLY_PREFIXES`, `SLOW_LOAD_MS`), `store.ts` (`normalizeServer`, `isRestorablePath`, `storedSchema`), `update.ts` · tests `*.test.ts` |
+| Navigation rules                      | `src/navigation.ts` → `attachNavigation` (applies `decide`)                                                                                                                                                                                                                                         |
+| Login, session, tickets               | `src/auth.ts` → `beginLogin`, `connectTicketUrl` · `src/http.ts` → `requestJson`                                                                                                                                                                                                                    |
+| Deep links from launch arguments      | `src/links.ts` → `findDeepLink`                                                                                                                                                                                                                                                                     |
+| Stored state (`userData/config.json`) | `src/store.ts` → `readServer`                                                                                                                                                                                                                                                                       |
+| Update notices                        | `src/update.ts` → `scheduleUpdateChecks`, `checkForUpdates`, `downloadUpdate` · version file URL in `packages/shell-core/src/update.ts`                                                                                                                                                             |
+| Back and forward                      | `src/main.ts` → `navigateHistory`, `historyTarget` · `src/preload.ts` (`metis:history`)                                                                                                                                                                                                             |
+| Settings                              | `src/settings-types.ts` → `Settings` · `src/settings.ts` → `readSettings`, `writeSettings` · `src/tray.ts`, `src/autostart.ts`                                                                                                                                                                      |
+| Preload                               | `src/preload.ts` (`contextBridge.exposeInMainWorld("metis", …)`, typed `MetisBridge`)                                                                                                                                                                                                               |
+| Downloads                             | `src/downloads.ts` → `handleDownloads`                                                                                                                                                                                                                                                              |
+| Step log                              | `src/log.ts` → `log`                                                                                                                                                                                                                                                                                |
+| Renderer pages                        | `renderer/*.html` → `renderer/src/pages/*.tsx` · shared page frame `renderer/src/screen.tsx` → `Screen`, `useServer` · `renderer/src/mount.tsx` · `renderer/src/styles.css` · `vite.config.mts`                                                                                                     |
+| Packaging                             | `package.json` → `build.electronFuses`, `build.linux.publish`, `desktopName` · icons `static/icon.png`, `static/trayTemplate{,@2x}.png`, `icons/` ([ui.md](ui.md))                                                                                                                                  |
+| Web: native plugin                    | `apps/web/src/auth/native.ts` → `native`                                                                                                                                                                                                                                                            |
+| Web: ticket consumption               | `apps/web/src/auth/native-ticket.ts` → `consumeNativeConnectTicket` · `apps/web/src/app/api/connections/start/[provider]/[resource]/route.ts`, `apps/web/src/app/api/connections/[provider]/callback/route.ts`                                                                                      |
+| Web: link builders                    | `apps/web/src/auth/native-link.ts` → `isNativeUserAgent`, `nativeAuthLink` (constants re-exported from `@metis/shell-core/links`)                                                                                                                                                                   |
+| Web: browser pages                    | `apps/web/src/app/(auth)/native/{login,return,settings}/`                                                                                                                                                                                                                                           |
+| Web: "App settings" menu item         | `apps/web/src/components/app-rail.tsx`                                                                                                                                                                                                                                                              |
 
 ## Rules
 
 ### Isolation
 
 - **The shell is a window onto a running server and bundles nothing of Metis.** The first run asks for the instance address and checks it against `/api/auth/ok`; from then on the window loads that origin.
-- **The remote page gets `contextIsolation`, `sandbox` and no Node integration.** Its preload only forwards the OS's `online` / `offline` events to the main process.
+- **The remote page gets `contextIsolation`, `sandbox` and no Node integration.** Its preload only forwards the OS's `online` / `offline` events and the mouse's back / forward buttons (`metis:history`) to the main process.
+  - The main process accepts both messages only from `mainWindow.webContents`, and acts on `metis:history` only on macOS, because `app-command` already reports the same buttons on Windows and Linux.
 - **Only the shell's own `file:` pages get the `window.metis` bridge, and every IPC handler re-checks that the sender is a `file:` frame** (`fromLocalPage`).
 - **The shell's own pages stay `file:` pages**: Vite builds them with `base: "./"` into `dist/renderer/` and `main.ts` opens them with `loadFile`, which keeps the `file:` checks true. Each page's CSP meta tag allows only `'self'`.
 - **Every control on a shell page is a shadcn primitive from `packages/ui`**; the pages use `@metis/ui`'s neutral tokens and `@fontsource` fonts ([ui.md](ui.md)).
 - **`src/settings-types.ts` has no imports**, so the main process, the preload (`satisfies MetisBridge`) and the renderer share one definition.
+
+### The shell core
+
+- **Logic both shells need lives once in `@metis/shell-core`**: the protocol constants, deep-link parsing, the navigation `decide()` rules, server normalization, the restorable-path check, the stored-state schema and the update check.
+  - Anything touching Electron, React Native, `fs`, secure storage, crypto or `Linking` stays in each shell, and so do the settings schemas, which differ per shell.
+  - The package depends only on `zod` and the global WHATWG `URL`; the mobile entry loads `react-native-url-polyfill/auto` first ([mobile.md](mobile.md)).
+- **`bun test` in `packages/shell-core` covers every security check in it** (sign-in paths, origins, deep links, server addresses, restorable paths), and CI runs it.
+- **A server address without `scheme://` gets `https://`** (`normalizeServer`), so `mail.example.com` and `localhost:3000` both work; plain HTTP must be typed and is accepted only on loopback.
+  - It tests for `://` rather than relying on `new URL` throwing, because `new URL("localhost:3000")` parses with the scheme `localhost:`.
 
 ### Sign-in and the native protocol
 
@@ -46,7 +59,7 @@ See also [AGENTS.md](../AGENTS.md), [mobile.md](mobile.md), [auth.md](auth.md), 
 - **The exchange creates a new, separate session in the shell's own `persist:metis-suite` partition**, so signing out in the browser does not sign the app out.
 - **Only the browser that started a connection can finish it.** The callback trusts the ticket's user only together with that browser's own nonce cookie ([connections.md](connections.md)).
 - **Codes and tickets are single-use and race-safe**: stored in Better Auth's `verification` table under `native-login:` / `native-connect:` + sha256 of the token, and spent with `consumeVerificationValue`.
-- **The web's `NATIVE_SCHEME` and `NATIVE_USER_AGENT_TOKEN` must equal `SCHEME` and `USER_AGENT_TOKEN` in both shells' `links.ts`.**
+- **The web takes `NATIVE_SCHEME`, `NATIVE_USER_AGENT_TOKEN` and `NATIVE_SETTINGS_PATH` from `@metis/shell-core/links`**, the module both shells read, so the scheme, user-agent token and settings path cannot drift.
 - **The routes and their copy are shell-neutral** (`native`, "the Metis app"), because the mobile shell speaks the same protocol.
 
 ### Settings and windows
@@ -62,13 +75,31 @@ See also [AGENTS.md](../AGENTS.md), [mobile.md](mobile.md), [auth.md](auth.md), 
 - **Every server load goes through the loading page first**, so a deep link always changes what the window shows.
   - A load replaced by another, or by the shell's own sign-in interception (`ERR_ABORTED`), is expected and only logged.
   - Any other failure surfaces on the sign-in screen.
+  - After `SLOW_LOAD_MS` the loading page adds "Try again" (`metis:reopen`, which runs `route()`), "Use a different server" and "Settings", so a hung request never strands the user on a spinner.
+- **Back and forward move only to a history entry on the paired server that `decide()` allows** (`historyTarget` walks `webContents.navigationHistory`), and otherwise do nothing.
+  - The history holds the shell's own `file:` pages (loading, sign-in, offline) between server pages, so a plain `goBack()` would land on a spinner.
+  - Triggers: View → Back / Forward (Alt+Left / Alt+Right, Cmd+[ / Cmd+] on macOS), `app-command` on Windows and Linux, and on macOS `swipe` plus `metis:history` from the preload.
+- **The main process keeps `config.json` parsed in memory** (`src/store.ts`) and updates the copy on every write, because navigation and permission checks read it on every event; the main process is its only writer.
 - **Google downloads go to the system browser**, because `webContentLink` needs the viewer's Google browser session (`needsBrowserSession`).
+- **An interrupted download always shows a "Download failed" notification**, even with "Notify when a download finishes" off; a cancelled one stays silent.
+- **The shell has no spelling settings.** Chromium's spellchecker underlines misspellings with its default languages, but suggestions would need a native menu, and Blink raises Electron's `context-menu` from the `contextmenu` event's default action, which never runs once the page calls `preventDefault` for its own right-click menus.
+
+### Update notices
+
+- **Update notices live only in shell-owned UI**: an OS notification once per new version (clicking it opens Settings → About), the "Updates" row in About, and "Check for updates…" in the tray and File menus (the app menu on macOS). The rendered page never shows them.
+- **Update checks contact `downloads.trymetis.email`, never the user's server**: `GET /desktop/latest/version.txt` through `net.fetch` on the default session, so no server cookie is sent ([downloads.md](downloads.md)).
+  - A check runs at start-up while "Check for updates" (General, on by default) is on, then at most once a day; a failed check is logged and retried next time, never announced.
+  - `announcedVersion` in settings remembers the last version notified, so a dismissed notice does not repeat; a manual check marks the version it finds as announced.
+- **"Download" opens the platform's `latest/` file in the browser**, chosen from `process.platform` and `process.arch`; nothing installs in place.
+  - Linux reads `resources/package-type` (`deb` or `rpm`), which electron-builder writes only when a Linux publish config exists, hence `build.linux.publish`; without the file it opens the docs download page (`DOWNLOAD_PAGE`).
 
 ### Packaged builds
 
-- **A package the main process imports at runtime goes in `dependencies`, not `devDependencies`.**
-  - `tsc` compiles `src/` to `dist/` without bundling, so `dist/main.js` `require`s it, and electron-builder packs only `dependencies` (its bun collector walks `node_modules`).
-  - The renderer is bundled by Vite, so its packages stay in `devDependencies`.
+- **The main process, preload and renderer bundle every package they import, so every package is a `devDependency` and `dependencies` stays empty.**
+  - `bun build` bundles `src/main.ts` and `src/preload.ts` into `dist/` as CommonJS with only `electron` external: the npm `electron` package exports the path to the binary, and the API is the runtime's built-in `electron` module.
+  - The sandboxed preload's `require` loads only `electron` and no files, so the preload must be one self-contained file.
+  - electron-builder packs only `dependencies` (its bun collector walks `node_modules`), so a package left external would be missing from the packaged app; the renderer is bundled by Vite.
+- **Main-process code builds file paths from `app.getAppPath()`, never `__dirname`.** `bun build` replaces `__dirname` with the build machine's `src/` folder, so a packaged app would look for its pages, preload and icons on the machine that built it; `app.getAppPath()` is `apps/desktop` under `bun run start` and `resources/app.asar` once packaged.
 
 - **DevTools and debuggers exist only when `!app.isPackaged`.** A packaged build:
   - leaves Toggle Developer Tools out of the View menu;
@@ -77,7 +108,7 @@ See also [AGENTS.md](../AGENTS.md), [mobile.md](mobile.md), [auth.md](auth.md), 
   - sets `build.electronFuses` to turn off `runAsNode`, `enableNodeOptionsEnvironmentVariable` and `enableNodeCliInspectArguments`, and to turn on `enableCookieEncryption`, so the session cookie on disk is sealed with the OS keychain.
 - **The step log records page loads by origin and path only** (`urlPath`), so codes, states, verifiers and cookies never reach it.
 - **Sign-out is best effort**: the shell clears its own cookies even when the server is unreachable.
-- **On Ubuntu 24.04+ Electron's sandbox needs the AppArmor profile the `.deb` installs** (electron-builder's built-in `after-install.tpl`). The kernel there restricts unprivileged user namespaces unless a profile allows them; an AppImage cannot install one, so its sandbox aborts ([downloads.md](downloads.md)).
+- **On Ubuntu 24.04+ Electron's sandbox needs the AppArmor profile the `.deb` installs** (electron-builder's built-in `after-install.tpl`). The kernel there restricts unprivileged user namespaces unless a profile allows them ([downloads.md](downloads.md)).
 - **`desktopName` + `linux.syncDesktopName` keep Electron's Wayland `app_id`, the `.desktop` file name and `StartupWMClass` identical**, so the dock links the window to the entry.
 
 ## How it works
@@ -101,10 +132,11 @@ See also [AGENTS.md](../AGENTS.md), [mobile.md](mobile.md), [auth.md](auth.md), 
   - The offline page takes over only when a load fails with a network error, or the start-up session check cannot reach the server; a drop while the app is open only marks the title.
   - The server is asked again (one `get-session`) only on an `online` event, `powerMonitor` `resume`, or "Try again", and only while the offline page is showing.
   - A stale sign-in link loads the app when the shell already holds a session.
-- **Builds.** `bun run build` compiles the main process with `tsc` and the renderer with `vite build`; `typecheck` checks both projects. `bun run start` keeps DevTools, and is where the DevTools "Offline" test works.
+- **Builds.** `bun run build` bundles the main process and preload with `bun build` and the renderer with `vite build`; `typecheck` runs `tsc` on both projects. `bun run start` keeps DevTools, and is where the DevTools "Offline" test works.
 - **Linux deep links.** `metis-suite://` resolves only once a `.desktop` file declares the scheme: the installed packages declare it, `bun run start` does not.
 
 ## Deliberate limits
 
 - **Connectivity is event-driven and never polls the server**, because every check is a request a serverless host bills.
 - **The offline page has no automatic retry**; it waits for one of the triggers above.
+- **Updates are notify-and-link.** In-place installs would need a signed macOS build with a `zip` target, and electron-updater skips `.deb` / `.rpm` installs because they elevate.

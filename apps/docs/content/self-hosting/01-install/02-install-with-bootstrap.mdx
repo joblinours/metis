@@ -134,17 +134,19 @@ Provider, AI, mail, background work, sign-up and legal variables can be exported
 
 ## Use Turso instead of the bundled database
 
-To keep both databases on [Turso](https://turso.tech), export these before you run the script:
+To keep both databases on [Turso](https://turso.tech), first create them and their tokens. See [Create the databases on Turso](/self-hosting/reference/environment-variables#create-the-databases-on-turso). Then export these before you run the script:
 
 ```bash
 export METIS_DB_DRIVER=turso
-export DATABASE_URL=libsql://<app database>.turso.io
+export DATABASE_URL=<app database URL>
 export DATABASE_AUTH_TOKEN=<token>
-export MASTRA_DATABASE_URL=libsql://<ai memory database>.turso.io
+export MASTRA_DATABASE_URL=<AI memory database URL>
 export MASTRA_DATABASE_AUTH_TOKEN=<token>
 ```
 
-The bundled database server then does not start. Both databases must use the same driver.
+Use the URL that `turso db show <database> --url` prints for each database. It starts with `libsql://`.
+
+With these set, the bundled database server does not start. Both databases must use the same driver.
 
 With Turso, the updater cannot take a snapshot before an upgrade, so an upgrade cannot be undone. Back up your databases before each upgrade. See [Upgrade and undo](/self-hosting/operate/upgrade-and-undo#snapshots-need-the-bundled-database).
 

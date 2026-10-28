@@ -4,6 +4,7 @@ import { config } from "@/config";
 import { relayUnsupported } from "@/drive/relay";
 import { bind } from "@/lib/bind";
 import { ProviderError } from "@/lib/errors/provider-error";
+import { errorStatus } from "@/lib/token-map";
 import { isPlainTerm, type TagToken, tagKey, tagText } from "@/search/ast";
 import { parseSearchDate } from "@/search/dates";
 import { compileWith, type Dialect, planPushdown } from "@/search/pushdown";
@@ -17,7 +18,7 @@ import type {
   NewUpload,
 } from "@/types/drive";
 
-import type { DriveAdapter } from "../adapter";
+import type { DriveAdapter, DriveChangeSignal } from "../adapter";
 
 export function googleDrive(accessToken: string, selfEmail: string): DriveAdapter {
   return bind<DriveAdapter, string>(
@@ -35,6 +36,7 @@ export function googleDrive(accessToken: string, selfEmail: string): DriveAdapte
       move,
       delete: deleteEntry,
       quota,
+      changes,
     },
     accessToken,
   );
@@ -75,6 +77,46 @@ const EXPORT_FORMATS: Record<string, { mime: string; extension: string }> = {
     extension: "json",
   },
 };
+
+const CHANGE_PAGES = 20;
+
+async function changes(
+  accessToken: string,
+  folderId: string | null,
+  cursor: string | null,
+): Promise<DriveChangeSignal | null> {
+  const client = getDriveClient(accessToken);
+  if (!cursor) {
+    const start = await client.changes.getStartPageToken({});
+    return start.data.startPageToken ? { cursor: start.data.startPageToken, changed: false } : null;
+  }
+  let pageToken = cursor;
+  let changed = false;
+  try {
+    for (let page = 0; page < CHANGE_PAGES; page += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each page needs the previous page's token
+      const res = await client.changes.list({
+        pageToken,
+        pageSize: 1000,
+        includeRemoved: true,
+        fields: "nextPageToken,newStartPageToken,changes(removed,file(parents))",
+      });
+      for (const change of res.data.changes ?? []) {
+        if (change.removed || !folderId || (change.file?.parents ?? []).includes(folderId)) {
+          changed = true;
+        }
+      }
+      if (res.data.newStartPageToken) return { cursor: res.data.newStartPageToken, changed };
+      if (!res.data.nextPageToken) break;
+      pageToken = res.data.nextPageToken;
+    }
+  } catch (err) {
+    const status = errorStatus(err);
+    if (status === 404 || status === 410) return { cursor: "", changed: true, expired: true };
+    throw err;
+  }
+  return { cursor: pageToken, changed };
+}
 
 function getDriveClient(accessToken: string): drive_v3.Drive {
   const client = new auth.OAuth2();

@@ -34,7 +34,7 @@ export function SetupScreen() {
         </Label>
         <Input
           aria-labelledby="server-label"
-          placeholder="https://mail.example.com"
+          placeholder="mail.example.com"
           keyboardType="url"
           autoCapitalize="none"
           autoCorrect={false}

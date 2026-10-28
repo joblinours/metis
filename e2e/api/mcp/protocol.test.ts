@@ -44,6 +44,9 @@ const SEEDED_WORKFLOWS = [
   "Collect rebrand and GitHub mail",
   "Label orders once both checks finish",
   "Triage with the decision model",
+  "Triage new mail",
+  "Star the newest mail once approved",
+  "Label mail a webhook names",
 ];
 
 const token = () => seededToken("defaults");
@@ -298,7 +301,9 @@ test("summarizeThread and previewDecision replay", async () => {
         z.object({
           name: z.string(),
           graph: z.object({
-            nodes: z.array(z.looseObject({ kind: z.string() })),
+            nodes: z.array(
+              z.looseObject({ step: z.string(), params: z.record(z.string(), z.unknown()) }),
+            ),
           }),
         }),
       ),
@@ -306,7 +311,7 @@ test("summarizeThread and previewDecision replay", async () => {
   );
   const ask = workflows
     .find((w) => w.name === "Triage with the decision model")
-    ?.graph.nodes.find((n) => n.kind === "decision.ask");
+    ?.graph.nodes.find((n) => n.step === "ai.ask");
   expect(ask).toBeDefined();
   const preview = await client.callTool({
     name: "previewDecision",

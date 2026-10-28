@@ -24,6 +24,12 @@ import { sftpDrive } from "./providers/sftp";
 import { webdavDrive } from "./providers/webdav";
 import type { RelayScope } from "./relay";
 
+export interface DriveChangeSignal {
+  cursor: string;
+  changed: boolean;
+  expired?: boolean;
+}
+
 export interface DriveAdapter {
   listFolder(parentId: string | null, cursor?: string): Promise<DriveListing>;
   search(query: string, cursor?: string): Promise<DriveListing>;
@@ -42,6 +48,7 @@ export interface DriveAdapter {
   move(fileId: string, newParentId: string | null): Promise<void>;
   delete(fileId: string): Promise<void>;
   quota(): Promise<DriveQuota | null>;
+  changes?(folderId: string | null, cursor: string | null): Promise<DriveChangeSignal | null>;
 }
 
 const DRIVE_ADAPTERS: Record<

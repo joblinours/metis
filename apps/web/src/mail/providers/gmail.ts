@@ -1,6 +1,7 @@
 import { auth, gmail as gmailApi } from "@googleapis/gmail";
 
 import { bind } from "@/lib/bind";
+import { errorStatus } from "@/lib/token-map";
 import { isPlainTerm, type TagToken, tagKey, tagText } from "@/search/ast";
 import { parseSearchDate } from "@/search/dates";
 import { compileWith, type Dialect, planPushdown } from "@/search/pushdown";
@@ -15,7 +16,7 @@ import {
   type UnsubscribeInfo,
 } from "@/types/mail";
 
-import type { MailAdapter } from "../adapter";
+import type { MailAdapter, MailChanges } from "../adapter";
 import { type MessageHeaders, pickHeaders } from "../headers";
 import { decodeMimeHeader, parseRecipientList } from "../recipients";
 
@@ -47,6 +48,7 @@ export function gmailMail(accessToken: string): MailAdapter {
       getHeaders,
       listAttachments,
       downloadAttachment,
+      changes,
     },
     accessToken,
   );
@@ -67,6 +69,55 @@ const LABEL_MAP: Record<MailFolder, string> = {
   archive: "",
   spam: "SPAM",
 };
+
+const HISTORY_PAGES = 20;
+
+async function changes(
+  accessToken: string,
+  folder: MailFolder,
+  cursor: string | null,
+): Promise<MailChanges | null> {
+  const label = LABEL_MAP[folder];
+  if (!label) return null;
+  const gmail = getGmailClient(accessToken);
+  if (!cursor) {
+    const profile = await gmail.users.getProfile({ userId: "me" });
+    return { cursor: profile.data.historyId ?? "", ids: [] };
+  }
+  const ids = new Set<string>();
+  let latest = cursor;
+  let pageToken: string | undefined;
+  try {
+    for (let page = 0; page < HISTORY_PAGES; page += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each history page needs the previous page's token
+      const res = await gmail.users.history.list({
+        userId: "me",
+        startHistoryId: cursor,
+        historyTypes: ["messageAdded", "labelAdded"],
+        labelId: label,
+        maxResults: 500,
+        pageToken,
+      });
+      for (const entry of res.data.history ?? []) {
+        for (const added of entry.messagesAdded ?? []) {
+          const id = added.message?.id;
+          if (id && (added.message?.labelIds ?? []).includes(label)) ids.add(id);
+        }
+        for (const added of entry.labelsAdded ?? []) {
+          const id = added.message?.id;
+          if (id && (added.labelIds ?? []).includes(label)) ids.add(id);
+        }
+      }
+      latest = res.data.historyId ?? latest;
+      pageToken = res.data.nextPageToken ?? undefined;
+      if (!pageToken) break;
+    }
+  } catch (err) {
+    if (errorStatus(err) === 404) return { cursor: "", ids: [], expired: true };
+    throw err;
+  }
+  return { cursor: latest, ids: [...ids] };
+}
 
 function getHeader(headers: { name?: string | null; value?: string | null }[], name: string) {
   return headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? "";
@@ -526,6 +577,11 @@ async function deleteMessage(accessToken: string, id: string): Promise<string> {
 async function restoreMessage(accessToken: string, id: string): Promise<string> {
   const gmail = getGmailClient(accessToken);
   await gmail.users.messages.untrash({ userId: "me", id });
+  await gmail.users.messages.modify({
+    userId: "me",
+    id,
+    requestBody: { addLabelIds: ["INBOX"], removeLabelIds: ["SPAM"] },
+  });
   return id;
 }
 

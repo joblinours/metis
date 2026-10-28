@@ -2,9 +2,9 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import * as mail from "@/mastra/toolkit/mail";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import { draftFields, mailboxTarget, messageTarget } from "@/mastra/toolkit/schema";
+import * as mail from "@/ops/mail";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace } from "../schema";

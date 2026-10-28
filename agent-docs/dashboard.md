@@ -39,7 +39,7 @@ See also [AGENTS.md](../AGENTS.md), [auth.md](auth.md), [configuration.md](confi
 - **Everyone but the owner gets a 404**, byte-identical to any unrouted URL.
 - **The procedures gate themselves.** `/rpc` is outside the dashboard matcher, so `ownerSession` protects the data, and it throws `NOT_FOUND` for the same reason the proxy 404s.
 - **Only the `isOwner` boolean crosses to the client**, for the rail's Dashboard entry.
-- **The stats and System pages are also owner-only MCP tools** (`src/mastra/toolkit/instance.ts`, [mcp.md](mcp.md)), with secrets reduced to set or not set.
+- **The stats and System pages are also owner-only MCP tools** (`src/ops/instance.ts`, [mcp.md](mcp.md)), with secrets reduced to set or not set.
 
 ### Stats
 

@@ -4,10 +4,9 @@ import {
   DECISION_BODY_MAX,
   DECISION_OTHER_OPTION_ID,
   type DecisionQuestion,
-  type DecisionStateField,
-  type SourceHandle,
-  type WorkflowGraph,
-  type WorkflowNode,
+  decisionQuestionSchema,
+  type GraphNode,
+  type GraphShape,
 } from "./schema";
 
 export const OTHER_OPTION_TEXT = "None of the listed options fits";
@@ -25,24 +24,24 @@ export interface DecisionThresholds {
 }
 
 export interface DecisionRoute {
-  handle: SourceHandle;
+  handle: string;
   probability: number;
   score?: number;
 }
 
-export interface DecisionFacts {
-  from: string;
-  fromName?: string;
-  to: string[];
-  cc?: string[];
-  subject: string;
-  snippet: string;
-  bodyText?: string;
-  hasAttachment?: boolean;
-  date?: string;
+export const questionsSchema = z.array(decisionQuestionSchema).max(20);
+
+export function parseQuestions(value: unknown): DecisionQuestion[] {
+  const parsed = questionsSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
 }
 
-export function questionHandle(questionId: string): SourceHandle {
+export function nodeQuestions(node: Pick<GraphNode, "params">): DecisionQuestion[] {
+  const bound = node.params.questions;
+  return bound?.kind === "literal" ? parseQuestions(bound.value) : [];
+}
+
+export function questionHandle(questionId: string): string {
   return `q:${questionId}`;
 }
 
@@ -50,18 +49,18 @@ export function questionIdOf(handle: string): string | null {
   return handle.startsWith("q:") ? handle.slice(2) : null;
 }
 
-export function branchHandles(question: DecisionQuestion): SourceHandle[] {
+export function branchHandles(question: DecisionQuestion): string[] {
   switch (question.type) {
     case "boolean":
       return ["yes", "no", "unsure"];
     case "choice":
       return [
-        ...question.options.map((o): SourceHandle => `opt:${o.id}`),
+        ...question.options.map((o) => `opt:${o.id}`),
         ...(question.other ? (["other"] as const) : []),
         "unsure",
       ];
     case "score":
-      return [...question.levels.map((l): SourceHandle => `lvl:${l.id}`), "unsure"];
+      return [...question.levels.map((l) => `lvl:${l.id}`), "unsure"];
   }
 }
 
@@ -82,63 +81,61 @@ export function answerLabel(question: DecisionQuestion | null, handle: string): 
 }
 
 export function branchQuestion(
-  graph: Pick<WorkflowGraph, "nodes" | "edges">,
+  graph: GraphShape,
   branchId: string,
-): {
-  ask: Extract<WorkflowNode, { kind: "decision.ask" }>;
-  question: DecisionQuestion;
-} | null {
+): { ask: GraphNode; question: DecisionQuestion } | null {
   const edge = graph.edges.find((e) => e.target === branchId);
   if (!edge) return null;
   const ask = graph.nodes.find((n) => n.id === edge.source);
-  if (ask?.kind !== "decision.ask") return null;
+  if (ask?.step !== "ai.ask") return null;
   const questionId = questionIdOf(edge.sourceHandle);
-  const question = ask.questions.find((q) => q.id === questionId);
+  const question = nodeQuestions(ask).find((q) => q.id === questionId);
   return question ? { ask, question } : null;
 }
 
-function sender(facts: DecisionFacts): string {
-  return facts.fromName ? `${facts.fromName} <${facts.from}>` : facts.from;
-}
+const STATE_TEXT_LIMIT = 2000;
 
-export function buildDecisionState(
-  facts: DecisionFacts,
-  fields: readonly DecisionStateField[],
-): Record<string, string | string[] | boolean> {
-  const state: Record<string, string | string[] | boolean> = {};
-  for (const field of fields) {
-    switch (field) {
-      case "from":
-        state.from = sender(facts);
-        break;
-      case "to":
-        state.to = facts.to;
-        break;
-      case "cc":
-        state.cc = facts.cc ?? [];
-        break;
-      case "subject":
-        state.subject = facts.subject;
-        break;
-      case "snippet":
-        state.snippet = facts.snippet;
-        break;
-      case "body":
-        state.body = (facts.bodyText ?? "").slice(0, DECISION_BODY_MAX);
-        break;
-      case "hasAttachment":
-        state.hasAttachment = facts.hasAttachment === true;
-        break;
-      case "date":
-        state.date = facts.date ?? "";
-        break;
-    }
+export type StateValue =
+  | string
+  | number
+  | boolean
+  | null
+  | StateValue[]
+  | { [key: string]: StateValue };
+
+function stateValue(value: unknown, depth = 0): StateValue {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value.slice(0, STATE_TEXT_LIMIT);
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (depth > 4) return null;
+  if (Array.isArray(value)) return value.slice(0, 50).map((entry) => stateValue(entry, depth + 1));
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, stateValue(entry, depth + 1)]),
+    );
   }
-  return state;
+  return null;
 }
 
-export function needsFullFacts(fields: readonly DecisionStateField[]): boolean {
-  return fields.includes("body") || fields.includes("hasAttachment");
+export function decisionState(
+  subject: unknown,
+  include: readonly string[],
+): { [key: string]: StateValue } {
+  const source: Record<string, unknown> =
+    subject && typeof subject === "object" && !Array.isArray(subject)
+      ? Object.fromEntries(Object.entries(subject))
+      : { value: subject };
+  const picked = Object.entries(source).filter(
+    ([key]) => include.length === 0 || include.includes(key),
+  );
+  return Object.fromEntries(
+    picked.map(([key, value]) => [
+      key,
+      key === "body" && typeof value === "string"
+        ? value.slice(0, DECISION_BODY_MAX)
+        : stateValue(value),
+    ]),
+  );
 }
 
 function criterion(item: { name: string; description?: string }): string {

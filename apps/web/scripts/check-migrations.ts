@@ -7,6 +7,8 @@ import { type Client, createClient } from "@libsql/client";
 
 import { migrateDatabase } from "@/db/migrations";
 
+import { MIGRATIONS } from "../migrations";
+
 type Shape = Map<string, string>;
 
 type Row = Record<string, unknown>;
@@ -82,7 +84,7 @@ function exportedSchema(): string {
 const dir = mkdtempSync(join(tmpdir(), "metis-migrations-"));
 try {
   const migrated = createClient({ url: `file:${join(dir, "migrated.db")}` });
-  await migrateDatabase(migrated);
+  await migrateDatabase(migrated, MIGRATIONS);
   const expected = createClient({ url: `file:${join(dir, "expected.db")}` });
   await expected.executeMultiple(exportedSchema());
 

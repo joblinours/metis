@@ -154,6 +154,8 @@ jobs:
           R2_BUCKET: ${{ secrets.DOWNLOADS_R2_BUCKET }}
           VERSION: ${{ needs.release.outputs.version }}
           LATEST: ${{ needs.release.outputs.latest }}
+          CHANGELOG: apps/desktop/CHANGELOG.md
+          VERSION_MANIFEST: true
         run: |
           .github/scripts/r2-upload.sh out "desktop/v$VERSION/" desktop/latest/ \
             metis-suite-aarch64-apple-darwin.dmg \

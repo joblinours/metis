@@ -8,7 +8,7 @@ import { workspaceMailTools } from "./workspace-mail-tools";
 import { workspaceMemberTools } from "./workspace-member-tools";
 import { workspaceWorkflowGraphTools, workspaceWorkflowTools } from "./workspace-workflow-tools";
 
-const allWorkspaceTools = {
+export const allWorkspaceTools = {
   ...workspaceMailTools,
   ...workspaceInboxTools,
   ...workspaceWorkflowTools,

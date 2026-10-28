@@ -2,9 +2,9 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import * as admin from "@/mastra/toolkit/admin";
 import { requireMember, withToolErrors } from "@/mastra/toolkit/resolve";
 import { inviteTarget, memberTarget, themeFields } from "@/mastra/toolkit/schema";
+import * as admin from "@/ops/admin";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace, workspaceTarget } from "../schema";

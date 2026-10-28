@@ -14,11 +14,12 @@ Where `bootstrap.sh` and `compose.yml` are published for every server release: `
 
 ## Files
 
-| Published name | Source                             | What it is                                 |
-| -------------- | ---------------------------------- | ------------------------------------------ |
-| `bootstrap`    | `bootstrap.sh` (renamed on upload) | The install script                         |
-| `compose.yml`  | `compose.yml`                      | The Compose file the script deploys        |
-| `SHA256SUMS`   | written by `r2-upload.sh`          | The SHA-256 of both, in `sha256sum` format |
+| Published name | Source                               | What it is                                                                                  |
+| -------------- | ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `bootstrap`    | `bootstrap.sh` (renamed on upload)   | The install script                                                                          |
+| `compose.yml`  | `compose.yml`                        | The Compose file the script deploys                                                         |
+| `SHA256SUMS`   | written by `r2-upload.sh`            | The SHA-256 of both, in `sha256sum` format                                                  |
+| `release.md`   | the release's `CHANGELOG.md` section | The release notes, in `v<version>/` only; the updater reads them ([updater.md](updater.md)) |
 
 ## URLs
 

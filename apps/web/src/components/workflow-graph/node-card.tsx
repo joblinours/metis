@@ -8,19 +8,19 @@ import { CircleAlert, X } from "lucide-react";
 import { useEffect } from "react";
 
 import { StatusIcon } from "@/components/workflow-history/run-status";
-import { type CardLine, kindCategory, kindLabel, nodeTitle, type PortType } from "@/workflow/kinds";
-import type { NodeStatus, WorkflowNode } from "@/workflow/schema";
+import type { GraphNode, StepStatus } from "@/workflow/schema";
+import { type CardLine, nodeTitle, stepCategory, stepLabel } from "@/workflow/steps";
 
-import { CATEGORY_BADGE, NodeIcon, PORT_HANDLE } from "./node-meta";
+import { CATEGORY_BADGE, NodeIcon, PORT_HANDLE, type PortTone } from "./node-meta";
 
 export interface CardPort {
   id: string | null;
   label: string;
-  type: PortType | "any";
+  tone: PortTone;
 }
 
 export interface CardStatus {
-  status: NodeStatus | null;
+  status: StepStatus | null;
   count: number;
   detail: string | null;
 }
@@ -99,7 +99,7 @@ function PortRow({
         id={port.id ?? undefined}
         isConnectable={connectable}
         title={port.label}
-        className={cn(handleClass, PORT_HANDLE[port.type])}
+        className={cn(handleClass, PORT_HANDLE[port.tone])}
       />
       <span className="truncate">{port.label}</span>
     </div>
@@ -117,7 +117,7 @@ export function NodeCard({
   connectable,
   onRemove,
 }: {
-  node: WorkflowNode;
+  node: GraphNode;
   inputs: CardPort[];
   outputs: CardPort[];
   lines: CardLine[];
@@ -135,7 +135,7 @@ export function NodeCard({
   }, [portKey, node.id, updateNodeInternals]);
 
   const title = nodeTitle(node);
-  const kind = kindLabel(node.kind);
+  const kind = stepLabel(node.step);
 
   return (
     <div className={cardVariants({ tone: toneOf(status, !!problem), selected })}>
@@ -143,10 +143,10 @@ export function NodeCard({
         <span
           className={cn(
             "grid size-6 shrink-0 place-items-center rounded-md",
-            CATEGORY_BADGE[kindCategory(node.kind)],
+            CATEGORY_BADGE[stepCategory(node.step)],
           )}
         >
-          <NodeIcon kind={node.kind} className="size-3.5" />
+          <NodeIcon step={node.step} className="size-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-[13px] leading-tight">{title}</p>
@@ -154,6 +154,11 @@ export function NodeCard({
             <p className="truncate text-[10px] text-faint leading-tight">{kind}</p>
           )}
         </div>
+        {node.onError && node.onError !== "fail" && (
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {node.onError === "branch" ? "On error: branch" : "On error: continue"}
+          </span>
+        )}
         {node.skip && (
           <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
             Skipped

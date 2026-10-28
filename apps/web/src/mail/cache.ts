@@ -7,6 +7,7 @@ import { mailMessage, mailThreadSummary } from "@/db/schema";
 import type { AnalysisResult } from "@/types/analysis";
 import type { Email } from "@/types/mail";
 import type { ThreadSummary } from "@/types/thread-summary";
+import { phishingFound } from "@/workflow/hooks";
 
 import type { ScopedMessage } from "./aggregate";
 
@@ -219,6 +220,9 @@ export async function cacheAnalysis(
       target: [mailMessage.mailboxId, mailMessage.providerMessageId],
       set: { analysisResult: analysis, syncedAt: now },
     });
+  if (analysis.classification !== "Legitimate") {
+    phishingFound(scoped, analysis.classification, analysis.risk_score);
+  }
 }
 
 export async function deleteCachedMessage(scoped: ScopedMessage): Promise<void> {

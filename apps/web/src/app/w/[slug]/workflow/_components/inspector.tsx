@@ -1,6 +1,16 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@metis/ui/components/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@metis/ui/components/alert-dialog";
 import { Badge } from "@metis/ui/components/badge";
 import { Button } from "@metis/ui/components/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@metis/ui/components/field";
@@ -10,19 +20,39 @@ import { Separator } from "@metis/ui/components/separator";
 import { Switch } from "@metis/ui/components/switch";
 import { cn } from "@metis/ui/lib/utils";
 import { CircleAlert, Copy, MousePointerClick, Trash2 } from "lucide-react";
-import type { FocusEvent } from "react";
+import { type FocusEvent, useState } from "react";
 
 import { CATEGORY_BADGE, NodeIcon } from "@/components/workflow-graph/node-meta";
+import { JsonBlock } from "@/components/workflow-history/json-block";
 import { StatusIcon, statusLabel } from "@/components/workflow-history/run-status";
 import { isTypingTarget } from "@/hooks/use-chord";
-import { CATEGORY_LABELS, kindOf, nodeOutputs, nodeTitle } from "@/workflow/kinds";
-import { MAX_STEP_TITLE, type WorkflowNode } from "@/workflow/schema";
+import { branchQuestion, nodeQuestions } from "@/workflow/decision";
+import type { Binding } from "@/workflow/expr";
+import {
+  type GraphNode,
+  MAX_STEP_TITLE,
+  ON_ERROR,
+  type OnError,
+  type WorkflowGraph,
+} from "@/workflow/schema";
+import { CATEGORY_LABELS, nodeOutputs, nodeTitle, stepDef } from "@/workflow/steps";
 
 import { useDiagnostics, useOverlay } from "./editor-context";
-import { useEditor, useEditorStore } from "./editor-store";
-import { StepForm } from "./forms";
+import { staleEdges, useEditor, useEditorStore } from "./editor-store";
+import { FormSelect } from "./forms/form-select";
+import { ParamField, visibleParams } from "./forms/param-field";
+import { TriggerDetails } from "./trigger-details";
+import { WorkflowSettings } from "./workflow-settings";
 
 const PASTE_OFFSET = { x: 32, y: 32 };
+
+const ON_ERROR_LABELS: Record<OnError, string> = {
+  fail: "Fail the run",
+  branch: "Route the item to an Error output",
+  continue: "Pass the item on unchanged",
+};
+
+const EMPTY_SCOPE = { trigger: { kind: "json" as const }, item: null, steps: {} };
 
 function useTypingAsOneStep() {
   const store = useEditorStore();
@@ -59,7 +89,7 @@ function Problems({ problems }: { problems: string[] }) {
   );
 }
 
-function StepResults({ node }: { node: WorkflowNode }) {
+function StepResults({ node }: { node: GraphNode }) {
   const { overlay, source } = useOverlay();
   const graph = useEditor((s) => s.graph);
   const result = overlay?.nodes.get(node.id);
@@ -87,20 +117,20 @@ function StepResults({ node }: { node: WorkflowNode }) {
             return (
               <li key={item.id} className="flex items-start gap-2 px-2.5 py-2">
                 <StatusIcon status={item.status} className="mt-0.5 size-3.5" />
-                <div className="min-w-0 flex-1 text-[12px]">
-                  {item.subject && <p className="truncate text-foreground">{item.subject}</p>}
-                  {item.from && <p className="truncate text-faint">{item.from}</p>}
+                <div className="flex min-w-0 flex-1 flex-col gap-1 text-[12px]">
+                  {item.title && <p className="truncate text-foreground">{item.title}</p>}
+                  {item.subtitle && <p className="truncate text-faint">{item.subtitle}</p>}
                   {routed.length > 0 && (
                     <p className="text-muted-foreground">→ {routed.join(", ")}</p>
                   )}
-                  {item.detail && !routed.length && (
-                    <p className="text-muted-foreground">{item.detail}</p>
-                  )}
+                  {item.detail && <p className="text-muted-foreground">{item.detail}</p>}
                   {item.error && (
                     <p className="break-words font-mono text-[11px] text-destructive-text">
                       {item.error}
                     </p>
                   )}
+                  <JsonBlock label="Input" value={item.input} />
+                  <JsonBlock label="Output" value={item.output} />
                 </div>
               </li>
             );
@@ -111,13 +141,81 @@ function StepResults({ node }: { node: WorkflowNode }) {
   );
 }
 
-function StepInspector({ node }: { node: WorkflowNode }) {
+const BOOLEAN_THRESHOLDS = new Set(["yesAt", "noAt"]);
+
+function shownParams(node: GraphNode, graph: WorkflowGraph) {
+  const params = visibleParams(node);
+  if (node.step !== "ai.branch") return params;
+  const asked = branchQuestion(graph, node.id);
+  if (!asked) return [];
+  const boolean = asked.question.type === "boolean";
+  return params.filter(([name]) => BOOLEAN_THRESHOLDS.has(name) === boolean);
+}
+
+function BranchQuestion({ node }: { node: GraphNode }) {
+  const graph = useEditor((s) => s.graph);
+  const asked = branchQuestion(graph, node.id);
+  if (!asked) {
+    return (
+      <p className="text-[13px] text-muted-foreground">
+        Connect this step to a question on an Ask step.
+      </p>
+    );
+  }
+  const index = nodeQuestions(asked.ask).findIndex((q) => q.id === asked.question.id);
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="rounded-lg border border-border-soft bg-surface px-3 py-2 text-[13px]">
+        <span className="text-muted-foreground">Q{index + 1}: </span>
+        {asked.question.instructions || "(no question text yet)"}
+      </p>
+      <p className="text-[11px] text-muted-foreground">Anything below goes to Unsure.</p>
+    </div>
+  );
+}
+
+function StepInspector({ node }: { node: GraphNode }) {
   const store = useEditorStore();
-  const problems = useDiagnostics().byNode.get(node.id) ?? [];
-  const def = kindOf(node.kind);
-  const patch = (next: Partial<WorkflowNode>) => store.getState().patchNode(node.id, next);
+  const graph = useEditor((s) => s.graph);
+  const diagnostics = useDiagnostics();
+  const problems = diagnostics.byNode.get(node.id) ?? [];
+  const scope = diagnostics.types.get(node.id)?.scope ?? EMPTY_SCOPE;
+  const def = stepDef(node.step);
+  const [pending, setPending] = useState<{ node: GraphNode; edgeIds: string[] } | null>(null);
   const titleId = `step-title-${node.id}`;
   const skipId = `step-skip-${node.id}`;
+  const errorId = `step-error-${node.id}`;
+
+  if (!def) {
+    return (
+      <div className="flex flex-col gap-3 p-4">
+        <Problems problems={["This step no longer exists; remove it"]} />
+        <Button size="sm" variant="ghost" onClick={() => store.getState().removeNodes([node.id])}>
+          <Trash2 /> Delete
+        </Button>
+      </div>
+    );
+  }
+
+  const shownAtField = Object.entries(def.params).flatMap(([name, spec]) => {
+    const bound = node.params[name] ?? spec.default;
+    return bound && bound.kind !== "literal" ? [`${spec.label}: `] : [];
+  });
+
+  const apply = (next: GraphNode) => {
+    const after = { ...graph, nodes: graph.nodes.map((n) => (n.id === next.id ? next : n)) };
+    const stale = staleEdges(after);
+    if (stale.length > 0) setPending({ node: next, edgeIds: stale });
+    else store.getState().replaceNode(next);
+  };
+  const patch = (fields: Partial<GraphNode>) => apply({ ...node, ...fields });
+  const setParam = (name: string, binding: Binding | undefined) => {
+    const params = { ...node.params };
+    if (binding) params[name] = binding;
+    else delete params[name];
+    apply({ ...node, params });
+  };
+  const changes = def.effect === "write" || def.effect === "dispatch";
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -128,19 +226,27 @@ function StepInspector({ node }: { node: WorkflowNode }) {
             CATEGORY_BADGE[def.category],
           )}
         >
-          <NodeIcon kind={node.kind} className="size-4" />
+          <NodeIcon step={node.step} className="size-4" />
         </span>
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className="truncate font-medium text-[15px]">{nodeTitle(node)}</h2>
           <div className="flex flex-wrap gap-1">
             <Badge variant="secondary">{CATEGORY_LABELS[def.category]}</Badge>
             {node.title && <Badge variant="outline">{def.label}</Badge>}
+            {def.effect === "dispatch" && <Badge variant="outline">Sends or creates</Badge>}
+            <Badge variant="ghost" className="font-mono">
+              {node.id}
+            </Badge>
           </div>
         </div>
       </div>
       <p className="text-[13px] text-muted-foreground">{def.description}</p>
 
-      <Problems problems={problems} />
+      <Problems
+        problems={problems.filter(
+          (problem) => !shownAtField.some((label) => problem.startsWith(label)),
+        )}
+      />
 
       <FieldGroup className="gap-4">
         <Field>
@@ -154,11 +260,11 @@ function StepInspector({ node }: { node: WorkflowNode }) {
             onChange={(e) => patch({ title: e.target.value || undefined })}
           />
         </Field>
-        {def.category === "action" && (
+        {changes && (
           <Field orientation="horizontal" className="justify-between">
             <div className="flex flex-col gap-0.5">
               <FieldLabel htmlFor={skipId}>Skip this step</FieldLabel>
-              <FieldDescription>Mail passes straight through without the action.</FieldDescription>
+              <FieldDescription>Items pass straight through without the change.</FieldDescription>
             </div>
             <Switch
               id={skipId}
@@ -167,17 +273,43 @@ function StepInspector({ node }: { node: WorkflowNode }) {
             />
           </Field>
         )}
+        {!def.trigger && (
+          <Field>
+            <FieldLabel htmlFor={errorId}>When this step fails</FieldLabel>
+            <FormSelect
+              id={errorId}
+              label="When this step fails"
+              value={node.onError ?? "fail"}
+              onValueChange={(onError) =>
+                patch({ onError: onError === "fail" ? undefined : onError })
+              }
+              options={ON_ERROR.map((value) => ({ value, label: ON_ERROR_LABELS[value] }))}
+            />
+          </Field>
+        )}
       </FieldGroup>
 
-      <Separator />
+      {Object.keys(def.params).length > 0 && (
+        <>
+          <Separator />
+          <div className="flex flex-col gap-4">
+            {node.step === "ai.branch" && <BranchQuestion node={node} />}
+            {shownParams(node, graph).map(([name, spec]) => (
+              <ParamField
+                key={name}
+                node={node}
+                name={name}
+                spec={spec}
+                scope={scope}
+                graph={graph}
+                onChange={(binding) => setParam(name, binding)}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
-      <FieldGroup className="gap-4">
-        <StepForm
-          node={node}
-          patch={patch}
-          replace={(next) => store.getState().replaceNode(next)}
-        />
-      </FieldGroup>
+      {def.trigger && <TriggerDetails node={node} />}
 
       <StepResults node={node} />
 
@@ -195,6 +327,41 @@ function StepInspector({ node }: { node: WorkflowNode }) {
           <Trash2 /> Delete
         </Button>
       </div>
+
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open) setPending(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove connections?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This change removes {pending?.edgeIds.length ?? 0} connection(s) from outputs this
+              step no longer has.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pending) return;
+                const gone = new Set(pending.edgeIds);
+                store.getState().setGraph((current) => ({
+                  ...current,
+                  nodes: current.nodes.map((n) => (n.id === pending.node.id ? pending.node : n)),
+                  edges: current.edges.filter((e) => !gone.has(e.id)),
+                }));
+                setPending(null);
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -270,7 +437,7 @@ function WorkflowInspector() {
                   onClick={() => select([node.id])}
                   className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover"
                 >
-                  <NodeIcon kind={node.kind} className="mt-0.5 size-3.5 shrink-0" />
+                  <NodeIcon step={node.step} className="mt-0.5 size-3.5 shrink-0" />
                   <span className="min-w-0 text-[13px]">
                     <span className="font-medium">{nodeTitle(node)}</span>
                     <span className="block text-[12px] text-destructive-text">
@@ -283,6 +450,8 @@ function WorkflowInspector() {
           </ul>
         </section>
       )}
+      <Separator />
+      <WorkflowSettings />
     </div>
   );
 }

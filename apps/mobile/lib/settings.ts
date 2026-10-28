@@ -6,6 +6,8 @@ import { readStoredSettings, writeStoredSettings } from "./store";
 export const DEFAULT_SETTINGS: Settings = {
   restoreLastPage: true,
   textZoom: 100,
+  checkForUpdates: true,
+  announcedVersion: null,
 };
 
 export const MIN_TEXT_ZOOM = 50;
@@ -18,6 +20,8 @@ function settingsFrom(input: unknown, base: Settings): Settings {
     .object({
       restoreLastPage: z.boolean().catch(base.restoreLastPage),
       textZoom: z.number().int().min(MIN_TEXT_ZOOM).max(MAX_TEXT_ZOOM).catch(base.textZoom),
+      checkForUpdates: z.boolean().catch(base.checkForUpdates),
+      announcedVersion: z.string().max(64).nullable().catch(base.announcedVersion),
     })
     .parse({ ...base, ...fields });
 }

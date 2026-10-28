@@ -1,0 +1,337 @@
+---
+title: Deploy on a container platform
+description: Run the published Metis Suite images on Railway, Render, Fly.io, Google Cloud Run, Kubernetes or any host that runs container images, without Docker Compose.
+---
+
+Use this page to run Metis Suite on a platform that runs container images, such as Railway, Render, Fly.io, Google Cloud Run or Kubernetes. You use the same published images as the Compose stack, but you start them yourself.
+
+Without the bootstrap script and the Compose stack, a few jobs become yours:
+
+- You create the secrets and set every environment variable on the platform.
+- You provide the two databases, for example on Turso.
+- You run preflight once for every deploy, before the new version takes traffic.
+- You choose how background work runs, if the platform stops idle containers.
+- You upgrade by deploying a new version. The **Updates** page in the owner dashboard is not available.
+
+## The images
+
+All images are public, on `ghcr.io/trymetis/metis`. Replace `<version>` with a release number, such as `1.2.3`.
+
+| Image                                        | What it does                                                                                       | When you need it               |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `ghcr.io/trymetis/metis:<version>`           | The app. It listens on port 3000.                                                                  | Always.                        |
+| `ghcr.io/trymetis/metis:<version>-preflight` | Preflight: a one-time run that prepares the database for this version, then exits when it is done. | Once for every deploy.         |
+| `ghcr.io/trymetis/metis:<version>-worker`    | The background worker.                                                                             | Only with the `bullmq` runner. |
+| `ghcr.io/trymetis/metis:<version>-updater`   | The updater. It works only inside the Compose stack.                                               | Never on these platforms.      |
+
+Pin a release number. Do not use the `latest` tags, so that every image you run is the same version. Pre-releases have no `latest` tags. Releases are listed on the [Metis Suite releases page](https://github.com/trymetis/metis/releases), tagged `app-v<version>`.
+
+Preflight runs only from the preflight image. The app image does not include it. So a "release command" or "pre-deploy command" that runs inside the app's own image cannot run preflight.
+
+## Before you start
+
+- **A platform** that can run a public container image, set environment variables, and run a one-off task with an image of your choice.
+- **Two databases.** Use [Turso](https://turso.tech) for both: an app database and an AI memory database, each with its own URL and token. See [Create the databases on Turso](/self-hosting/reference/environment-variables#create-the-databases-on-turso). The app needs no disk of its own, so it does not matter if the platform wipes the container's files.
+- **An `https://` address** for the app: the address the platform gives you, or your own domain pointed at the platform.
+- **OpenSSL**, on your own computer, to generate the secrets.
+
+You can also use a libSQL server (sqld) that you run yourself. The platform must be able to reach it over the network. Set `METIS_DB_DRIVER=sqld`. Both database URLs must start with `http://`, `https://`, `ws://` or `wss://`. Both tokens are required: `DATABASE_AUTH_TOKEN` and `MASTRA_DATABASE_AUTH_TOKEN`. Both databases must exist on the server before the first preflight. This guide does not cover setting one up outside the Compose stack. See [Install with Docker Compose](/self-hosting/install/install-with-docker-compose) and the [database variables](/self-hosting/reference/environment-variables#database).
+
+Do not use the `local` database driver on a platform, even with a persistent volume. It is for development only.
+
+<Steps>
+  <Step title="Generate the secrets">
+    Run this once for each of `BETTER_AUTH_SECRET`, `METIS_ENCRYPTION_KEY`
+    and `METIS_DRIVE_RELAY_SECRET`:
+
+    ```bash
+    openssl rand -base64 32
+    ```
+
+    If you choose the `cron` runner in the next step, generate a
+    `CRON_SECRET` the same way.
+
+    For the setup code, use any random value of at least 8 characters.
+
+    :::warning[Back up the encryption key]
+    Copy `METIS_ENCRYPTION_KEY` to a safe place, such as a password
+    manager. Without it, the stored passwords and tokens cannot be read,
+    and every user has to reconnect every mailbox, calendar and drive.
+    :::
+
+  </Step>
+
+  <Step title="Choose how background work runs">
+    Scheduled sends, snooze reminders and workflows run in the background.
+    By default (`internal`), they run inside the app, so they need at least
+    one app container that never stops.
+
+    - **One container always running:** keep the default. On Google Cloud
+      Run, also turn on CPU always allocated (instance-based billing). By
+      default, Cloud Run gives a container CPU only while it handles a
+      request, so background work may not run between requests.
+    - **The platform stops idle containers** (for example Cloud Run with a
+      minimum of zero instances, Fly.io machines that stop when idle, or a
+      free tier that sleeps): use `cron` with an external scheduler, or
+      `bullmq` with the worker image and your own Redis.
+
+    The app cannot tell that a container platform stops idle containers,
+    so it does not warn you. With `internal` there, background work stops
+    whenever no container runs.
+
+    Decide now. You set the choice as a starting value in the next step,
+    and starting values are read only by the first preflight. You can
+    change it later under **Dashboard**, **System**, **Workflow runner**.
+    See [Background work](/self-hosting/configure/background-work).
+
+  </Step>
+
+  <Step title="Set the environment variables">
+    Set the same variables on the app and on the preflight task. Write each
+    value as it is, without quotes:
+
+    ```bash
+    BETTER_AUTH_URL=https://mail.example.com
+    BETTER_AUTH_SECRET=<secret>
+    METIS_ENCRYPTION_KEY=<secret>
+    METIS_DRIVE_RELAY_SECRET=<secret>
+    METIS_DB_DRIVER=turso
+    DATABASE_URL=<app database URL>
+    DATABASE_AUTH_TOKEN=<token>
+    MASTRA_DATABASE_URL=<AI memory database URL>
+    MASTRA_DATABASE_AUTH_TOKEN=<token>
+    METIS_SETUP_CODE=<setup code>
+    METIS_OWNER_EMAIL=you@example.com
+    ```
+
+    Use the URL that `turso db show <database> --url` prints for each
+    database. It starts with `libsql://`.
+
+    - **`BETTER_AUTH_URL`** is the one address people use. It must start
+      with `https://`, which turns on secure sign-in cookies. Sign-in works
+      only at this address, not at any other address the platform gives the
+      same app.
+    - **`METIS_SETUP_CODE`** opens the setup page for the first account.
+      Without it, the setup page shows **Not available**.
+    - **`METIS_OWNER_EMAIL`** is the email of the owner. Without it, nobody
+      can open the owner dashboard.
+    - **`METIS_DRIVE_RELAY_SECRET`** is needed as soon as you list a WebDAV,
+      FTP, FTPS, SFTP or relayed S3 server.
+
+    If you chose `cron` or `bullmq`, add its variables too, for example:
+
+    ```bash
+    METIS_WORKFLOW_RUNNER_DRIVER=cron
+    CRON_SECRET=<secret>
+    ```
+
+    If you run more than one app container, also set the cache to `redis`
+    or `upstash`, so that sign-outs and rate limits apply on every
+    container. Sign-in works without it, because sessions are stored in the
+    database. See the
+    [cache variables](/self-hosting/reference/environment-variables#cache).
+
+    Any other starting value, such as your OAuth providers or AI model,
+    can go here too. See
+    [Environment variables](/self-hosting/reference/environment-variables).
+
+    :::note[Keep the image's NODE_OPTIONS flags]
+    The app image sets `NODE_OPTIONS` to
+    `--dns-result-order=ipv4first --no-network-family-autoselection`. A
+    `NODE_OPTIONS` you set on the platform replaces it. If you need to set
+    it, keep those two flags in it.
+    :::
+
+  </Step>
+
+  <Step title="Run preflight">
+    Run the preflight image once, as a one-off task, with the same
+    variables as the app. It exits with success when it is done. Preflight
+    must finish successfully before any app or worker of the new version
+    starts. For example:
+
+    - **Kubernetes:** a Job that runs before you roll out the app.
+    - **Google Cloud Run:** a Cloud Run job.
+    - **Any platform:** run the preflight image from your own computer or a
+      CI job, wait for it to succeed, then deploy the app. The databases
+      must be reachable from there.
+
+      ```bash
+      docker run --rm --env-file production.env ghcr.io/trymetis/metis:<version>-preflight
+      ```
+
+      `production.env` holds the same variables as the app, one
+      `NAME=value` per line.
+
+    A platform's own release or pre-deploy command works only if it runs
+    the preflight image and the new version waits for it:
+
+    - **Fly.io:** `release_command` runs in a temporary Machine made from
+      the app's new image, so it cannot run preflight.
+    - **Railway:** Railway says the pre-deploy command's dependencies must
+      be installed in the application image. The app image does not include
+      preflight, so the pre-deploy command cannot run it.
+    - **Render and Heroku:** check in Render's
+      [deploy guide](https://render.com/docs/deploys) or Heroku's
+      [release phase guide](https://devcenter.heroku.com/articles/release-phase)
+      which image the pre-deploy command or release phase runs. It must be
+      the preflight image, and the new version must wait for it.
+
+    Do not run preflight as a separate service that runs all the time next
+    to the app. Nothing makes the app wait for it, a platform that restarts
+    it after it exits runs it again and again, and several copies would
+    change the database at the same time.
+
+    Preflight applies the release's changes to the app database. The AI
+    memory database sets itself up when the app first uses it. On the first
+    run, preflight also stores your starting settings. Later runs store
+    starting settings only for a new group of settings that a release adds
+    to the dashboard, such as a new card. If a variable later differs from
+    the stored setting, the stored setting is used, and preflight adds a
+    warning in the **Environment differs from the stored config** group.
+    Preflight then checks your servers, OAuth providers and AI model. A
+    failed check only adds a warning under **Deploy checks** in the owner
+    dashboard.
+
+    Preflight fails when a variable is missing or wrong, when it cannot
+    reach the database, when it cannot apply its changes, or when a newer
+    release has already changed the database. Its log says why.
+
+    Run preflight once for every deploy, not once for every container. In
+    Kubernetes, use a Job before the rollout. Do not use an init container
+    in each pod: several copies would then change the database at the same
+    time. Running it again on the same version is safe.
+
+    :::warning[Always run preflight before the app]
+    If the app starts on a database that preflight never prepared, sign-in
+    and the setup page fail with database errors. The readiness check
+    `/api/readyz` still answers `200`, so your platform does not notice.
+    :::
+
+  </Step>
+
+  <Step title="Deploy the app">
+    Run the app image with these settings:
+
+    | Setting      | Value                                                                                                                         |
+    | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+    | Port         | `3000`. If the platform sets the `PORT` variable, the app listens on that port instead.                                       |
+    | Address      | The app listens on all addresses (`HOSTNAME`, default `0.0.0.0`). Leave it as it is unless your platform needs another value. |
+    | Health check | `/api/livez` to decide when to restart the app, and `/api/readyz` to decide when to send it traffic.                          |
+    | Stop timeout | Long enough for open requests to finish. The Compose stack gives the app 30 seconds. See below.                               |
+    | Disk         | None.                                                                                                                         |
+
+    The platform handles HTTPS. `METIS_DOMAIN`, `APP_PORT` and Caddy belong
+    to the Compose stack only, so you do not need them. See
+    [Health checks](/self-hosting/operate/health-checks).
+
+    **Stop timeout.** The stop timeout is how long the platform waits
+    between asking a container to stop and forcing it to stop.
+
+    - **The app**, with the `internal` runner, does not wait for a running
+      tick. It stops the tick and exits once open requests finish. The work
+      that was cut off runs again shortly after, and a restarted app runs a
+      tick when it starts. A send that was already leaving may need a
+      person to check it. See
+      [Check that it runs](/self-hosting/configure/background-work#check-that-it-runs).
+    - **The worker**, with the `bullmq` runner, finishes the running tick
+      first. Give it a stop timeout longer than **Tick budget (ms)**. 75
+      seconds covers the default budget of 45 seconds. If you cannot raise
+      the platform's limit that high, lower the budget under it.
+
+    Some platform defaults are shorter than you may expect:
+
+    | Platform         | Default                                                                                                                                                   |
+    | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Google Cloud Run | 10 seconds between `SIGTERM` and `SIGKILL`.                                                                                                               |
+    | Fly.io           | `kill_timeout` is 5 seconds (at most 300), and `kill_signal` is `SIGINT`, not `SIGTERM`.                                                                  |
+    | Railway          | `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` is 0. Raise it in the service's settings.                                                                           |
+    | Render           | 30 seconds. You can raise it to 300 with `maxShutdownDelaySeconds`.                                                                                       |
+    | Heroku           | 30 seconds.                                                                                                                                               |
+
+    See [Cloud Run](https://docs.cloud.google.com/run/docs/container-contract),
+    [Fly.io](https://docs.fly.io/reference/configuration),
+    [Railway](https://docs.railway.com/deployments/deployment-teardown),
+    [Render](https://render.com/docs/deploys) and
+    [Heroku](https://devcenter.heroku.com/articles/dyno-shutdown-behavior).
+
+  </Step>
+
+  <Step title="Start the background runner">
+    Skip this step with `internal`.
+
+    - **`cron`:** point a scheduler at the tick endpoint. See
+      [cron](/self-hosting/configure/background-work#cron).
+    - **`bullmq`:** run the worker image with the variables listed in
+      [bullmq](/self-hosting/configure/background-work#bullmq), on the
+      same version as the app. Give it a stop timeout longer than the tick
+      budget (75 seconds is enough for the default).
+
+  </Step>
+
+  <Step title="Create the first account">
+    Open `/setup` at your address and use your `METIS_SETUP_CODE`. Continue
+    with [First run](/self-hosting/install/first-run).
+
+    Then open the owner dashboard and click the deploy check bar at the
+    bottom of the sidebar to see any warnings from preflight. See
+    [Owner dashboard](/self-hosting/operate/owner-dashboard#deploy-checks).
+
+  </Step>
+</Steps>
+
+## What works differently
+
+| Topic                  | On a container platform                                                                                                                                                                                                                                                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Upgrades               | The **Updates** page does not appear, because it needs the updater from the Compose stack. You upgrade by deploying a new version (see below).                                                                                                                                                                                                     |
+| Undo                   | There are no upgrade snapshots, so an upgrade cannot be undone. Back up your databases before every upgrade.                                                                                                                                                                                                                                       |
+| HTTPS                  | The platform serves HTTPS. If you later change the address, update `BETTER_AUTH_URL` and register the new redirect URIs with your OAuth providers. See [OAuth providers](/self-hosting/configure/sign-in-providers). If **Public URL for webhooks and push** is not set, every webhook address changes too, so update the services that call them. |
+| Relayed drives         | WebDAV, FTP, FTPS, SFTP and relayed S3 transfers work on a container that stays running. The **Transfers per user, per process** limit counts on each container separately. See [Drive transfers](/self-hosting/configure/drive-transfers).                                                                                                        |
+| Several app copies     | Use a `redis` or `upstash` cache. Background work is never done twice.                                                                                                                                                                                                                                                                             |
+| Your own changed build | If you run your own changed build, set `METIS_SOURCE_URL`. See [Source code link](/self-hosting/configure/source-code-link).                                                                                                                                                                                                                       |
+
+## Webhooks and push
+
+Workflows can start from a webhook, or from a push message that Google Calendar, Google Drive or Microsoft sends when something changes. See [Webhooks and push](/self-hosting/configure/background-work#webhooks-and-push).
+
+- **Public URL.** Webhook addresses use `BETTER_AUTH_URL`, unless you set **Public URL for webhooks and push** under **Dashboard**, **System**, **Workflow runner**. Push works only while that field is set. Without it, those triggers check for changes every few minutes. Enter an address that starts with `https://`.
+- **Its variable is for new instances only.** Before the first preflight of a new instance, you can set the field's starting value with `METIS_WORKFLOW_PUBLIC_URL`. On an instance that already runs, the variable is not read, and it only adds a warning to the deploy checks. Set the field in the dashboard instead.
+- **Trusted proxies.** The **Only from these IPs** setting of a webhook trigger checks the caller's address. The app takes that address from the last entry of `X-Forwarded-For` that is not listed under **Trusted proxies**, on the same dashboard page. If your platform's load balancer adds the caller's address as the last entry, leave **Trusted proxies** empty. If the load balancer, or another proxy behind it, adds its own address after the caller's, list that address. Your platform's documentation says how its load balancer sets `X-Forwarded-For`.
+- **Addresses with a port never match.** In an `X-Forwarded-For` entry such as `203.0.113.7:51234`, the port stays part of the address. It never matches an address you allow, so the check refuses the request with `403` and `{"error":"Not allowed from this address"}`. On an AWS Application Load Balancer, the attribute `routing.http.xff_client_port.enabled` adds the port. It is off by default. Keep it off. In the AWS console, it is under **Load Balancers**, **Attributes**, **Edit**, **Packet handling**, **X-Forwarded-For header**. See AWS's guide to [X-Forwarded headers](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/x-forwarded-headers.html).
+- **DigitalOcean App Platform hides the caller.** App Platform puts the address of its own ingress server in `X-Forwarded-For`, and the caller's address in a separate `do-connecting-ip` header. **Only from these IPs** takes the caller's address from `X-Forwarded-For`, never from `do-connecting-ip`, so it cannot see the caller there. Do not rely on it on App Platform. See DigitalOcean's [note on client IP addresses](https://docs.digitalocean.com/support/where-can-i-find-the-client-ip-address-of-a-request-connecting-to-my-app/).
+- **Keep the app private.** Do not let callers reach the app without going through the load balancer. A caller who reaches the app directly can send any address in `X-Forwarded-For`.
+
+## Upgrade
+
+<Steps>
+  <Step title="Read the upgrade notes">
+    Open the release on the
+    [releases page](https://github.com/trymetis/metis/releases) and read
+    its **Upgrade notes** section, if it has one. If you skip releases,
+    read the notes of every release in between.
+  </Step>
+
+  <Step title="Back up both databases">
+    Back up the app database and the AI memory database, and keep your
+    encryption key with the backup. See
+    [Backups](/self-hosting/operate/backups).
+
+  </Step>
+
+  <Step title="Run the new version's preflight">
+    Run `ghcr.io/trymetis/metis:<new version>-preflight` once, with the same
+    variables as before. Roll out the new version as soon as it succeeds.
+    After preflight has changed the database, your current version may not
+    work fully on it. For example, background work and the **Workflows**
+    pages can stop working until the new version runs.
+
+  </Step>
+
+  <Step title="Roll out the new version">
+    Change the app image to `ghcr.io/trymetis/metis:<new version>`. If you
+    run the worker, change it to `<new version>-worker` at the same time.
+  </Step>
+</Steps>
+
+You cannot go back to an older release once a newer one has changed your database. Preflight refuses the database. Do not start the older app on it. To go back, restore the backup you took before the upgrade, together with the older release. See [Going back further](/self-hosting/operate/upgrade-and-undo#going-back-further).

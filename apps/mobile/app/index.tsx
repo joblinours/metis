@@ -3,13 +3,13 @@ import { OfflineScreen } from "@/components/shell/offline-screen";
 import { ServerView } from "@/components/shell/server-view";
 import { SetupScreen } from "@/components/shell/setup-screen";
 import { SignInScreen } from "@/components/shell/signin-screen";
-import { useShell } from "@/lib/shell";
+import { route, useShell } from "@/lib/shell";
 
 export default function Shell() {
   const screen = useShell((state) => state.screen);
   switch (screen.kind) {
     case "loading":
-      return <LoadingScreen status={screen.status} />;
+      return <LoadingScreen status={screen.status} onRetry={() => void route()} />;
     case "setup":
       return <SetupScreen />;
     case "signin":

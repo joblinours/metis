@@ -5,6 +5,8 @@ import {
   desc,
   eq,
   getTableColumns,
+  gt,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -21,14 +23,17 @@ import { db, type Executor } from "@/db";
 import {
   user,
   workflow,
-  workflowNodeRun,
-  workflowOccurrence,
-  workflowPayload,
+  workflowBlob,
+  workflowCursor,
+  workflowEndpoint,
+  workflowEvent,
   workflowResource,
   workflowRevision,
   workflowRun,
+  workflowStepRun,
   workflowTick,
   workflowTrigger,
+  workflowWait,
   workspaceMember,
 } from "@/db/schema";
 import { keysOf } from "@/lib/guards";
@@ -36,30 +41,34 @@ import { recordOf } from "@/lib/records";
 import type { DraftPayload } from "@/types/mail";
 
 import { nextCronAt } from "./cron";
-import { isDispatchNode } from "./nodes";
 import type {
-  DiscoveryCursor,
-  Envelope,
-  NodeReceipt,
-  NodeResolution,
-  NodeRunOutput,
+  FeedCursor,
   RunInput,
   RunSummaryLine,
+  StepReceipt,
+  StepResolution,
+  StepRunOutput,
+  WaitState,
 } from "./runtime";
 import {
-  BARRIER_INPUT_KEY,
-  isTriggerKind,
-  type NodeStatus,
+  BARRIER_ITEM_KEY,
+  type EndpointKind,
+  type GraphNode,
   type RunStatus,
-  type TriggerKind,
+  type StepStatus,
+  type WaitKind,
   type WorkflowGraph,
   type WorkflowKind,
 } from "./schema";
+import { stepDef } from "./steps";
+import { graphResources } from "./validation";
 
 export type DefinitionRow = typeof workflow.$inferSelect;
 export type TriggerRow = typeof workflowTrigger.$inferSelect;
 export type RunRow = typeof workflowRun.$inferSelect;
-export type NodeRunRow = typeof workflowNodeRun.$inferSelect;
+export type StepRunRow = typeof workflowStepRun.$inferSelect;
+export type WaitRow = typeof workflowWait.$inferSelect;
+export type EndpointRow = typeof workflowEndpoint.$inferSelect;
 
 export const TICK_ID = "singleton";
 
@@ -68,6 +77,14 @@ export interface LoadedDefinition {
   revisionId: string;
   graph: WorkflowGraph;
 }
+
+export interface ResourceLinks {
+  mailbox: Record<string, string | null>;
+  calendar: Record<string, string | null>;
+  drive: Record<string, string | null>;
+}
+
+export const NO_LINKS: ResourceLinks = { mailbox: {}, calendar: {}, drive: {} };
 
 export interface SaveDefinitionInput {
   id?: string;
@@ -81,38 +98,69 @@ export interface SaveDefinitionInput {
   enabled: boolean;
   graph: WorkflowGraph;
   sortOrder?: number;
-  resourceLinks?: Record<string, string | null>;
+  links?: ResourceLinks;
 }
 
-function triggerSeed(
-  node: WorkflowGraph["nodes"][number],
-  now: Date,
-): {
+function literalParam(node: GraphNode, name: string): string {
+  const bound = node.params[name];
+  return bound?.kind === "literal" && typeof bound.value === "string" ? bound.value : "";
+}
+
+interface TriggerSeed {
   nextDueAt: Date | null;
   baselineAt: Date | null;
   cron: string | null;
   timezone: string;
-} {
-  if (node.kind === "trigger.schedule") {
-    return {
-      cron: node.cron,
-      timezone: node.timezone,
-      nextDueAt: nextCronAt(node.cron, node.timezone, now),
-      baselineAt: null,
-    };
+}
+
+function triggerSeed(node: GraphNode, now: Date): TriggerSeed | null {
+  const source = stepDef(node.step)?.trigger;
+  if (!source) return null;
+  if (source.kind === "time") {
+    const cron = literalParam(node, "cron");
+    const timezone = literalParam(node, "timezone") || "Etc/UTC";
+    return { cron, timezone, nextDueAt: nextCronAt(cron, timezone, now), baselineAt: null };
   }
-  if (node.kind === "trigger.once") {
+  if (source.kind === "once") {
+    const at = literalParam(node, "at");
+    const due = at ? new Date(at) : null;
     return {
       cron: null,
       timezone: "Etc/UTC",
-      nextDueAt: new Date(node.at),
+      nextDueAt: due && !Number.isNaN(due.getTime()) ? due : null,
       baselineAt: null,
     };
   }
-  if (node.kind === "trigger.newMail") {
+  if (source.kind === "feed") {
     return { cron: null, timezone: "Etc/UTC", nextDueAt: now, baselineAt: now };
   }
   return { cron: null, timezone: "Etc/UTC", nextDueAt: null, baselineAt: null };
+}
+
+function resourceRows(
+  graph: WorkflowGraph,
+  workflowId: string,
+  revisionId: string,
+  links: ResourceLinks,
+) {
+  return graphResources(graph).map((resource) => ({
+    id: crypto.randomUUID(),
+    workflowId,
+    revisionId,
+    nodeId: resource.nodeId,
+    kind: resource.kind,
+    mailboxId: resource.kind === "mailbox" ? resource.id : null,
+    calendarId: resource.kind === "calendar" ? resource.id : null,
+    driveId: resource.kind === "drive" ? resource.id : null,
+    mailboxWorkspaceId: resource.kind === "mailbox" ? (links.mailbox[resource.id] ?? null) : null,
+    calendarWorkspaceId:
+      resource.kind === "calendar" ? (links.calendar[resource.id] ?? null) : null,
+    driveWorkspaceId: resource.kind === "drive" ? (links.drive[resource.id] ?? null) : null,
+  }));
+}
+
+function triggerParamsChanged(prior: TriggerRow, seed: TriggerSeed): boolean {
+  return prior.cron !== seed.cron || prior.timezone !== seed.timezone;
 }
 
 async function writeRevision(
@@ -121,7 +169,8 @@ async function writeRevision(
     workflowId: string;
     revision: number;
     graph: WorkflowGraph;
-    resourceLinks: Record<string, string | null>;
+    links: ResourceLinks;
+    previous: WorkflowGraph | null;
     now: Date;
   },
 ): Promise<string> {
@@ -134,46 +183,32 @@ async function writeRevision(
     createdAt: opts.now,
   });
 
-  const resourceRows = opts.graph.nodes.flatMap((node) => {
-    const mailboxId =
-      node.kind === "mailbox.source"
-        ? node.mailboxId
-        : node.kind === "trigger.beforeSend"
-          ? node.mailboxId
-          : null;
-    if (!mailboxId) return [];
-    return [
-      {
-        id: crypto.randomUUID(),
-        workflowId: opts.workflowId,
-        revisionId,
-        nodeId: node.id,
-        mailboxId,
-        mailboxWorkspaceId: opts.resourceLinks[node.id] ?? null,
-      },
-    ];
-  });
-  if (resourceRows.length > 0) {
-    await tx.insert(workflowResource).values(resourceRows);
-  }
+  const rows = resourceRows(opts.graph, opts.workflowId, revisionId, opts.links);
+  if (rows.length > 0) await tx.insert(workflowResource).values(rows);
 
   const existing = await tx
     .select()
     .from(workflowTrigger)
     .where(eq(workflowTrigger.workflowId, opts.workflowId));
   const byNode = new Map(existing.map((row) => [row.nodeId, row]));
+  const previousNodes = new Map((opts.previous?.nodes ?? []).map((node) => [node.id, node]));
   const keep = new Set<string>();
 
   /* oxlint-disable eslint/no-await-in-loop -- per-trigger updates share the transaction's single connection, which runs statements one at a time */
   for (const node of opts.graph.nodes) {
-    if (!isTriggerKind(node.kind)) continue;
-    keep.add(node.id);
     const seed = triggerSeed(node, opts.now);
+    if (!seed) continue;
+    keep.add(node.id);
     const prior = byNode.get(node.id);
-    if (prior && prior.kind === node.kind) {
-      const scheduleChanged =
-        node.kind === "trigger.schedule" &&
-        (prior.cron !== seed.cron || prior.timezone !== seed.timezone);
+    const source = stepDef(node.step)?.trigger;
+    const feed = source?.kind === "feed";
+    const before = previousNodes.get(node.id);
+    const feedChanged =
+      feed && JSON.stringify(before?.params ?? null) !== JSON.stringify(node.params);
+    if (prior && prior.kind === node.step) {
+      const rescheduled =
+        source?.kind === "once" || (source?.kind === "time" && triggerParamsChanged(prior, seed));
+      const rebaseline = feed && (!prior.armed || feedChanged);
       await tx
         .update(workflowTrigger)
         .set({
@@ -181,19 +216,13 @@ async function writeRevision(
           cron: seed.cron,
           timezone: seed.timezone,
           armed: true,
-          nextDueAt:
-            scheduleChanged || node.kind === "trigger.once"
-              ? seed.nextDueAt
-              : prior.armed
-                ? prior.nextDueAt
-                : seed.nextDueAt,
-          baselineAt:
-            node.kind === "trigger.newMail" && !prior.armed ? seed.baselineAt : prior.baselineAt,
-          cursor: node.kind === "trigger.newMail" && !prior.armed ? null : prior.cursor,
-          lastError: node.kind === "trigger.newMail" && !prior.armed ? null : prior.lastError,
+          nextDueAt: rescheduled || rebaseline || !prior.armed ? seed.nextDueAt : prior.nextDueAt,
+          baselineAt: rebaseline ? seed.baselineAt : prior.baselineAt,
+          lastError: rebaseline ? null : prior.lastError,
           updatedAt: opts.now,
         })
         .where(eq(workflowTrigger.id, prior.id));
+      if (rebaseline) await tx.delete(workflowCursor).where(eq(workflowCursor.triggerId, prior.id));
       continue;
     }
     if (prior) {
@@ -201,17 +230,17 @@ async function writeRevision(
         .update(workflowTrigger)
         .set({
           revisionId,
-          kind: node.kind,
+          kind: node.step,
           cron: seed.cron,
           timezone: seed.timezone,
           armed: true,
           nextDueAt: seed.nextDueAt,
           baselineAt: seed.baselineAt,
-          cursor: null,
           lastError: null,
           updatedAt: opts.now,
         })
         .where(eq(workflowTrigger.id, prior.id));
+      await tx.delete(workflowCursor).where(eq(workflowCursor.triggerId, prior.id));
       continue;
     }
     await tx.insert(workflowTrigger).values({
@@ -219,13 +248,12 @@ async function writeRevision(
       workflowId: opts.workflowId,
       revisionId,
       nodeId: node.id,
-      kind: node.kind,
+      kind: node.step,
       cron: seed.cron,
       timezone: seed.timezone,
       armed: true,
       nextDueAt: seed.nextDueAt,
       baselineAt: seed.baselineAt,
-      cursor: null,
       createdAt: opts.now,
       updatedAt: opts.now,
     });
@@ -234,36 +262,38 @@ async function writeRevision(
 
   const stale = existing.filter((row) => !keep.has(row.nodeId));
   if (stale.length > 0) {
+    const ids = stale.map((row) => row.id);
     await tx
       .update(workflowTrigger)
       .set({ armed: false, nextDueAt: null, updatedAt: opts.now })
-      .where(
-        inArray(
-          workflowTrigger.id,
-          stale.map((row) => row.id),
-        ),
-      );
+      .where(inArray(workflowTrigger.id, ids));
+    await tx.delete(workflowCursor).where(inArray(workflowCursor.triggerId, ids));
   }
 
   return revisionId;
 }
 
-async function cancelPendingRuns(tx: Executor, workflowId: string, now: Date): Promise<void> {
+async function cancelOpenRuns(tx: Executor, workflowId: string, now: Date): Promise<void> {
   const cancelled = await tx
     .update(workflowRun)
     .set({ status: "cancelled", finishedAt: now })
-    .where(and(eq(workflowRun.workflowId, workflowId), eq(workflowRun.status, "pending")))
+    .where(
+      and(
+        eq(workflowRun.workflowId, workflowId),
+        inArray(workflowRun.status, ["pending", "waiting"]),
+      ),
+    )
     .returning({ id: workflowRun.id });
   if (cancelled.length === 0) return;
+  const ids = cancelled.map((row) => row.id);
   await tx
-    .update(workflowNodeRun)
-    .set({ output: null })
-    .where(
-      inArray(
-        workflowNodeRun.runId,
-        cancelled.map((row) => row.id),
-      ),
-    );
+    .update(workflowWait)
+    .set({ status: "cancelled" })
+    .where(and(inArray(workflowWait.runId, ids), eq(workflowWait.status, "open")));
+  await tx
+    .update(workflowStepRun)
+    .set({ status: "skipped", error: "Cancelled while waiting", wakeAt: null })
+    .where(and(inArray(workflowStepRun.runId, ids), eq(workflowStepRun.status, "waiting")));
 }
 
 async function rearmTriggers(tx: Executor, workflowId: string, now: Date): Promise<void> {
@@ -271,33 +301,24 @@ async function rearmTriggers(tx: Executor, workflowId: string, now: Date): Promi
     .select()
     .from(workflowTrigger)
     .where(and(eq(workflowTrigger.workflowId, workflowId), eq(workflowTrigger.armed, true)));
+  /* oxlint-disable eslint/no-await-in-loop -- each trigger gets its own next time; statements share the transaction's single connection */
   for (const trigger of triggers) {
-    if (trigger.kind === "trigger.schedule" && trigger.cron) {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- each schedule gets its own next time; statements share the transaction's single connection
+    const source = stepDef(trigger.kind)?.trigger;
+    if (source?.kind === "time" && trigger.cron) {
       await tx
         .update(workflowTrigger)
-        .set({
-          nextDueAt: nextCronAt(trigger.cron, trigger.timezone, now),
-          updatedAt: now,
-        })
+        .set({ nextDueAt: nextCronAt(trigger.cron, trigger.timezone, now), updatedAt: now })
         .where(eq(workflowTrigger.id, trigger.id));
     }
+    if (source?.kind === "feed") {
+      await tx
+        .update(workflowTrigger)
+        .set({ baselineAt: now, nextDueAt: now, lastError: null, updatedAt: now })
+        .where(eq(workflowTrigger.id, trigger.id));
+      await tx.delete(workflowCursor).where(eq(workflowCursor.triggerId, trigger.id));
+    }
   }
-  const newMail = triggers
-    .filter((trigger) => trigger.kind === "trigger.newMail")
-    .map((trigger) => trigger.id);
-  if (newMail.length > 0) {
-    await tx
-      .update(workflowTrigger)
-      .set({
-        baselineAt: now,
-        cursor: null,
-        nextDueAt: now,
-        lastError: null,
-        updatedAt: now,
-      })
-      .where(inArray(workflowTrigger.id, newMail));
-  }
+  /* oxlint-enable eslint/no-await-in-loop */
 }
 
 export async function saveDefinition(input: SaveDefinitionInput): Promise<LoadedDefinition> {
@@ -324,7 +345,8 @@ export async function saveDefinition(input: SaveDefinitionInput): Promise<Loaded
       workflowId: id,
       revision: 1,
       graph: input.graph,
-      resourceLinks: input.resourceLinks ?? {},
+      links: input.links ?? NO_LINKS,
+      previous: null,
       now,
     });
   });
@@ -339,32 +361,44 @@ export async function reviseDefinition(opts: {
   name: string;
   enabled: boolean;
   graph: WorkflowGraph;
-  resourceLinks?: Record<string, string | null>;
+  links?: ResourceLinks;
 }): Promise<LoadedDefinition | null> {
   const now = new Date();
 
   const revisionId = await db.transaction(async (tx) => {
-    const [current] = await tx.select().from(workflow).where(eq(workflow.id, opts.workflowId));
-    if (!current || current.deletedAt) return null;
+    const [current] = await tx
+      .select({ definition: workflow, graph: workflowRevision.graph })
+      .from(workflow)
+      .leftJoin(
+        workflowRevision,
+        and(
+          eq(workflowRevision.workflowId, workflow.id),
+          eq(workflowRevision.revision, workflow.revision),
+        ),
+      )
+      .where(eq(workflow.id, opts.workflowId));
+    if (!current || current.definition.deletedAt) return null;
 
-    const revision = current.revision + 1;
+    const revision = current.definition.revision + 1;
     const id = await writeRevision(tx, {
       workflowId: opts.workflowId,
       revision,
       graph: opts.graph,
-      resourceLinks: opts.resourceLinks ?? {},
+      links: opts.links ?? NO_LINKS,
+      previous: current.graph,
       now,
     });
-    if (!current.enabled && opts.enabled) {
+    if (!current.definition.enabled && opts.enabled) {
       await rearmTriggers(tx, opts.workflowId, now);
-    } else if (!opts.enabled && current.kind === "user") {
-      await cancelPendingRuns(tx, opts.workflowId, now);
+    } else if (!opts.enabled && current.definition.kind === "user") {
+      await cancelOpenRuns(tx, opts.workflowId, now);
     }
     await tx
       .update(workflow)
       .set({
         name: opts.name,
         enabled: opts.enabled,
+        disabledReason: null,
         revision,
         updatedAt: now,
       })
@@ -378,30 +412,27 @@ export async function reviseDefinition(opts: {
   return { definition: row, revisionId, graph: opts.graph };
 }
 
+function currentRevisionJoin() {
+  return and(
+    eq(workflowRevision.workflowId, workflow.id),
+    eq(workflowRevision.revision, workflow.revision),
+  );
+}
+
 export async function loadDefinition(workflowId: string): Promise<LoadedDefinition | null> {
   const [row] = await db
     .select({ definition: workflow, revision: workflowRevision })
     .from(workflow)
-    .innerJoin(
-      workflowRevision,
-      and(
-        eq(workflowRevision.workflowId, workflow.id),
-        eq(workflowRevision.revision, workflow.revision),
-      ),
-    )
+    .innerJoin(workflowRevision, currentRevisionJoin())
     .where(eq(workflow.id, workflowId))
     .limit(1);
   if (!row) return null;
-  return {
-    definition: row.definition,
-    revisionId: row.revision.id,
-    graph: row.revision.graph,
-  };
+  return { definition: row.definition, revisionId: row.revision.id, graph: row.revision.graph };
 }
 
 export async function loadRevision(
   revisionId: string,
-): Promise<{ definition: DefinitionRow; graph: WorkflowGraph } | null> {
+): Promise<{ definition: DefinitionRow; graph: WorkflowGraph; revision: number } | null> {
   const [row] = await db
     .select({ definition: workflow, revision: workflowRevision })
     .from(workflowRevision)
@@ -409,7 +440,24 @@ export async function loadRevision(
     .where(eq(workflowRevision.id, revisionId))
     .limit(1);
   if (!row) return null;
-  return { definition: row.definition, graph: row.revision.graph };
+  return { definition: row.definition, graph: row.revision.graph, revision: row.revision.revision };
+}
+
+export async function listRevisions(
+  workflowId: string,
+  limit: number,
+): Promise<{ id: string; revision: number; createdAt: Date; graph: WorkflowGraph }[]> {
+  return db
+    .select({
+      id: workflowRevision.id,
+      revision: workflowRevision.revision,
+      createdAt: workflowRevision.createdAt,
+      graph: workflowRevision.graph,
+    })
+    .from(workflowRevision)
+    .where(eq(workflowRevision.workflowId, workflowId))
+    .orderBy(desc(workflowRevision.revision))
+    .limit(limit);
 }
 
 export async function listDefinitions(opts: {
@@ -429,13 +477,7 @@ export async function listDefinitions(opts: {
   const rows = await db
     .select({ definition: workflow, revision: workflowRevision })
     .from(workflow)
-    .innerJoin(
-      workflowRevision,
-      and(
-        eq(workflowRevision.workflowId, workflow.id),
-        eq(workflowRevision.revision, workflow.revision),
-      ),
-    )
+    .innerJoin(workflowRevision, currentRevisionJoin())
     .where(where.length > 0 ? and(...where) : undefined)
     .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt));
 
@@ -451,7 +493,7 @@ export async function setDefinitionEnabled(workflowId: string, enabled: boolean)
   return db.transaction(async (tx) => {
     const updated = await tx
       .update(workflow)
-      .set({ enabled, updatedAt: now })
+      .set({ enabled, disabledReason: null, updatedAt: now })
       .where(
         and(
           eq(workflow.id, workflowId),
@@ -468,9 +510,7 @@ export async function setDefinitionEnabled(workflowId: string, enabled: boolean)
       return !!row;
     }
     if (enabled) await rearmTriggers(tx, workflowId, now);
-    else if (updated[0]?.kind === "user") {
-      await cancelPendingRuns(tx, workflowId, now);
-    }
+    else if (updated[0]?.kind === "user") await cancelOpenRuns(tx, workflowId, now);
     return true;
   });
 }
@@ -484,290 +524,62 @@ export async function softDeleteDefinition(workflowId: string): Promise<boolean>
       .where(and(eq(workflow.id, workflowId), isNull(workflow.deletedAt)))
       .returning({ id: workflow.id });
     if (updated.length === 0) return false;
-
     await tx
       .update(workflowTrigger)
       .set({ armed: false, nextDueAt: null, updatedAt: now })
       .where(eq(workflowTrigger.workflowId, workflowId));
-
-    await cancelPendingRuns(tx, workflowId, now);
+    await cancelOpenRuns(tx, workflowId, now);
     await clearWorkflowOutputs(tx, workflowId);
-
-    await tx.delete(workflowPayload).where(eq(workflowPayload.workflowId, workflowId));
+    await tx.delete(workflowBlob).where(eq(workflowBlob.workflowId, workflowId));
+    await tx
+      .delete(workflowEndpoint)
+      .where(
+        and(eq(workflowEndpoint.workflowId, workflowId), eq(workflowEndpoint.kind, "webhook")),
+      );
     return true;
   });
 }
 
 async function clearWorkflowOutputs(tx: Executor, workflowId: string): Promise<void> {
   await tx
-    .update(workflowNodeRun)
-    .set({ output: null })
+    .update(workflowStepRun)
+    .set({ output: null, input: null, state: null })
     .where(
       and(
         inArray(
-          workflowNodeRun.runId,
+          workflowStepRun.runId,
           tx
             .select({ id: workflowRun.id })
             .from(workflowRun)
             .where(eq(workflowRun.workflowId, workflowId)),
         ),
-        ne(workflowNodeRun.inputKey, BARRIER_INPUT_KEY),
-        isNotNull(workflowNodeRun.output),
+        ne(workflowStepRun.itemKey, BARRIER_ITEM_KEY),
       ),
     );
 }
 
-export interface CancelResult {
-  cancelled: boolean;
-  reason?: string;
-}
-
-export async function cancelBuiltinWorkflow(workflowId: string): Promise<CancelResult> {
-  const now = new Date();
-  return db.transaction(async (tx) => {
-    const started = await tx
-      .select({ id: workflowRun.id, status: workflowRun.status })
-      .from(workflowRun)
-      .innerJoin(workflowOccurrence, eq(workflowOccurrence.id, workflowRun.occurrenceId))
-      .innerJoin(workflowTrigger, eq(workflowTrigger.id, workflowOccurrence.triggerId))
-      .where(and(eq(workflowRun.workflowId, workflowId), eq(workflowTrigger.kind, "trigger.once")));
-
-    const dispatched = started.filter(
-      (row) => row.status === "running" || row.status === "completed" || row.status === "partial",
-    );
-    const [executing] = await tx
-      .select({ id: workflowRun.id })
-      .from(workflowRun)
-      .where(and(eq(workflowRun.workflowId, workflowId), eq(workflowRun.status, "running")))
-      .limit(1);
-    if (executing) {
-      return {
-        cancelled: false,
-        reason: "That is still being handled — try again in a moment",
-      };
-    }
-    const [current] = await tx
-      .select({ graph: workflowRevision.graph })
-      .from(workflow)
-      .innerJoin(
-        workflowRevision,
-        and(
-          eq(workflowRevision.workflowId, workflow.id),
-          eq(workflowRevision.revision, workflow.revision),
-        ),
-      )
-      .where(eq(workflow.id, workflowId))
-      .limit(1);
-    const sendNodes = (current?.graph.nodes ?? [])
-      .filter((node) => node.kind === "action.send")
-      .map((node) => node.id);
-    const sendRuns =
-      sendNodes.length === 0
-        ? []
-        : await tx
-            .select({ status: workflowNodeRun.status })
-            .from(workflowNodeRun)
-            .innerJoin(workflowRun, eq(workflowRun.id, workflowNodeRun.runId))
-            .where(
-              and(
-                eq(workflowRun.workflowId, workflowId),
-                inArray(workflowNodeRun.nodeId, sendNodes),
-                inArray(workflowNodeRun.status, ["dispatching", "unknown", "completed"]),
-              ),
-            );
-    const [unresolved] = await tx
-      .select({ id: workflowNodeRun.id })
-      .from(workflowNodeRun)
-      .innerJoin(workflowRun, eq(workflowRun.id, workflowNodeRun.runId))
-      .where(
-        and(
-          eq(workflowRun.workflowId, workflowId),
-          inArray(workflowNodeRun.status, ["running", "dispatching", "unknown"]),
-          isNull(workflowNodeRun.resolvedAt),
-        ),
-      )
-      .limit(1);
-    if (unresolved) {
-      return {
-        cancelled: false,
-        reason:
-          "A step of this item has an unresolved outcome — check the message before cancelling",
-      };
-    }
-    if (dispatched.length > 0 || sendRuns.length > 0) {
-      return {
-        cancelled: false,
-        reason: "That has already started — it can no longer be called back",
-      };
-    }
-
-    const updated = await tx
-      .update(workflow)
-      .set({ deletedAt: now, enabled: false, updatedAt: now })
-      .where(and(eq(workflow.id, workflowId), isNull(workflow.deletedAt)))
-      .returning({ id: workflow.id });
-
-    if (updated.length === 0) {
-      return { cancelled: false, reason: "That item is already gone" };
-    }
-
-    await tx
-      .update(workflowTrigger)
-      .set({ armed: false, nextDueAt: null, updatedAt: now })
-      .where(eq(workflowTrigger.workflowId, workflowId));
-
-    await cancelPendingRuns(tx, workflowId, now);
-    await clearWorkflowOutputs(tx, workflowId);
-
-    await tx.delete(workflowPayload).where(eq(workflowPayload.workflowId, workflowId));
-
-    return { cancelled: true };
-  });
-}
-
-export async function rescheduleOnce(opts: {
-  workflowId: string;
-  at: Date;
-}): Promise<CancelResult> {
-  const now = new Date();
-  return db.transaction(async (tx) => {
-    const runs = await tx
-      .select({ status: workflowRun.status })
-      .from(workflowRun)
-      .innerJoin(workflowOccurrence, eq(workflowOccurrence.id, workflowRun.occurrenceId))
-      .innerJoin(workflowTrigger, eq(workflowTrigger.id, workflowOccurrence.triggerId))
-      .where(
-        and(eq(workflowRun.workflowId, opts.workflowId), eq(workflowTrigger.kind, "trigger.once")),
-      );
-    if (runs.some((r) => r.status !== "cancelled")) {
-      return { cancelled: false, reason: "That wake-up has already started" };
-    }
-
-    const [current] = await tx
-      .select({
-        definition: workflow,
-        revision: workflowRevision,
-      })
-      .from(workflow)
-      .innerJoin(
-        workflowRevision,
-        and(
-          eq(workflowRevision.workflowId, workflow.id),
-          eq(workflowRevision.revision, workflow.revision),
-        ),
-      )
-      .where(and(eq(workflow.id, opts.workflowId), isNull(workflow.deletedAt)))
-      .limit(1);
-    if (!current) return { cancelled: false, reason: "That item is gone" };
-
-    const graph: WorkflowGraph = {
-      ...current.revision.graph,
-      nodes: current.revision.graph.nodes.map((node) =>
-        node.kind === "trigger.once" ? { ...node, at: opts.at.toISOString() } : node,
-      ),
-    };
-    const revision = current.definition.revision + 1;
-    const revisionId = crypto.randomUUID();
-    await tx.insert(workflowRevision).values({
-      id: revisionId,
-      workflowId: opts.workflowId,
-      revision,
-      graph,
-      createdAt: now,
+export async function upsertSystemDefinition(opts: {
+  id: string;
+  name: string;
+  graph: WorkflowGraph;
+}): Promise<LoadedDefinition> {
+  const existing = await loadDefinition(opts.id);
+  if (existing) {
+    if (JSON.stringify(existing.graph) === JSON.stringify(opts.graph)) return existing;
+    const revised = await reviseDefinition({
+      workflowId: opts.id,
+      name: opts.name,
+      enabled: true,
+      graph: opts.graph,
     });
-
-    const resources = await tx
-      .select()
-      .from(workflowResource)
-      .where(eq(workflowResource.revisionId, current.revision.id));
-    if (resources.length > 0) {
-      await tx.insert(workflowResource).values(
-        resources.map((resource) => ({
-          ...resource,
-          id: crypto.randomUUID(),
-          revisionId,
-        })),
-      );
-    }
-
-    await tx
-      .update(workflowTrigger)
-      .set({ revisionId, armed: true, nextDueAt: opts.at, updatedAt: now })
-      .where(
-        and(
-          eq(workflowTrigger.workflowId, opts.workflowId),
-          eq(workflowTrigger.kind, "trigger.once"),
-        ),
-      );
-
-    await tx
-      .update(workflow)
-      .set({ revision, updatedAt: now })
-      .where(eq(workflow.id, opts.workflowId));
-
-    return { cancelled: true };
-  });
-}
-
-export async function retargetSnooze(opts: {
-  workflowId: string;
-  messageId: string;
-}): Promise<void> {
-  const now = new Date();
-  await db.transaction(async (tx) => {
-    const [current] = await tx
-      .select({ definition: workflow, revision: workflowRevision })
-      .from(workflow)
-      .innerJoin(
-        workflowRevision,
-        and(
-          eq(workflowRevision.workflowId, workflow.id),
-          eq(workflowRevision.revision, workflow.revision),
-        ),
-      )
-      .where(and(eq(workflow.id, opts.workflowId), isNull(workflow.deletedAt)))
-      .limit(1);
-    if (current?.definition.kind !== "snooze") return;
-
-    const graph: WorkflowGraph = {
-      ...current.revision.graph,
-      nodes: current.revision.graph.nodes.map((node) =>
-        node.kind === "mailbox.source" ? { ...node, messageId: opts.messageId } : node,
-      ),
-    };
-    const revision = current.definition.revision + 1;
-    const revisionId = crypto.randomUUID();
-    await tx.insert(workflowRevision).values({
-      id: revisionId,
-      workflowId: opts.workflowId,
-      revision,
-      graph,
-      createdAt: now,
-    });
-
-    const resources = await tx
-      .select()
-      .from(workflowResource)
-      .where(eq(workflowResource.revisionId, current.revision.id));
-    if (resources.length > 0) {
-      await tx.insert(workflowResource).values(
-        resources.map((resource) => ({
-          ...resource,
-          id: crypto.randomUUID(),
-          revisionId,
-        })),
-      );
-    }
-
-    await tx
-      .update(workflowTrigger)
-      .set({ revisionId, updatedAt: now })
-      .where(eq(workflowTrigger.workflowId, opts.workflowId));
-
-    await tx
-      .update(workflow)
-      .set({ revision, updatedAt: now })
-      .where(eq(workflow.id, opts.workflowId));
+    if (revised) return revised;
+  }
+  return saveDefinition({
+    id: opts.id,
+    kind: "system",
+    name: opts.name,
+    enabled: true,
+    graph: opts.graph,
   });
 }
 
@@ -791,160 +603,13 @@ export async function findLiveTarget(opts: {
   return row ?? null;
 }
 
-export interface BuiltinListing {
-  definition: DefinitionRow;
-  graph: WorkflowGraph;
-  wakeAt: Date | null;
-  armed: boolean;
-  inFlight: boolean;
-  sent: boolean;
-  status: RunStatus | null;
-  error: string | null;
-}
-
-export async function listBuiltins(opts: {
-  kind: WorkflowKind;
-  mailboxIds: string[];
-}): Promise<BuiltinListing[]> {
-  if (opts.mailboxIds.length === 0) return [];
-
-  const rows = await db
-    .select({ definition: workflow, revision: workflowRevision })
-    .from(workflow)
-    .innerJoin(
-      workflowRevision,
-      and(
-        eq(workflowRevision.workflowId, workflow.id),
-        eq(workflowRevision.revision, workflow.revision),
-      ),
-    )
-    .where(
-      and(
-        eq(workflow.kind, opts.kind),
-        inArray(workflow.mailboxId, opts.mailboxIds),
-        isNull(workflow.deletedAt),
-      ),
-    )
-    .orderBy(asc(workflow.createdAt));
-
-  if (rows.length === 0) return [];
-  const ids = rows.map((row) => row.definition.id);
-
-  const triggers = await db
-    .select({
-      id: workflowTrigger.id,
-      workflowId: workflowTrigger.workflowId,
-      nextDueAt: workflowTrigger.nextDueAt,
-      armed: workflowTrigger.armed,
-    })
-    .from(workflowTrigger)
-    .where(and(inArray(workflowTrigger.workflowId, ids), eq(workflowTrigger.kind, "trigger.once")));
-
-  const onceIds = triggers.map((t) => t.id);
-  const runs =
-    onceIds.length === 0
-      ? []
-      : await db
-          .select({
-            workflowId: workflowRun.workflowId,
-            status: workflowRun.status,
-            error: workflowRun.error,
-          })
-          .from(workflowRun)
-          .innerJoin(workflowOccurrence, eq(workflowOccurrence.id, workflowRun.occurrenceId))
-          .where(inArray(workflowOccurrence.triggerId, onceIds))
-          .orderBy(desc(workflowRun.createdAt));
-
-  const inFlight = new Set(
-    (
-      await db
-        .select({ workflowId: workflowRun.workflowId })
-        .from(workflowRun)
-        .where(
-          and(
-            inArray(workflowRun.workflowId, ids),
-            inArray(workflowRun.status, ["pending", "running"]),
-          ),
-        )
-    ).map((row) => row.workflowId),
-  );
-  const sent = new Set(
-    (
-      await db
-        .select({ workflowId: workflowRun.workflowId })
-        .from(workflowNodeRun)
-        .innerJoin(workflowRun, eq(workflowRun.id, workflowNodeRun.runId))
-        .where(
-          and(
-            inArray(workflowRun.workflowId, ids),
-            eq(workflowNodeRun.status, "completed"),
-            sql`json_extract(${workflowNodeRun.receipt}, '$.operation') = 'send'`,
-          ),
-        )
-    ).map((row) => row.workflowId),
-  );
-  const wake = new Map(triggers.map((t) => [t.workflowId, t]));
-  const latest = new Map<string, { status: RunStatus; error: string | null }>();
-  for (const run of runs) {
-    if (latest.has(run.workflowId)) continue;
-    latest.set(run.workflowId, { status: run.status, error: run.error });
-  }
-
-  return rows.map((row) => ({
-    definition: row.definition,
-    graph: row.revision.graph,
-    wakeAt: wake.get(row.definition.id)?.nextDueAt ?? null,
-    armed: wake.get(row.definition.id)?.armed ?? false,
-    inFlight: inFlight.has(row.definition.id),
-    sent: sent.has(row.definition.id),
-    status: latest.get(row.definition.id)?.status ?? null,
-    error: latest.get(row.definition.id)?.error ?? null,
-  }));
-}
-
-export async function upsertSystemDefinition(opts: {
-  id: string;
-  name: string;
-  graph: WorkflowGraph;
-}): Promise<LoadedDefinition> {
-  const existing = await loadDefinition(opts.id);
-  if (existing) {
-    if (JSON.stringify(existing.graph) === JSON.stringify(opts.graph)) {
-      return existing;
-    }
-    const revised = await reviseDefinition({
-      workflowId: opts.id,
-      name: opts.name,
-      enabled: true,
-      graph: opts.graph,
-    });
-    if (revised) return revised;
-  }
-  return saveDefinition({
-    id: opts.id,
-    kind: "system",
-    name: opts.name,
-    enabled: true,
-    graph: opts.graph,
-  });
-}
-
 export async function listTriggers(workflowId: string): Promise<TriggerRow[]> {
   return db.select().from(workflowTrigger).where(eq(workflowTrigger.workflowId, workflowId));
 }
 
-export async function listNewMailTriggers(workflowIds: string[]): Promise<TriggerRow[]> {
+export async function listTriggersOf(workflowIds: string[]): Promise<TriggerRow[]> {
   if (workflowIds.length === 0) return [];
-  return db
-    .select()
-    .from(workflowTrigger)
-    .where(
-      and(
-        inArray(workflowTrigger.workflowId, workflowIds),
-        eq(workflowTrigger.kind, "trigger.newMail"),
-        eq(workflowTrigger.armed, true),
-      ),
-    );
+  return db.select().from(workflowTrigger).where(inArray(workflowTrigger.workflowId, workflowIds));
 }
 
 export interface DueTrigger {
@@ -955,20 +620,10 @@ export interface DueTrigger {
 
 export async function dueTriggers(now: Date, limit: number): Promise<DueTrigger[]> {
   const rows = await db
-    .select({
-      trigger: workflowTrigger,
-      definition: workflow,
-      revision: workflowRevision,
-    })
+    .select({ trigger: workflowTrigger, definition: workflow, revision: workflowRevision })
     .from(workflowTrigger)
     .innerJoin(workflow, eq(workflow.id, workflowTrigger.workflowId))
-    .innerJoin(
-      workflowRevision,
-      and(
-        eq(workflowRevision.workflowId, workflow.id),
-        eq(workflowRevision.revision, workflow.revision),
-      ),
-    )
+    .innerJoin(workflowRevision, currentRevisionJoin())
     .where(
       and(
         eq(workflowTrigger.armed, true),
@@ -979,7 +634,6 @@ export async function dueTriggers(now: Date, limit: number): Promise<DueTrigger[
     )
     .orderBy(asc(workflowTrigger.nextDueAt))
     .limit(limit);
-
   return rows.map((row) => ({
     trigger: row.trigger,
     definition: row.definition,
@@ -987,16 +641,63 @@ export async function dueTriggers(now: Date, limit: number): Promise<DueTrigger[
   }));
 }
 
+export async function armedTriggersOfKind(opts: {
+  kinds: string[];
+  workspaceId?: string | null;
+}): Promise<DueTrigger[]> {
+  if (opts.kinds.length === 0) return [];
+  const rows = await db
+    .select({ trigger: workflowTrigger, definition: workflow, revision: workflowRevision })
+    .from(workflowTrigger)
+    .innerJoin(workflow, eq(workflow.id, workflowTrigger.workflowId))
+    .innerJoin(workflowRevision, currentRevisionJoin())
+    .where(
+      and(
+        inArray(workflowTrigger.kind, opts.kinds),
+        eq(workflowTrigger.armed, true),
+        eq(workflow.enabled, true),
+        isNull(workflow.deletedAt),
+        opts.workspaceId ? eq(workflow.workspaceId, opts.workspaceId) : undefined,
+      ),
+    );
+  return rows.map((row) => ({
+    trigger: row.trigger,
+    definition: row.definition,
+    graph: row.revision.graph,
+  }));
+}
+
+export async function triggerById(triggerId: string): Promise<DueTrigger | null> {
+  const [row] = await db
+    .select({ trigger: workflowTrigger, definition: workflow, revision: workflowRevision })
+    .from(workflowTrigger)
+    .innerJoin(workflow, eq(workflow.id, workflowTrigger.workflowId))
+    .innerJoin(workflowRevision, currentRevisionJoin())
+    .where(eq(workflowTrigger.id, triggerId))
+    .limit(1);
+  return row
+    ? { trigger: row.trigger, definition: row.definition, graph: row.revision.graph }
+    : null;
+}
+
+export async function wakeTrigger(triggerId: string, at: Date): Promise<void> {
+  await db
+    .update(workflowTrigger)
+    .set({ nextDueAt: at, updatedAt: at })
+    .where(and(eq(workflowTrigger.id, triggerId), eq(workflowTrigger.armed, true)));
+}
+
+export type TriggerPatch = {
+  nextDueAt?: Date | null;
+  baselineAt?: Date | null;
+  armed?: boolean;
+  lastRunAt?: Date | null;
+  lastError?: string | null;
+};
+
 export async function updateTrigger(
   triggerId: string,
-  patch: {
-    nextDueAt?: Date | null;
-    baselineAt?: Date | null;
-    cursor?: DiscoveryCursor | null;
-    armed?: boolean;
-    lastRunAt?: Date | null;
-    lastError?: string | null;
-  },
+  patch: TriggerPatch,
   claimToken?: string,
 ): Promise<boolean> {
   const rows = await db
@@ -1039,7 +740,37 @@ export async function releaseTrigger(triggerId: string, token: string): Promise<
     .where(and(eq(workflowTrigger.id, triggerId), eq(workflowTrigger.claimToken, token)));
 }
 
-export interface OpenOccurrence {
+export async function getCursors(triggerId: string): Promise<Map<string, FeedCursor>> {
+  const rows = await db
+    .select()
+    .from(workflowCursor)
+    .where(eq(workflowCursor.triggerId, triggerId));
+  return new Map(rows.map((row) => [row.scope, row.cursor]));
+}
+
+export async function putCursor(
+  triggerId: string,
+  token: string,
+  cursor: FeedCursor,
+): Promise<boolean> {
+  const owned = await db
+    .select({ id: workflowTrigger.id })
+    .from(workflowTrigger)
+    .where(and(eq(workflowTrigger.id, triggerId), eq(workflowTrigger.claimToken, token)))
+    .limit(1);
+  if (owned.length === 0) return false;
+  const now = new Date();
+  await db
+    .insert(workflowCursor)
+    .values({ id: crypto.randomUUID(), triggerId, scope: cursor.scope, cursor, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [workflowCursor.triggerId, workflowCursor.scope],
+      set: { cursor, updatedAt: now },
+    });
+  return true;
+}
+
+export interface OpenEvent {
   workflowId: string;
   triggerId: string;
   revisionId: string;
@@ -1049,29 +780,69 @@ export interface OpenOccurrence {
   workspaceId: string | null;
   principalUserId: string | null;
   input: RunInput;
+  payload?: unknown;
   dueAt: Date;
-  triggerPatch?: Parameters<typeof updateTrigger>[1];
-  withoutRun?: boolean;
+  triggerPatch?: TriggerPatch;
+  withoutRun?: string;
+  limit?: { mode: "debounce" | "throttle"; key: string; seconds: number };
+  parentRunId?: string;
 }
 
-export async function openOccurrence(opts: OpenOccurrence): Promise<string | null> {
+export async function openEvent(opts: OpenEvent): Promise<string | null> {
   const now = new Date();
   return db.transaction(async (tx) => {
-    const occurrenceId = crypto.randomUUID();
+    let skipped = opts.withoutRun ?? null;
+    let dueAt = opts.dueAt;
+    if (!skipped && opts.limit) {
+      const since = new Date(now.getTime() - opts.limit.seconds * 1000);
+      if (opts.limit.mode === "throttle") {
+        const [recent] = await tx
+          .select({ id: workflowRun.id })
+          .from(workflowRun)
+          .where(
+            and(
+              eq(workflowRun.workflowId, opts.workflowId),
+              eq(workflowRun.limitKey, opts.limit.key),
+              gt(workflowRun.createdAt, since),
+            ),
+          )
+          .limit(1);
+        if (recent) skipped = "throttled: a run for the same key started recently";
+      } else {
+        await tx
+          .update(workflowRun)
+          .set({
+            status: "cancelled",
+            finishedAt: now,
+            error: "Replaced by a later event (debounce)",
+          })
+          .where(
+            and(
+              eq(workflowRun.workflowId, opts.workflowId),
+              eq(workflowRun.limitKey, opts.limit.key),
+              eq(workflowRun.status, "pending"),
+              eq(workflowRun.attempts, 0),
+            ),
+          );
+        dueAt = new Date(Math.max(opts.dueAt.getTime(), now.getTime() + opts.limit.seconds * 1000));
+      }
+    }
+
+    const eventId = crypto.randomUUID();
     const inserted = await tx
-      .insert(workflowOccurrence)
+      .insert(workflowEvent)
       .values({
-        id: occurrenceId,
+        id: eventId,
         workflowId: opts.workflowId,
         triggerId: opts.triggerId,
         key: opts.key,
         scheduledFor: opts.scheduledFor,
+        payload: opts.payload ?? null,
+        skippedReason: skipped,
         createdAt: now,
       })
-      .onConflictDoNothing({
-        target: [workflowOccurrence.triggerId, workflowOccurrence.key],
-      })
-      .returning({ id: workflowOccurrence.id });
+      .onConflictDoNothing({ target: [workflowEvent.triggerId, workflowEvent.key] })
+      .returning({ id: workflowEvent.id });
 
     if (opts.triggerPatch) {
       await tx
@@ -1079,21 +850,22 @@ export async function openOccurrence(opts: OpenOccurrence): Promise<string | nul
         .set({ ...opts.triggerPatch, updatedAt: now })
         .where(eq(workflowTrigger.id, opts.triggerId));
     }
-
-    if (inserted.length === 0 || opts.withoutRun) return null;
+    if (inserted.length === 0 || skipped) return null;
 
     const runId = crypto.randomUUID();
     await tx.insert(workflowRun).values({
       id: runId,
       workflowId: opts.workflowId,
       revisionId: opts.revisionId,
-      occurrenceId,
+      eventId,
       kind: opts.kind,
       workspaceId: opts.workspaceId,
       principalUserId: opts.principalUserId,
+      parentRunId: opts.parentRunId ?? null,
+      limitKey: opts.limit?.key ?? null,
       input: opts.input,
       status: "pending",
-      dueAt: opts.dueAt,
+      dueAt,
       attempts: 0,
       createdAt: now,
     });
@@ -1109,6 +881,8 @@ const CLAIM_SLICES: readonly (readonly WorkflowKind[])[] = [
 
 let claimRotation = 0;
 
+const capOf = sql`(select json_extract(${workflowRevision.graph}, '$.settings.concurrency') from ${workflowRevision} where ${workflowRevision.id} = ${workflowRun.revisionId})`;
+
 async function claimSlice(opts: {
   now: Date;
   limit: number;
@@ -1119,6 +893,17 @@ async function claimSlice(opts: {
   if (opts.limit <= 0) return [];
   const { now, owner, leaseMs } = opts;
   const leaseUntil = new Date(now.getTime() + leaseMs);
+  const running = alias(workflowRun, "running_run");
+  const busy = db
+    .select({ count: sql<number>`count(*)` })
+    .from(running)
+    .where(
+      and(
+        eq(running.workflowId, workflowRun.workflowId),
+        eq(running.status, "running"),
+        gte(running.leaseExpiresAt, now),
+      ),
+    );
 
   const candidates = db
     .select({ id: workflowRun.id })
@@ -1126,10 +911,11 @@ async function claimSlice(opts: {
     .where(
       and(
         or(
-          and(eq(workflowRun.status, "pending"), lte(workflowRun.dueAt, now)),
+          and(inArray(workflowRun.status, ["pending", "waiting"]), lte(workflowRun.dueAt, now)),
           and(eq(workflowRun.status, "running"), lt(workflowRun.leaseExpiresAt, now)),
         ),
         opts.kinds ? inArray(workflowRun.kind, [...opts.kinds]) : undefined,
+        sql`(${capOf} is null or ${busy} < ${capOf})`,
       ),
     )
     .orderBy(asc(workflowRun.dueAt))
@@ -1143,7 +929,7 @@ async function claimSlice(opts: {
       leaseToken: crypto.randomUUID(),
       leaseExpiresAt: leaseUntil,
       attempts: sql`${workflowRun.attempts} + 1`,
-      startedAt: now,
+      startedAt: sql`coalesce(${workflowRun.startedAt}, ${now.getTime()})`,
     })
     .where(inArray(workflowRun.id, candidates))
     .returning();
@@ -1170,14 +956,41 @@ export async function claimRuns(opts: {
     });
     claimed.push(...rows);
   }
+  claimed.push(...(await claimSlice({ ...opts, limit: opts.limit - claimed.length })));
+  return enforceCaps(claimed);
+}
 
-  const rest = await claimSlice({
-    ...opts,
-    limit: opts.limit - claimed.length,
-  });
-  claimed.push(...rest);
-
-  return claimed;
+async function enforceCaps(claimed: RunRow[]): Promise<RunRow[]> {
+  const workflowIds = [...new Set(claimed.map((run) => run.workflowId))];
+  if (workflowIds.length === 0) return claimed;
+  const caps = await db
+    .select({ id: workflowRun.id, cap: capOf })
+    .from(workflowRun)
+    .where(
+      inArray(
+        workflowRun.id,
+        claimed.map((run) => run.id),
+      ),
+    );
+  const capById = new Map(
+    caps.map((row) => [row.id, typeof row.cap === "number" ? row.cap : null]),
+  );
+  const counts = new Map<string, number>();
+  const kept: RunRow[] = [];
+  const released: RunRow[] = [];
+  for (const run of claimed) {
+    const cap = capById.get(run.id) ?? null;
+    if (cap === null) {
+      kept.push(run);
+      continue;
+    }
+    const seen = (counts.get(run.workflowId) ?? 0) + 1;
+    counts.set(run.workflowId, seen);
+    if (seen > cap) released.push(run);
+    else kept.push(run);
+  }
+  await Promise.all(released.map((run) => releaseRun(run)));
+  return kept;
 }
 
 export async function claimRun(opts: {
@@ -1194,7 +1007,7 @@ export async function claimRun(opts: {
       leaseToken: crypto.randomUUID(),
       leaseExpiresAt: new Date(opts.now.getTime() + opts.leaseMs),
       attempts: sql`${workflowRun.attempts} + 1`,
-      startedAt: opts.now,
+      startedAt: sql`coalesce(${workflowRun.startedAt}, ${opts.now.getTime()})`,
     })
     .where(
       and(
@@ -1218,6 +1031,25 @@ export async function heartbeatRun(runId: string, token: string, until: Date): P
   return rows.length > 0;
 }
 
+export const RESUMABLE_RUN_STATUSES = [
+  "failed",
+  "partial",
+  "blocked",
+] as const satisfies readonly RunStatus[];
+
+export function isResumableStatus(status: RunStatus): boolean {
+  return (RESUMABLE_RUN_STATUSES as readonly RunStatus[]).includes(status);
+}
+
+export const RESUMABLE_KINDS = [
+  "user",
+  "scheduled-send",
+] as const satisfies readonly WorkflowKind[];
+
+export function isResumableKind(kind: WorkflowKind): boolean {
+  return (RESUMABLE_KINDS as readonly WorkflowKind[]).includes(kind);
+}
+
 export async function settleRun(opts: {
   runId: string;
   token: string;
@@ -1225,16 +1057,19 @@ export async function settleRun(opts: {
   error?: string | null;
   summary?: RunSummaryLine[];
   retryAt?: Date | null;
+  wakeAt?: Date | null;
   restoreAttempt?: boolean;
-  retainOutputs: boolean;
+  output?: unknown;
+  clearOutputs: boolean;
   definition?: "enable" | "retire";
   blocked?: boolean;
 }): Promise<boolean> {
   const now = new Date();
   const retry = opts.retryAt ?? null;
   const blockedAt = opts.blocked ? now : null;
-  const retain = opts.retainOutputs && !retry && isResumableStatus(opts.status);
+  const waiting = opts.status === "waiting" && !retry;
   const owned = and(eq(workflowRun.id, opts.runId), eq(workflowRun.leaseToken, opts.token));
+  const released = { leaseOwner: null, leaseToken: null, leaseExpiresAt: null };
   return db.transaction(async (tx) => {
     let rows = await tx
       .update(workflowRun)
@@ -1243,9 +1078,7 @@ export async function settleRun(opts: {
           ? {
               status: "pending",
               dueAt: retry,
-              leaseOwner: null,
-              leaseToken: null,
-              leaseExpiresAt: null,
+              ...released,
               blockedAt,
               error: opts.error ?? null,
               summary: opts.summary,
@@ -1253,38 +1086,52 @@ export async function settleRun(opts: {
                 ? { attempts: sql`max(${workflowRun.attempts} - 1, 0)` }
                 : {}),
             }
-          : {
-              status: opts.status,
-              finishedAt: now,
-              leaseOwner: null,
-              leaseToken: null,
-              leaseExpiresAt: null,
-              blockedAt,
-              error: opts.error ?? null,
-              summary: opts.summary,
-            },
+          : waiting
+            ? {
+                status: "waiting",
+                dueAt: opts.wakeAt ?? new Date(now.getTime() + 86_400_000),
+                ...released,
+                attempts: 0,
+                blockedAt: null,
+                error: null,
+                summary: opts.summary,
+              }
+            : {
+                status: opts.status,
+                finishedAt: now,
+                ...released,
+                blockedAt,
+                error: opts.error ?? null,
+                summary: opts.summary,
+                output: opts.output ?? null,
+              },
       )
-      .where(retry ? and(owned, ne(workflowRun.status, "cancelled")) : owned)
-      .returning({ id: workflowRun.id, workflowId: workflowRun.workflowId });
-    const requeued = !!retry && rows.length > 0;
-    if (retry && !requeued) {
+      .where(retry || waiting ? and(owned, ne(workflowRun.status, "cancelled")) : owned)
+      .returning({
+        id: workflowRun.id,
+        workflowId: workflowRun.workflowId,
+        parentRunId: workflowRun.parentRunId,
+      });
+    const requeued = (!!retry || waiting) && rows.length > 0;
+    if ((retry || waiting) && !requeued) {
       rows = await tx
         .update(workflowRun)
-        .set({
-          finishedAt: now,
-          leaseOwner: null,
-          leaseToken: null,
-          leaseExpiresAt: null,
-          error: opts.error ?? null,
-          summary: opts.summary,
-        })
+        .set({ finishedAt: now, ...released, error: opts.error ?? null, summary: opts.summary })
         .where(and(owned, eq(workflowRun.status, "cancelled")))
-        .returning({ id: workflowRun.id, workflowId: workflowRun.workflowId });
+        .returning({
+          id: workflowRun.id,
+          workflowId: workflowRun.workflowId,
+          parentRunId: workflowRun.parentRunId,
+        });
     }
     const [owner] = rows;
     if (!owner) return false;
-    if (!requeued && !retain) {
-      await clearRunOutputs(tx, opts.runId);
+    if (!requeued && opts.clearOutputs) await clearRunOutputs(tx, opts.runId);
+    if (!requeued && owner.parentRunId) {
+      await tx
+        .update(workflowRun)
+        .set({ status: "pending", dueAt: now })
+        .where(and(eq(workflowRun.id, owner.parentRunId), eq(workflowRun.status, "waiting")));
     }
     if (opts.definition && !requeued) {
       await tx
@@ -1325,13 +1172,7 @@ export async function releaseRun(run: RunRow): Promise<boolean> {
   return db.transaction(async (tx) => {
     const stopped = await tx
       .update(workflowRun)
-      .set({
-        finishedAt: now,
-        leaseOwner: null,
-        leaseToken: null,
-        leaseExpiresAt: null,
-        attempts: sql`max(${workflowRun.attempts} - 1, 0)`,
-      })
+      .set({ finishedAt: now, leaseOwner: null, leaseToken: null, leaseExpiresAt: null })
       .where(and(owned, eq(workflowRun.status, "cancelled")))
       .returning({ id: workflowRun.id });
     if (stopped.length === 0) return false;
@@ -1342,48 +1183,21 @@ export async function releaseRun(run: RunRow): Promise<boolean> {
 
 async function clearRunOutputs(tx: Executor, runId: string): Promise<void> {
   await tx
-    .update(workflowNodeRun)
-    .set({ output: null })
-    .where(and(eq(workflowNodeRun.runId, runId), ne(workflowNodeRun.inputKey, BARRIER_INPUT_KEY)));
+    .update(workflowStepRun)
+    .set({ output: null, input: null, state: null })
+    .where(and(eq(workflowStepRun.runId, runId), ne(workflowStepRun.itemKey, BARRIER_ITEM_KEY)));
+  await tx.delete(workflowBlob).where(eq(workflowBlob.runId, runId));
 }
 
-async function countNodeRuns(tx: Executor, runId: string, statuses: NodeStatus[]): Promise<number> {
+async function countStepRuns(tx: Executor, runId: string, statuses: StepStatus[]): Promise<number> {
   const [row] = await tx
     .select({ n: sql<number>`count(*)` })
-    .from(workflowNodeRun)
-    .where(and(eq(workflowNodeRun.runId, runId), inArray(workflowNodeRun.status, statuses)));
+    .from(workflowStepRun)
+    .where(and(eq(workflowStepRun.runId, runId), inArray(workflowStepRun.status, statuses)));
   return row?.n ?? 0;
 }
 
-async function closeStrandedCancel(
-  tx: Executor,
-  runId: string,
-  leaseToken: string,
-  now: Date,
-): Promise<boolean> {
-  const closed = await tx
-    .update(workflowRun)
-    .set({
-      finishedAt: now,
-      leaseOwner: null,
-      leaseToken: null,
-      leaseExpiresAt: null,
-    })
-    .where(
-      and(
-        eq(workflowRun.id, runId),
-        eq(workflowRun.leaseToken, leaseToken),
-        eq(workflowRun.status, "cancelled"),
-      ),
-    )
-    .returning({ revisionId: workflowRun.revisionId });
-  const [run] = closed;
-  if (!run) return false;
-  await closeCancelledNodes(tx, runId, run.revisionId, now);
-  return true;
-}
-
-async function closeCancelledNodes(
+async function closeCancelledSteps(
   tx: Executor,
   runId: string,
   revisionId: string,
@@ -1394,12 +1208,15 @@ async function closeCancelledNodes(
     .from(workflowRevision)
     .where(eq(workflowRevision.id, revisionId))
     .limit(1);
-  const actions = (revision?.graph.nodes ?? [])
-    .filter((node) => node.kind.startsWith("action."))
+  const effectful = (revision?.graph.nodes ?? [])
+    .filter((node) => {
+      const effect = stepDef(node.step)?.effect;
+      return effect === "write" || effect === "dispatch";
+    })
     .map((node) => node.id);
 
   await tx
-    .update(workflowNodeRun)
+    .update(workflowStepRun)
     .set({
       status: "unknown",
       error:
@@ -1408,22 +1225,44 @@ async function closeCancelledNodes(
     })
     .where(
       and(
-        eq(workflowNodeRun.runId, runId),
+        eq(workflowStepRun.runId, runId),
         or(
-          eq(workflowNodeRun.status, "dispatching"),
-          and(eq(workflowNodeRun.status, "running"), inArray(workflowNodeRun.nodeId, actions)),
+          eq(workflowStepRun.status, "dispatching"),
+          and(eq(workflowStepRun.status, "running"), inArray(workflowStepRun.nodeId, effectful)),
         ),
       ),
     );
   await tx
-    .update(workflowNodeRun)
-    .set({
-      status: "failed",
-      error: "Stopped when the run was cancelled",
-      finishedAt: now,
-    })
-    .where(and(eq(workflowNodeRun.runId, runId), eq(workflowNodeRun.status, "running")));
+    .update(workflowStepRun)
+    .set({ status: "failed", error: "Stopped when the run was cancelled", finishedAt: now })
+    .where(and(eq(workflowStepRun.runId, runId), eq(workflowStepRun.status, "running")));
+  await tx
+    .update(workflowStepRun)
+    .set({ status: "skipped", error: "Cancelled while waiting", wakeAt: null, finishedAt: now })
+    .where(and(eq(workflowStepRun.runId, runId), eq(workflowStepRun.status, "waiting")));
+  await tx
+    .update(workflowWait)
+    .set({ status: "cancelled" })
+    .where(and(eq(workflowWait.runId, runId), eq(workflowWait.status, "open")));
   await clearRunOutputs(tx, runId);
+}
+
+async function closeStrandedCancel(tx: Executor, runId: string, leaseToken: string, now: Date) {
+  const closed = await tx
+    .update(workflowRun)
+    .set({ finishedAt: now, leaseOwner: null, leaseToken: null, leaseExpiresAt: null })
+    .where(
+      and(
+        eq(workflowRun.id, runId),
+        eq(workflowRun.leaseToken, leaseToken),
+        eq(workflowRun.status, "cancelled"),
+      ),
+    )
+    .returning({ revisionId: workflowRun.revisionId });
+  const [run] = closed;
+  if (!run) return false;
+  await closeCancelledSteps(tx, runId, run.revisionId, now);
+  return true;
 }
 
 export async function closeStrandedCancels(now: Date): Promise<number> {
@@ -1440,14 +1279,10 @@ export async function closeStrandedCancels(now: Date): Promise<number> {
     .limit(50);
   let closed = 0;
   for (const row of stranded) {
-    if (!row.leaseToken) continue;
     const token = row.leaseToken;
-    if (
-      // oxlint-disable-next-line eslint/no-await-in-loop -- each close is its own write transaction; SQLite takes one writer at a time
-      await db.transaction((tx) => closeStrandedCancel(tx, row.id, token, now))
-    ) {
-      closed += 1;
-    }
+    if (!token) continue;
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each close is its own write transaction; SQLite takes one writer at a time
+    if (await db.transaction((tx) => closeStrandedCancel(tx, row.id, token, now))) closed += 1;
   }
   return closed;
 }
@@ -1463,14 +1298,14 @@ export async function cancelRun(runId: string): Promise<RunCancelResult> {
     const queued = await tx
       .update(workflowRun)
       .set({ status: "cancelled", finishedAt: now })
-      .where(and(eq(workflowRun.id, runId), eq(workflowRun.status, "pending")))
+      .where(and(eq(workflowRun.id, runId), inArray(workflowRun.status, ["pending", "waiting"])))
       .returning({ revisionId: workflowRun.revisionId });
-    const [waiting] = queued;
-    if (waiting) {
-      await closeCancelledNodes(tx, runId, waiting.revisionId, now);
+    const [idle] = queued;
+    if (idle) {
+      await closeCancelledSteps(tx, runId, idle.revisionId, now);
       return {
         state: "cancelled",
-        unresolved: await countNodeRuns(tx, runId, ["dispatching", "unknown"]),
+        unresolved: await countStepRuns(tx, runId, ["dispatching", "unknown"]),
       };
     }
 
@@ -1498,18 +1333,17 @@ export async function cancelRun(runId: string): Promise<RunCancelResult> {
       if (!abandoned) {
         return {
           state: "stopping",
-          inFlight: await countNodeRuns(tx, runId, ["running", "dispatching"]),
+          inFlight: await countStepRuns(tx, runId, ["running", "dispatching"]),
         };
       }
-      if (held.leaseToken) {
-        await closeStrandedCancel(tx, runId, held.leaseToken, now);
-      } else {
+      if (held.leaseToken) await closeStrandedCancel(tx, runId, held.leaseToken, now);
+      else {
         await tx.update(workflowRun).set({ finishedAt: now }).where(eq(workflowRun.id, runId));
-        await closeCancelledNodes(tx, runId, held.revisionId, now);
+        await closeCancelledSteps(tx, runId, held.revisionId, now);
       }
       return {
         state: "cancelled",
-        unresolved: await countNodeRuns(tx, runId, ["dispatching", "unknown"]),
+        unresolved: await countStepRuns(tx, runId, ["dispatching", "unknown"]),
       };
     }
 
@@ -1522,53 +1356,6 @@ export async function cancelRun(runId: string): Promise<RunCancelResult> {
   });
 }
 
-export const RESUMABLE_RUN_STATUSES = [
-  "failed",
-  "partial",
-  "blocked",
-] as const satisfies readonly RunStatus[];
-
-export const RESUME_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-
-export const RESUMABLE_KINDS = [
-  "user",
-  "scheduled-send",
-] as const satisfies readonly WorkflowKind[];
-
-export function isResumableStatus(status: RunStatus): boolean {
-  return (RESUMABLE_RUN_STATUSES as readonly RunStatus[]).includes(status);
-}
-
-export function isResumableKind(kind: WorkflowKind): boolean {
-  return (RESUMABLE_KINDS as readonly WorkflowKind[]).includes(kind);
-}
-
-export async function expireRetainedOutputs(now: Date): Promise<number> {
-  const cutoff = new Date(now.getTime() - RESUME_WINDOW_MS);
-  const expired = db
-    .select({ id: workflowRun.id })
-    .from(workflowRun)
-    .where(
-      and(
-        inArray(workflowRun.kind, [...RESUMABLE_KINDS]),
-        inArray(workflowRun.status, [...RESUMABLE_RUN_STATUSES]),
-        lt(workflowRun.finishedAt, cutoff),
-      ),
-    );
-  const cleared = await db
-    .update(workflowNodeRun)
-    .set({ output: null })
-    .where(
-      and(
-        inArray(workflowNodeRun.runId, expired),
-        ne(workflowNodeRun.inputKey, BARRIER_INPUT_KEY),
-        isNotNull(workflowNodeRun.output),
-      ),
-    )
-    .returning({ id: workflowNodeRun.id });
-  return cleared.length;
-}
-
 export type ResumeRefusal =
   | "in-progress"
   | "completed"
@@ -1577,6 +1364,7 @@ export type ResumeRefusal =
   | "deleted"
   | "disabled"
   | "expired"
+  | "upgraded"
   | "ambiguous-send"
   | "send-closed"
   | "outputs-missing"
@@ -1587,15 +1375,17 @@ export type RunResumeResult =
   | { state: "resumed"; retrying: number; kept: number }
   | { state: "refused"; reason: ResumeRefusal; status: RunStatus };
 
-const RETRYABLE_NODE_STATUSES = new Set<NodeStatus>(["failed", "blocked", "pending", "running"]);
+const RETRYABLE_STEP_STATUSES = new Set<StepStatus>(["failed", "blocked", "pending", "running"]);
 
-function carriesOn(output: NodeRunOutput | null, handle: string): boolean {
-  const outputs = output?.outputs;
-  if (!outputs) return false;
-  return outputs.some((out) => out.handle === handle && out.envelopes.length > 0);
+function carriesOn(output: StepRunOutput | null, handle: string): boolean {
+  return (output?.emits ?? []).some((emit) => emit.handle === handle);
 }
 
-export async function resumeRun(runId: string, now: Date): Promise<RunResumeResult | null> {
+export async function resumeRun(
+  runId: string,
+  now: Date,
+  windowMs: number,
+): Promise<RunResumeResult | null> {
   const [row] = await db
     .select({
       status: workflowRun.status,
@@ -1603,6 +1393,7 @@ export async function resumeRun(runId: string, now: Date): Promise<RunResumeResu
       workflowId: workflowRun.workflowId,
       finishedAt: workflowRun.finishedAt,
       leaseToken: workflowRun.leaseToken,
+      upgraded: workflowRun.upgraded,
       enabled: workflow.enabled,
       deletedAt: workflow.deletedAt,
       graph: workflowRevision.graph,
@@ -1619,94 +1410,82 @@ export async function resumeRun(runId: string, now: Date): Promise<RunResumeResu
     status: row.status,
   });
 
+  if (row.upgraded) return refuse("upgraded");
   if (!isResumableKind(row.kind)) return refuse("unsupported");
   if (row.status === "completed") return refuse("completed");
   if (row.status === "cancelled") return refuse("cancelled");
-  if (!isResumableStatus(row.status) || !row.finishedAt || row.leaseToken) {
+  if (!isResumableStatus(row.status) || !row.finishedAt || row.leaseToken)
     return refuse("in-progress");
-  }
   if (row.deletedAt) return refuse("deleted");
   if (row.kind === "user" && !row.enabled) return refuse("disabled");
-  if (row.finishedAt.getTime() < now.getTime() - RESUME_WINDOW_MS) {
-    return refuse("expired");
-  }
+  if (row.finishedAt.getTime() < now.getTime() - windowMs) return refuse("expired");
 
-  const nodeRuns = await db
+  const stepRuns = await db
     .select({
-      nodeId: workflowNodeRun.nodeId,
-      inputKey: workflowNodeRun.inputKey,
-      status: workflowNodeRun.status,
-      output: workflowNodeRun.output,
-      resolution: workflowNodeRun.resolution,
+      nodeId: workflowStepRun.nodeId,
+      itemKey: workflowStepRun.itemKey,
+      status: workflowStepRun.status,
+      output: workflowStepRun.output,
+      resolution: workflowStepRun.resolution,
     })
-    .from(workflowNodeRun)
-    .where(eq(workflowNodeRun.runId, runId))
-    .then((rows) =>
-      rows.map(({ output, ...rest }) => ({
-        ...rest,
-        output,
-        hasOutput: output !== null,
-      })),
-    );
+    .from(workflowStepRun)
+    .where(eq(workflowStepRun.runId, runId));
 
-  const kinds = new Map(row.graph.nodes.map((n) => [n.id, n.kind]));
-  const unsettledSends = nodeRuns.filter((n) => {
-    const kind = kinds.get(n.nodeId);
-    return (n.status === "dispatching" || n.status === "unknown") && !!kind && isDispatchNode(kind);
-  });
-  if (unsettledSends.some((n) => !n.resolution)) {
-    return refuse("ambiguous-send");
-  }
-  if (unsettledSends.length > 0) return refuse("send-closed");
+  const steps = new Map(row.graph.nodes.map((n) => [n.id, n.step]));
+  const isDispatch = (nodeId: string) => {
+    const key = steps.get(nodeId);
+    return !!key && stepDef(key)?.effect === "dispatch";
+  };
+  const unsettled = stepRuns.filter(
+    (s) => (s.status === "dispatching" || s.status === "unknown") && isDispatch(s.nodeId),
+  );
+  if (unsettled.some((s) => !s.resolution)) return refuse("ambiguous-send");
+  if (unsettled.length > 0) return refuse("send-closed");
 
   const feeding = new Set(row.graph.edges.map((edge) => edge.source));
-  const missing = nodeRuns.some(
-    (n) =>
-      n.status === "completed" &&
-      n.inputKey !== BARRIER_INPUT_KEY &&
-      !n.hasOutput &&
-      feeding.has(n.nodeId),
+  const missingOutputs = stepRuns.some(
+    (s) =>
+      s.status === "completed" &&
+      s.itemKey !== BARRIER_ITEM_KEY &&
+      s.output === null &&
+      feeding.has(s.nodeId),
   );
-  if (missing) return refuse("outputs-missing");
+  if (missingOutputs) return refuse("outputs-missing");
 
-  const dispatchNodes = row.graph.nodes
-    .filter((node) => isDispatchNode(node.kind))
+  const scheduled = row.graph.nodes
+    .filter((node) => node.step === "mail.sendScheduled")
     .map((node) => node.id);
-  const dispatched = nodeRuns.some(
-    (n) => n.status === "completed" && dispatchNodes.includes(n.nodeId),
-  );
-  if (dispatchNodes.length > 0 && !dispatched) {
+  const sent = stepRuns.some((s) => s.status === "completed" && scheduled.includes(s.nodeId));
+  if (scheduled.length > 0 && !sent) {
     const [payload] = await db
-      .select({ id: workflowPayload.workflowId })
-      .from(workflowPayload)
-      .where(eq(workflowPayload.workflowId, row.workflowId))
+      .select({ id: workflowBlob.id })
+      .from(workflowBlob)
+      .where(and(eq(workflowBlob.workflowId, row.workflowId), eq(workflowBlob.kind, "draft")))
       .limit(1);
     if (!payload) return refuse("payload-missing");
   }
 
-  const started = new Set(nodeRuns.map((n) => n.nodeId));
+  const started = new Set(stepRuns.map((s) => s.nodeId));
   const unstarted = new Set(
     row.graph.edges
       .filter(
         (edge) =>
           !started.has(edge.target) &&
-          nodeRuns.some(
-            (n) =>
-              n.nodeId === edge.source &&
-              n.status === "completed" &&
-              n.resolution?.outcome === "verified" &&
-              carriesOn(n.output, edge.sourceHandle),
+          stepRuns.some(
+            (s) =>
+              s.nodeId === edge.source &&
+              s.status === "completed" &&
+              s.resolution?.outcome === "verified" &&
+              carriesOn(s.output, edge.sourceHandle),
           ),
       )
       .map((edge) => edge.target),
   );
   const retrying =
-    nodeRuns.filter((n) => RETRYABLE_NODE_STATUSES.has(n.status)).length + unstarted.size;
-  if (retrying === 0 && nodeRuns.length > 0) {
-    return refuse("nothing-to-retry");
-  }
-  const kept = nodeRuns.filter(
-    (n) => n.status === "completed" && n.inputKey !== BARRIER_INPUT_KEY,
+    stepRuns.filter((s) => RETRYABLE_STEP_STATUSES.has(s.status)).length + unstarted.size;
+  if (retrying === 0 && stepRuns.length > 0) return refuse("nothing-to-retry");
+  const kept = stepRuns.filter(
+    (s) => s.status === "completed" && s.itemKey !== BARRIER_ITEM_KEY,
   ).length;
 
   const claimed = await db
@@ -1752,98 +1531,22 @@ export async function runIsCancelled(runId: string): Promise<boolean> {
 
 export async function sendReceipted(runId: string): Promise<boolean> {
   const rows = await db
-    .select({ receipt: workflowNodeRun.receipt })
-    .from(workflowNodeRun)
-    .where(and(eq(workflowNodeRun.runId, runId), eq(workflowNodeRun.status, "completed")));
+    .select({ receipt: workflowStepRun.receipt })
+    .from(workflowStepRun)
+    .where(and(eq(workflowStepRun.runId, runId), eq(workflowStepRun.status, "completed")));
   return rows.some((row) => row.receipt?.operation === "send");
 }
 
-function redactSentEnvelope(envelope: Envelope): Envelope {
-  if (envelope.port === "draft") {
-    return {
-      ...envelope,
-      draft: {
-        ...envelope.draft,
-        to: [],
-        cc: [],
-        bcc: [],
-        subject: "",
-        bodyHtml: undefined,
-        bodyText: undefined,
-      },
-    };
-  }
-  if (envelope.port === "message") {
-    return {
-      ...envelope,
-      message: {
-        ...envelope.message,
-        from: "",
-        fromName: undefined,
-        to: [],
-        cc: [],
-        subject: "",
-      },
-    };
-  }
-  return envelope;
-}
-
-export async function redactSentOutputs(runId: string): Promise<void> {
-  const rows = await db
-    .select({ id: workflowNodeRun.id, output: workflowNodeRun.output })
-    .from(workflowNodeRun)
-    .where(
-      and(
-        eq(workflowNodeRun.runId, runId),
-        isNotNull(workflowNodeRun.output),
-        ne(workflowNodeRun.inputKey, BARRIER_INPUT_KEY),
-      ),
-    );
-  await Promise.all(
-    rows.flatMap((row) => {
-      const stored = row.output;
-      if (!stored?.outputs?.length) return [];
-      const redacted: NodeRunOutput = {
-        ...stored,
-        outputs: stored.outputs.map((out) => ({
-          ...out,
-          envelopes: out.envelopes.map(redactSentEnvelope),
-        })),
-      };
-      return [
-        db.update(workflowNodeRun).set({ output: redacted }).where(eq(workflowNodeRun.id, row.id)),
-      ];
-    }),
-  );
-}
-
-export async function nodeUnresolvedFor(workflowId: string, nodeId: string): Promise<boolean> {
+export async function stepUnresolvedFor(workflowId: string, nodeId: string): Promise<boolean> {
   const [row] = await db
-    .select({ id: workflowNodeRun.id })
-    .from(workflowNodeRun)
-    .innerJoin(workflowRun, eq(workflowRun.id, workflowNodeRun.runId))
+    .select({ id: workflowStepRun.id })
+    .from(workflowStepRun)
+    .innerJoin(workflowRun, eq(workflowRun.id, workflowStepRun.runId))
     .where(
       and(
         eq(workflowRun.workflowId, workflowId),
-        eq(workflowNodeRun.nodeId, nodeId),
-        inArray(workflowNodeRun.status, ["running", "dispatching", "unknown"]),
-      ),
-    )
-    .limit(1);
-  return !!row;
-}
-
-export async function nodeCompletedFor(workflowId: string, nodeId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: workflowNodeRun.id })
-    .from(workflowNodeRun)
-    .innerJoin(workflowRun, eq(workflowRun.id, workflowNodeRun.runId))
-    .where(
-      and(
-        eq(workflowRun.workflowId, workflowId),
-        eq(workflowNodeRun.nodeId, nodeId),
-        eq(workflowNodeRun.status, "completed"),
+        eq(workflowStepRun.nodeId, nodeId),
+        inArray(workflowStepRun.status, ["running", "dispatching", "unknown"]),
       ),
     )
     .limit(1);
@@ -1864,25 +1567,14 @@ export async function hasInFlightRun(workflowId: string): Promise<boolean> {
   return !!row;
 }
 
-export async function runTriggerKind(runId: string): Promise<TriggerKind | null> {
+export async function latestRun(workflowId: string): Promise<RunRow | null> {
   const [row] = await db
-    .select({ kind: workflowTrigger.kind })
-    .from(workflowRun)
-    .innerJoin(workflowOccurrence, eq(workflowOccurrence.id, workflowRun.occurrenceId))
-    .innerJoin(workflowTrigger, eq(workflowTrigger.id, workflowOccurrence.triggerId))
-    .where(eq(workflowRun.id, runId))
-    .limit(1);
-  return row?.kind ?? null;
-}
-
-export async function latestRunId(workflowId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ id: workflowRun.id })
+    .select()
     .from(workflowRun)
     .where(eq(workflowRun.workflowId, workflowId))
     .orderBy(desc(workflowRun.createdAt))
     .limit(1);
-  return row?.id ?? null;
+  return row ?? null;
 }
 
 export async function getRun(runId: string): Promise<RunRow | null> {
@@ -1890,31 +1582,35 @@ export async function getRun(runId: string): Promise<RunRow | null> {
   return row ?? null;
 }
 
-export async function listNodeRuns(runId: string): Promise<NodeRunRow[]> {
-  return db.select().from(workflowNodeRun).where(eq(workflowNodeRun.runId, runId));
+export async function listStepRuns(runId: string): Promise<StepRunRow[]> {
+  return db.select().from(workflowStepRun).where(eq(workflowStepRun.runId, runId));
 }
 
-export async function beginNodeRun(opts: {
+function ownsRun(runId: string, leaseToken: string) {
+  return sql`exists (select 1 from ${workflowRun} where ${workflowRun.id} = ${runId} and ${workflowRun.leaseToken} = ${leaseToken})`;
+}
+
+export async function beginStepRun(opts: {
   runId: string;
   leaseToken: string;
   nodeId: string;
-  inputKey: string;
+  itemKey: string;
   branch?: string | null;
-  status: NodeStatus;
-  receipt?: NodeReceipt | null;
-}): Promise<NodeRunRow | null> {
-  const values: Partial<NodeRunRow> = {
+  status: StepStatus;
+  input?: unknown;
+}): Promise<StepRunRow | null> {
+  const values: Partial<StepRunRow> = {
     id: crypto.randomUUID(),
     runId: opts.runId,
     nodeId: opts.nodeId,
-    inputKey: opts.inputKey,
+    itemKey: opts.itemKey,
     branch: opts.branch ?? null,
     status: opts.status,
-    receipt: opts.receipt ?? null,
+    input: opts.input ?? null,
     attempts: 1,
     startedAt: new Date(),
   };
-  const columns = getTableColumns(workflowNodeRun);
+  const columns = getTableColumns(workflowStepRun);
   const fields = recordOf(keysOf(columns), (key) => {
     const value = values[key];
     return (
@@ -1922,7 +1618,7 @@ export async function beginNodeRun(opts: {
     ).as(key);
   });
   const rows = await db
-    .insert(workflowNodeRun)
+    .insert(workflowStepRun)
     .select(
       db
         .select(fields)
@@ -1930,71 +1626,79 @@ export async function beginNodeRun(opts: {
         .where(and(eq(workflowRun.id, opts.runId), eq(workflowRun.leaseToken, opts.leaseToken))),
     )
     .onConflictDoNothing({
-      target: [workflowNodeRun.runId, workflowNodeRun.nodeId, workflowNodeRun.inputKey],
+      target: [workflowStepRun.runId, workflowStepRun.nodeId, workflowStepRun.itemKey],
     })
     .returning();
   return rows[0] ?? null;
 }
 
-export async function reclaimNodeRun(opts: {
+export async function reclaimStepRun(opts: {
   id: string;
   runId: string;
   leaseToken: string;
-  status: NodeStatus;
+  status: StepStatus;
+  keepState?: boolean;
 }): Promise<boolean> {
   const rows = await db
-    .update(workflowNodeRun)
+    .update(workflowStepRun)
     .set({
       status: opts.status,
-      attempts: sql`${workflowNodeRun.attempts} + 1`,
+      attempts: sql`${workflowStepRun.attempts} + 1`,
       error: null,
       output: null,
       receipt: null,
+      ...(opts.keepState ? {} : { state: null, wakeAt: null }),
       startedAt: new Date(),
       finishedAt: null,
     })
     .where(
       and(
-        eq(workflowNodeRun.id, opts.id),
-        inArray(workflowNodeRun.status, ["failed", "blocked", "running", "pending"]),
+        eq(workflowStepRun.id, opts.id),
+        inArray(workflowStepRun.status, ["failed", "blocked", "running", "pending", "waiting"]),
         ownsRun(opts.runId, opts.leaseToken),
       ),
     )
-    .returning({ id: workflowNodeRun.id });
+    .returning({ id: workflowStepRun.id });
   return rows.length > 0;
 }
 
-function ownsRun(runId: string, leaseToken: string) {
-  return sql`exists (select 1 from ${workflowRun} where ${workflowRun.id} = ${runId} and ${workflowRun.leaseToken} = ${leaseToken})`;
+export async function finishStepRun(opts: {
+  id: string;
+  runId: string;
+  leaseToken: string;
+  status: StepStatus;
+  output?: StepRunOutput | null;
+  outputHandles?: string[] | null;
+  receipt?: StepReceipt | null;
+  error?: string | null;
+  state?: WaitState | null;
+  wakeAt?: Date | null;
+}): Promise<boolean> {
+  const rows = await db
+    .update(workflowStepRun)
+    .set({
+      status: opts.status,
+      output: opts.output ?? null,
+      outputHandles: opts.outputHandles ?? null,
+      receipt: opts.receipt ?? null,
+      error: opts.error ?? null,
+      state: opts.state ?? null,
+      wakeAt: opts.wakeAt ?? null,
+      finishedAt: opts.status === "waiting" ? null : new Date(),
+    })
+    .where(and(eq(workflowStepRun.id, opts.id), ownsRun(opts.runId, opts.leaseToken)))
+    .returning({ id: workflowStepRun.id });
+  return rows.length > 0;
 }
 
-export async function findNodeRun(
-  runId: string,
-  nodeId: string,
-  inputKey: string,
-): Promise<NodeRunRow | null> {
-  const [row] = await db
-    .select()
-    .from(workflowNodeRun)
-    .where(
-      and(
-        eq(workflowNodeRun.runId, runId),
-        eq(workflowNodeRun.nodeId, nodeId),
-        eq(workflowNodeRun.inputKey, inputKey),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-}
-
-export async function reconcileNodeRun(opts: {
+export async function reconcileStepRun(opts: {
   id: string;
   status: "completed" | "failed";
-  receipt?: NodeReceipt | null;
+  receipt?: StepReceipt | null;
   error?: string | null;
 }): Promise<boolean> {
   const rows = await db
-    .update(workflowNodeRun)
+    .update(workflowStepRun)
     .set({
       status: opts.status,
       receipt: opts.receipt ?? null,
@@ -2003,43 +1707,218 @@ export async function reconcileNodeRun(opts: {
     })
     .where(
       and(
-        eq(workflowNodeRun.id, opts.id),
-        eq(workflowNodeRun.status, "unknown"),
-        isNull(workflowNodeRun.resolvedAt),
+        eq(workflowStepRun.id, opts.id),
+        eq(workflowStepRun.status, "unknown"),
+        isNull(workflowStepRun.resolvedAt),
       ),
     )
-    .returning({ id: workflowNodeRun.id });
+    .returning({ id: workflowStepRun.id });
   return rows.length > 0;
 }
 
-export async function resolveSendNodeRun(opts: {
+export async function openWait(opts: {
+  runId: string;
+  leaseToken: string;
+  stepRunId: string;
+  workflowId: string;
+  workspaceId: string | null;
+  kind: WaitKind;
+  wakeAt: Date | null;
+  deadlineAt: Date | null;
+  approvers?: string[] | null;
+  request?: string | null;
+  childRunId?: string | null;
+}): Promise<WaitRow | null> {
+  const owned = await db
+    .select({ id: workflowRun.id })
+    .from(workflowRun)
+    .where(and(eq(workflowRun.id, opts.runId), eq(workflowRun.leaseToken, opts.leaseToken)))
+    .limit(1);
+  if (owned.length === 0) return null;
+  const rows = await db
+    .insert(workflowWait)
+    .values({
+      id: crypto.randomUUID(),
+      runId: opts.runId,
+      stepRunId: opts.stepRunId,
+      workflowId: opts.workflowId,
+      workspaceId: opts.workspaceId,
+      kind: opts.kind,
+      status: "open",
+      wakeAt: opts.wakeAt,
+      deadlineAt: opts.deadlineAt,
+      approvers: opts.approvers ?? null,
+      request: opts.request ?? null,
+      childRunId: opts.childRunId ?? null,
+      createdAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [workflowWait.stepRunId],
+      set: { wakeAt: opts.wakeAt, deadlineAt: opts.deadlineAt },
+    })
+    .returning();
+  return rows[0] ?? null;
+}
+
+export async function waitForStepRun(stepRunId: string): Promise<WaitRow | null> {
+  const [row] = await db
+    .select()
+    .from(workflowWait)
+    .where(eq(workflowWait.stepRunId, stepRunId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function closeWait(
+  id: string,
+  status: "resolved" | "expired" | "cancelled",
+): Promise<void> {
+  await db
+    .update(workflowWait)
+    .set({ status })
+    .where(and(eq(workflowWait.id, id), eq(workflowWait.status, "open")));
+}
+
+export async function listRunWaits(runId: string): Promise<WaitRow[]> {
+  return db.select().from(workflowWait).where(eq(workflowWait.runId, runId));
+}
+
+export async function listOpenApprovals(opts: {
+  workspaceId: string;
+  userId?: string;
+}): Promise<(WaitRow & { workflowName: string })[]> {
+  const rows = await db
+    .select({ wait: workflowWait, workflowName: workflow.name })
+    .from(workflowWait)
+    .innerJoin(workflow, eq(workflow.id, workflowWait.workflowId))
+    .where(
+      and(
+        eq(workflowWait.workspaceId, opts.workspaceId),
+        eq(workflowWait.kind, "approval"),
+        eq(workflowWait.status, "open"),
+      ),
+    )
+    .orderBy(asc(workflowWait.createdAt))
+    .limit(200);
+  return rows
+    .filter((row) => !opts.userId || (row.wait.approvers ?? []).includes(opts.userId))
+    .map((row) => ({ ...row.wait, workflowName: row.workflowName }));
+}
+
+export async function decideWait(opts: {
+  waitId: string;
+  userId: string;
+  decision: "approved" | "denied";
+  note: string | null;
+  now: Date;
+}): Promise<WaitRow | null> {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(workflowWait)
+      .set({
+        status: "resolved",
+        decision: opts.decision,
+        decidedByUserId: opts.userId,
+        decidedAt: opts.now,
+        note: opts.note,
+      })
+      .where(
+        and(
+          eq(workflowWait.id, opts.waitId),
+          eq(workflowWait.status, "open"),
+          eq(workflowWait.kind, "approval"),
+          sql`exists (select 1 from json_each(${workflowWait.approvers}) where value = ${opts.userId})`,
+        ),
+      )
+      .returning();
+    const [decided] = rows;
+    if (!decided) return null;
+    await tx
+      .update(workflowRun)
+      .set({ status: "pending", dueAt: opts.now })
+      .where(and(eq(workflowRun.id, decided.runId), eq(workflowRun.status, "waiting")));
+    return decided;
+  });
+}
+
+export async function getWait(waitId: string): Promise<WaitRow | null> {
+  const [row] = await db.select().from(workflowWait).where(eq(workflowWait.id, waitId)).limit(1);
+  return row ?? null;
+}
+
+export async function rescheduleWait(opts: { runId: string; at: Date }): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const waits = await tx
+      .update(workflowWait)
+      .set({ wakeAt: opts.at, deadlineAt: opts.at })
+      .where(
+        and(
+          eq(workflowWait.runId, opts.runId),
+          eq(workflowWait.status, "open"),
+          eq(workflowWait.kind, "time"),
+        ),
+      )
+      .returning({ stepRunId: workflowWait.stepRunId });
+    if (waits.length === 0) return false;
+    await tx
+      .update(workflowStepRun)
+      .set({
+        wakeAt: opts.at,
+        state: sql`json_set(coalesce(${workflowStepRun.state}, '{}'), '$.until', ${opts.at.toISOString()})`,
+      })
+      .where(
+        inArray(
+          workflowStepRun.id,
+          waits.map((w) => w.stepRunId),
+        ),
+      );
+    const updated = await tx
+      .update(workflowRun)
+      .set({ dueAt: opts.at })
+      .where(and(eq(workflowRun.id, opts.runId), eq(workflowRun.status, "waiting")))
+      .returning({ id: workflowRun.id });
+    return updated.length > 0;
+  });
+}
+
+export async function resolveDispatchStepRun(opts: {
   id: string;
   runId: string;
-  mailboxId: string;
   byUserId: string;
   now: Date;
-  resolution: NodeResolution;
+  resolution: StepResolution;
   completion?: {
-    receipt: NodeReceipt & { providerMessageId: string; fingerprint: string };
-    sentBetween: { from: Date; to: Date };
-    output: NodeRunOutput;
+    receipt: StepReceipt & { providerMessageId: string };
+    output: StepRunOutput;
+    send?: { mailboxId: string; fingerprint: string; sentBetween: { from: Date; to: Date } };
   };
 }): Promise<boolean> {
   const { resolution, completion } = opts;
-  const unclaimed = completion
-    ? notExists(
-        receiptHolder({
-          mailboxId: opts.mailboxId,
-          providerMessageId: completion.receipt.providerMessageId,
-          fingerprint: completion.receipt.fingerprint,
-          exceptNodeRunId: opts.id,
-          sentBetween: completion.sentBetween,
-        }),
-      )
-    : undefined;
-  const settledRun = sql`exists (select 1 from ${workflowRun} where ${workflowRun.id} = ${opts.runId} and ${workflowRun.finishedAt} is not null and ${workflowRun.leaseToken} is null and ${workflowRun.status} not in ('pending', 'running'))`;
+  const unclaimed = !completion
+    ? undefined
+    : completion.send
+      ? notExists(
+          receiptHolder({
+            mailboxId: completion.send.mailboxId,
+            providerMessageId: completion.receipt.providerMessageId,
+            fingerprint: completion.send.fingerprint,
+            exceptStepRunId: opts.id,
+            sentBetween: completion.send.sentBetween,
+          }),
+        )
+      : completion.receipt.operation && CLAIMED_OPERATIONS.has(completion.receipt.operation)
+        ? notExists(
+            dispatchHolder({
+              operation: completion.receipt.operation,
+              resourceId: completion.receipt.resourceId ?? "",
+              providerIds: [completion.receipt.providerMessageId],
+              exceptStepRunId: opts.id,
+            }),
+          )
+        : undefined;
+  const settledRun = sql`exists (select 1 from ${workflowRun} where ${workflowRun.id} = ${opts.runId} and ${workflowRun.finishedAt} is not null and ${workflowRun.leaseToken} is null and ${workflowRun.status} not in ('pending', 'running', 'waiting'))`;
   const rows = await db
-    .update(workflowNodeRun)
+    .update(workflowStepRun)
     .set({
       resolution,
       resolvedByUserId: opts.byUserId,
@@ -2055,15 +1934,15 @@ export async function resolveSendNodeRun(opts: {
     })
     .where(
       and(
-        eq(workflowNodeRun.id, opts.id),
-        eq(workflowNodeRun.runId, opts.runId),
-        eq(workflowNodeRun.status, resolution.previousStatus),
-        isNull(workflowNodeRun.resolvedAt),
+        eq(workflowStepRun.id, opts.id),
+        eq(workflowStepRun.runId, opts.runId),
+        eq(workflowStepRun.status, resolution.previousStatus),
+        isNull(workflowStepRun.resolvedAt),
         settledRun,
         unclaimed,
       ),
     )
-    .returning({ id: workflowNodeRun.id });
+    .returning({ id: workflowStepRun.id });
   return rows.length > 0;
 }
 
@@ -2071,52 +1950,45 @@ export async function clearRetainedOutputs(runId: string): Promise<void> {
   await clearRunOutputs(db, runId);
 }
 
-export async function markResolutionFinished(nodeRunId: string): Promise<void> {
+export async function markResolutionFinished(stepRunId: string): Promise<void> {
   await db
-    .update(workflowNodeRun)
-    .set({
-      resolution: sql`json_set(${workflowNodeRun.resolution}, '$.finished', json('true'))`,
-    })
-    .where(and(eq(workflowNodeRun.id, nodeRunId), isNotNull(workflowNodeRun.resolution)));
+    .update(workflowStepRun)
+    .set({ resolution: sql`json_set(${workflowStepRun.resolution}, '$.finished', json('true'))` })
+    .where(and(eq(workflowStepRun.id, stepRunId), isNotNull(workflowStepRun.resolution)));
 }
 
-export async function deferResolutionFinish(nodeRunId: string, until: Date): Promise<void> {
+export async function deferResolutionFinish(stepRunId: string, until: Date): Promise<void> {
   await db
-    .update(workflowNodeRun)
+    .update(workflowStepRun)
     .set({
-      resolution: sql`json_set(${workflowNodeRun.resolution}, '$.finishDeferredAt', ${until.getTime()})`,
+      resolution: sql`json_set(${workflowStepRun.resolution}, '$.finishDeferredAt', ${until.getTime()})`,
     })
-    .where(and(eq(workflowNodeRun.id, nodeRunId), isNotNull(workflowNodeRun.resolution)));
+    .where(and(eq(workflowStepRun.id, stepRunId), isNotNull(workflowStepRun.resolution)));
 }
 
 export async function listUnfinishedResolutions(
   limit: number,
   now: Date,
 ): Promise<
-  {
-    workflowId: string;
-    runId: string;
-    nodeRunId: string;
-    outcome: NodeResolution["outcome"];
-  }[]
+  { workflowId: string; runId: string; stepRunId: string; outcome: StepResolution["outcome"] }[]
 > {
   const rows = await db
     .select({
       workflowId: workflowRun.workflowId,
       runId: workflowRun.id,
-      nodeRunId: workflowNodeRun.id,
-      resolution: workflowNodeRun.resolution,
+      stepRunId: workflowStepRun.id,
+      resolution: workflowStepRun.resolution,
     })
-    .from(workflowNodeRun)
-    .innerJoin(workflowRun, eq(workflowRun.id, workflowNodeRun.runId))
+    .from(workflowStepRun)
+    .innerJoin(workflowRun, eq(workflowRun.id, workflowStepRun.runId))
     .where(
       and(
-        isNotNull(workflowNodeRun.resolvedAt),
-        sql`json_extract(${workflowNodeRun.resolution}, '$.finished') is null`,
-        sql`coalesce(json_extract(${workflowNodeRun.resolution}, '$.finishDeferredAt'), 0) <= ${now.getTime()}`,
+        isNotNull(workflowStepRun.resolvedAt),
+        sql`json_extract(${workflowStepRun.resolution}, '$.finished') is null`,
+        sql`coalesce(json_extract(${workflowStepRun.resolution}, '$.finishDeferredAt'), 0) <= ${now.getTime()}`,
       ),
     )
-    .orderBy(asc(workflowNodeRun.resolvedAt))
+    .orderBy(asc(workflowStepRun.resolvedAt))
     .limit(limit);
   return rows.flatMap((row) =>
     row.resolution
@@ -2124,7 +1996,7 @@ export async function listUnfinishedResolutions(
           {
             workflowId: row.workflowId,
             runId: row.runId,
-            nodeRunId: row.nodeRunId,
+            stepRunId: row.stepRunId,
             outcome: row.resolution.outcome,
           },
         ]
@@ -2136,14 +2008,14 @@ interface ReceiptLookup {
   mailboxId: string;
   providerMessageId: string;
   fingerprint: string;
-  exceptNodeRunId: string;
+  exceptStepRunId: string;
   sentBetween: { from: Date; to: Date };
 }
 
 export type ReceiptConflict = "taken" | "unidentified";
 
 function receiptHolder(opts: ReceiptLookup) {
-  const holder = alias(workflowNodeRun, "receipt_holder");
+  const holder = alias(workflowStepRun, "receipt_holder");
   const id = sql`json_extract(${holder.receipt}, '$.providerMessageId')`;
   const settled = sql`coalesce(json_extract(${holder.receipt}, '$.settledAt'), json_extract(${holder.receipt}, '$.dispatchedAt'))`;
   const fingerprint = sql`json_extract(${holder.receipt}, '$.fingerprint')`;
@@ -2154,9 +2026,9 @@ function receiptHolder(opts: ReceiptLookup) {
     .innerJoin(workflow, eq(workflow.id, workflowRun.workflowId))
     .where(
       and(
-        eq(workflow.mailboxId, opts.mailboxId),
+        sql`(${workflow.mailboxId} = ${opts.mailboxId} or json_extract(${holder.receipt}, '$.resourceId') = ${opts.mailboxId})`,
         eq(holder.status, "completed"),
-        ne(holder.id, opts.exceptNodeRunId),
+        ne(holder.id, opts.exceptStepRunId),
         sql`json_extract(${holder.receipt}, '$.operation') = 'send'`,
         or(
           sql`${id} = ${opts.providerMessageId}`,
@@ -2167,96 +2039,285 @@ function receiptHolder(opts: ReceiptLookup) {
     .limit(1);
 }
 
+export const CLAIMED_OPERATIONS = new Set(["create-event", "upload"]);
+
+function dispatchHolder(opts: {
+  operation: string;
+  resourceId: string;
+  providerIds: string[];
+  exceptStepRunId: string;
+}) {
+  const holder = alias(workflowStepRun, "dispatch_holder");
+  const id = sql`json_extract(${holder.receipt}, '$.providerMessageId')`;
+  return db
+    .select({ providerMessageId: sql<string>`${id}` })
+    .from(holder)
+    .where(
+      and(
+        eq(holder.status, "completed"),
+        ne(holder.id, opts.exceptStepRunId),
+        sql`json_extract(${holder.receipt}, '$.operation') = ${opts.operation}`,
+        sql`json_extract(${holder.receipt}, '$.resourceId') = ${opts.resourceId}`,
+        inArray(id, opts.providerIds),
+      ),
+    );
+}
+
+export async function claimedDispatchIds(opts: {
+  operation: string;
+  resourceId: string;
+  providerIds: string[];
+  exceptStepRunId: string;
+}): Promise<Set<string>> {
+  if (opts.providerIds.length === 0) return new Set();
+  const rows = await dispatchHolder(opts);
+  return new Set(rows.map((row) => row.providerMessageId));
+}
+
 export async function sendReceiptConflict(opts: ReceiptLookup): Promise<ReceiptConflict | null> {
   const [row] = await receiptHolder(opts);
   if (!row) return null;
   return row.providerMessageId ? "taken" : "unidentified";
 }
 
-export interface SendNodeRunRow {
+export interface SendStepRunRow {
   workflowId: string;
   runId: string;
   runSettled: boolean;
-  nodeRun: NodeRunRow;
+  stepRun: StepRunRow;
 }
 
-export async function listSendNodeRuns(opts: {
+export async function listSendStepRuns(opts: {
   workflowIds: string[];
   nodeIds: string[];
-}): Promise<SendNodeRunRow[]> {
+}): Promise<SendStepRunRow[]> {
   if (opts.workflowIds.length === 0 || opts.nodeIds.length === 0) return [];
   return db
     .select({
       workflowId: workflowRun.workflowId,
       runId: workflowRun.id,
       runSettled:
-        sql<boolean>`(${workflowRun.finishedAt} is not null and ${workflowRun.leaseToken} is null and ${workflowRun.status} not in ('pending', 'running'))`.mapWith(
+        sql<boolean>`(${workflowRun.finishedAt} is not null and ${workflowRun.leaseToken} is null and ${workflowRun.status} not in ('pending', 'running', 'waiting'))`.mapWith(
           Boolean,
         ),
-      nodeRun: workflowNodeRun,
+      stepRun: workflowStepRun,
     })
-    .from(workflowNodeRun)
-    .innerJoin(workflowRun, eq(workflowRun.id, workflowNodeRun.runId))
+    .from(workflowStepRun)
+    .innerJoin(workflowRun, eq(workflowRun.id, workflowStepRun.runId))
     .where(
       and(
         inArray(workflowRun.workflowId, opts.workflowIds),
-        inArray(workflowNodeRun.nodeId, opts.nodeIds),
+        inArray(workflowStepRun.nodeId, opts.nodeIds),
       ),
     )
     .orderBy(desc(workflowRun.createdAt));
 }
 
-export async function finishNodeRun(opts: {
-  id: string;
+export async function loadDispatchStepRun(opts: {
   runId: string;
-  leaseToken: string;
-  status: NodeStatus;
-  output?: unknown;
-  outputHandles?: string[] | null;
-  receipt?: NodeReceipt | null;
-  error?: string | null;
-}): Promise<boolean> {
-  const rows = await db
-    .update(workflowNodeRun)
-    .set({
-      status: opts.status,
-      output: opts.output ?? null,
-      outputHandles: opts.outputHandles ?? null,
-      receipt: opts.receipt ?? null,
-      error: opts.error ?? null,
-      finishedAt: new Date(),
-    })
-    .where(and(eq(workflowNodeRun.id, opts.id), ownsRun(opts.runId, opts.leaseToken)))
-    .returning({ id: workflowNodeRun.id });
-  return rows.length > 0;
-}
-
-export async function putPayload(workflowId: string, payload: DraftPayload): Promise<void> {
-  await db
-    .insert(workflowPayload)
-    .values({
-      id: crypto.randomUUID(),
-      workflowId,
-      payload,
-      createdAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [workflowPayload.workflowId],
-      set: { payload },
-    });
-}
-
-export async function getPayload(workflowId: string): Promise<DraftPayload | null> {
+  stepRunId: string;
+}): Promise<SendStepRunRow | null> {
   const [row] = await db
-    .select({ payload: workflowPayload.payload })
-    .from(workflowPayload)
-    .where(eq(workflowPayload.workflowId, workflowId))
+    .select({
+      workflowId: workflowRun.workflowId,
+      runId: workflowRun.id,
+      runSettled:
+        sql<boolean>`(${workflowRun.finishedAt} is not null and ${workflowRun.leaseToken} is null and ${workflowRun.status} not in ('pending', 'running', 'waiting'))`.mapWith(
+          Boolean,
+        ),
+      stepRun: workflowStepRun,
+    })
+    .from(workflowStepRun)
+    .innerJoin(workflowRun, eq(workflowRun.id, workflowStepRun.runId))
+    .where(and(eq(workflowStepRun.id, opts.stepRunId), eq(workflowRun.id, opts.runId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function putDraftBlob(workflowId: string, payload: DraftPayload): Promise<string> {
+  const id = crypto.randomUUID();
+  const rows = await db
+    .insert(workflowBlob)
+    .values({ id, workflowId, kind: "draft", payload, size: 0, createdAt: new Date() })
+    .onConflictDoUpdate({
+      target: [workflowBlob.workflowId],
+      targetWhere: sql`${workflowBlob.kind} = 'draft'`,
+      set: { payload },
+    })
+    .returning({ id: workflowBlob.id });
+  return rows[0]?.id ?? id;
+}
+
+export async function getDraftBlob(workflowId: string): Promise<DraftPayload | null> {
+  const [row] = await db
+    .select({ payload: workflowBlob.payload })
+    .from(workflowBlob)
+    .where(and(eq(workflowBlob.workflowId, workflowId), eq(workflowBlob.kind, "draft")))
     .limit(1);
   return row?.payload ?? null;
 }
 
-export async function dropPayload(workflowId: string): Promise<void> {
-  await db.delete(workflowPayload).where(eq(workflowPayload.workflowId, workflowId));
+export async function dropDraftBlob(workflowId: string): Promise<void> {
+  await db
+    .delete(workflowBlob)
+    .where(and(eq(workflowBlob.workflowId, workflowId), eq(workflowBlob.kind, "draft")));
+}
+
+export async function putBytesBlob(opts: {
+  workflowId: string;
+  runId: string | null;
+  name: string;
+  mimeType: string;
+  data: Buffer;
+}): Promise<{ id: string; name: string; mimeType: string; size: number }> {
+  const id = crypto.randomUUID();
+  await db.insert(workflowBlob).values({
+    id,
+    workflowId: opts.workflowId,
+    runId: opts.runId,
+    kind: "bytes",
+    name: opts.name,
+    mimeType: opts.mimeType,
+    size: opts.data.byteLength,
+    data: opts.data.toString("base64"),
+    createdAt: new Date(),
+  });
+  return { id, name: opts.name, mimeType: opts.mimeType, size: opts.data.byteLength };
+}
+
+export async function getBytesBlob(
+  id: string,
+  workflowId: string,
+): Promise<{ name: string; mimeType: string; data: Buffer } | null> {
+  const [row] = await db
+    .select()
+    .from(workflowBlob)
+    .where(
+      and(
+        eq(workflowBlob.id, id),
+        eq(workflowBlob.workflowId, workflowId),
+        eq(workflowBlob.kind, "bytes"),
+      ),
+    )
+    .limit(1);
+  if (!row?.data) return null;
+  return {
+    name: row.name ?? "file",
+    mimeType: row.mimeType ?? "application/octet-stream",
+    data: Buffer.from(row.data, "base64"),
+  };
+}
+
+export async function endpointsOf(workflowIds: string[]): Promise<EndpointRow[]> {
+  if (workflowIds.length === 0) return [];
+  return db
+    .select()
+    .from(workflowEndpoint)
+    .where(inArray(workflowEndpoint.workflowId, workflowIds));
+}
+
+export async function getEndpoint(id: string): Promise<EndpointRow | null> {
+  const [row] = await db
+    .select()
+    .from(workflowEndpoint)
+    .where(eq(workflowEndpoint.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function upsertEndpoint(opts: {
+  workflowId: string;
+  triggerId: string;
+  kind: EndpointKind;
+  secret: string;
+  externalId?: string | null;
+  resourceId?: string | null;
+  expiresAt?: Date | null;
+}): Promise<EndpointRow> {
+  const now = new Date();
+  const rows = await db
+    .insert(workflowEndpoint)
+    .values({
+      id: crypto.randomUUID(),
+      workflowId: opts.workflowId,
+      triggerId: opts.triggerId,
+      kind: opts.kind,
+      secret: opts.secret,
+      externalId: opts.externalId ?? null,
+      resourceId: opts.resourceId ?? null,
+      expiresAt: opts.expiresAt ?? null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [workflowEndpoint.triggerId, workflowEndpoint.kind],
+      set: {
+        ...(opts.externalId !== undefined ? { externalId: opts.externalId } : {}),
+        ...(opts.resourceId !== undefined ? { resourceId: opts.resourceId } : {}),
+        ...(opts.expiresAt !== undefined ? { expiresAt: opts.expiresAt } : {}),
+        lastError: null,
+        updatedAt: now,
+      },
+    })
+    .returning();
+  const [row] = rows;
+  if (!row) throw new Error("endpoint upsert returned nothing");
+  return row;
+}
+
+export async function rotateEndpointSecret(id: string, secret: string): Promise<void> {
+  await db
+    .update(workflowEndpoint)
+    .set({ secret, updatedAt: new Date() })
+    .where(eq(workflowEndpoint.id, id));
+}
+
+export async function touchEndpoint(
+  id: string,
+  patch: { lastError?: string | null },
+): Promise<void> {
+  const now = new Date();
+  await db
+    .update(workflowEndpoint)
+    .set({ lastSeenAt: now, lastError: patch.lastError ?? null, updatedAt: now })
+    .where(eq(workflowEndpoint.id, id));
+}
+
+export async function deleteEndpoint(id: string): Promise<void> {
+  await db.delete(workflowEndpoint).where(eq(workflowEndpoint.id, id));
+}
+
+export async function strandedEndpoints(limit: number): Promise<EndpointRow[]> {
+  const rows = await db
+    .select({ endpoint: workflowEndpoint })
+    .from(workflowEndpoint)
+    .innerJoin(workflowTrigger, eq(workflowTrigger.id, workflowEndpoint.triggerId))
+    .innerJoin(workflow, eq(workflow.id, workflowEndpoint.workflowId))
+    .where(
+      and(
+        ne(workflowEndpoint.kind, "webhook"),
+        or(
+          eq(workflowTrigger.armed, false),
+          eq(workflow.enabled, false),
+          isNotNull(workflow.deletedAt),
+        ),
+      ),
+    )
+    .limit(limit);
+  return rows.map((row) => row.endpoint);
+}
+
+export async function expiringEndpoints(before: Date, limit: number): Promise<EndpointRow[]> {
+  return db
+    .select()
+    .from(workflowEndpoint)
+    .where(
+      and(
+        ne(workflowEndpoint.kind, "webhook"),
+        or(isNull(workflowEndpoint.expiresAt), lt(workflowEndpoint.expiresAt, before)),
+      ),
+    )
+    .limit(limit);
 }
 
 export async function claimDiscovery(opts: {
@@ -2267,19 +2328,16 @@ export async function claimDiscovery(opts: {
 }): Promise<string | null> {
   const { now, cadenceSec, owner, leaseMs } = opts;
   const token = crypto.randomUUID();
-  const leaseUntil = new Date(now.getTime() + leaseMs);
-
   await db
     .insert(workflowTick)
     .values({ id: TICK_ID, nextCheckAt: now, updatedAt: now })
     .onConflictDoNothing({ target: [workflowTick.id] });
-
   const rows = await db
     .update(workflowTick)
     .set({
       leaseOwner: owner,
       leaseToken: token,
-      leaseExpiresAt: leaseUntil,
+      leaseExpiresAt: new Date(now.getTime() + leaseMs),
       nextCheckAt: new Date(now.getTime() + cadenceSec * 1000),
       lastDiscoveryAt: now,
       updatedAt: now,
@@ -2292,7 +2350,6 @@ export async function claimDiscovery(opts: {
       ),
     )
     .returning({ id: workflowTick.id });
-
   return rows.length > 0 ? token : null;
 }
 
@@ -2343,7 +2400,7 @@ export async function pendingRunCount(now: Date): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)` })
     .from(workflowRun)
-    .where(and(eq(workflowRun.status, "pending"), lte(workflowRun.dueAt, now)));
+    .where(and(inArray(workflowRun.status, ["pending", "waiting"]), lte(workflowRun.dueAt, now)));
   return row?.n ?? 0;
 }
 
@@ -2361,26 +2418,19 @@ export interface RunHistoryRow {
   summary: RunSummaryLine[] | null;
   principalUserId: string | null;
   graph: WorkflowGraph;
+  upgraded: boolean;
 }
 
 export async function listRuns(opts: {
   workspaceId?: string;
   workflowId?: string;
-  mailboxIds?: string[];
   kind?: WorkflowKind;
   limit: number;
 }): Promise<RunHistoryRow[]> {
   const where = [];
-  if (opts.workspaceId) {
-    where.push(eq(workflowRun.workspaceId, opts.workspaceId));
-  }
+  if (opts.workspaceId) where.push(eq(workflowRun.workspaceId, opts.workspaceId));
   if (opts.workflowId) where.push(eq(workflowRun.workflowId, opts.workflowId));
   if (opts.kind) where.push(eq(workflowRun.kind, opts.kind));
-  if (opts.mailboxIds) {
-    if (opts.mailboxIds.length === 0) return [];
-    where.push(inArray(workflow.mailboxId, opts.mailboxIds));
-  }
-
   return db
     .select({
       id: workflowRun.id,
@@ -2396,6 +2446,7 @@ export async function listRuns(opts: {
       summary: workflowRun.summary,
       principalUserId: workflow.principalUserId,
       graph: workflowRevision.graph,
+      upgraded: workflowRun.upgraded,
     })
     .from(workflowRun)
     .innerJoin(workflow, eq(workflow.id, workflowRun.workflowId))
@@ -2415,7 +2466,9 @@ export interface RunDetailRow {
   revisionCreatedAt: Date;
   graph: WorkflowGraph;
   scheduledFor: Date;
-  nodeRuns: NodeRunRow[];
+  event: unknown;
+  stepRuns: StepRunRow[];
+  waits: WaitRow[];
 }
 
 export async function loadRunScope(runId: string): Promise<{
@@ -2454,21 +2507,35 @@ export async function loadRunDetail(runId: string): Promise<RunDetailRow | null>
       revision: workflowRevision.revision,
       revisionCreatedAt: workflowRevision.createdAt,
       graph: workflowRevision.graph,
-      scheduledFor: workflowOccurrence.scheduledFor,
+      scheduledFor: workflowEvent.scheduledFor,
+      event: workflowEvent.payload,
     })
     .from(workflowRun)
     .innerJoin(workflow, eq(workflow.id, workflowRun.workflowId))
     .innerJoin(workflowRevision, eq(workflowRevision.id, workflowRun.revisionId))
-    .innerJoin(workflowOccurrence, eq(workflowOccurrence.id, workflowRun.occurrenceId))
+    .innerJoin(workflowEvent, eq(workflowEvent.id, workflowRun.eventId))
     .where(eq(workflowRun.id, runId))
     .limit(1);
   if (!row) return null;
-  const nodeRuns = await db
-    .select()
-    .from(workflowNodeRun)
-    .where(eq(workflowNodeRun.runId, runId))
-    .orderBy(asc(workflowNodeRun.startedAt));
-  return { ...row, nodeRuns };
+  const [stepRuns, waits] = await Promise.all([
+    db
+      .select()
+      .from(workflowStepRun)
+      .where(eq(workflowStepRun.runId, runId))
+      .orderBy(asc(workflowStepRun.startedAt)),
+    listRunWaits(runId),
+  ]);
+  return { ...row, stepRuns, waits };
+}
+
+export async function runEvent(runId: string): Promise<unknown> {
+  const [row] = await db
+    .select({ payload: workflowEvent.payload, input: workflowRun.input })
+    .from(workflowRun)
+    .innerJoin(workflowEvent, eq(workflowEvent.id, workflowRun.eventId))
+    .where(eq(workflowRun.id, runId))
+    .limit(1);
+  return row?.input.event ?? row?.payload ?? null;
 }
 
 export async function listMemberIdentities(
@@ -2484,4 +2551,352 @@ export async function listMemberIdentities(
       and(eq(workspaceMember.workspaceId, workspaceId), inArray(workspaceMember.userId, userIds)),
     );
   return new Map(rows.map((r) => [r.id, { name: r.name, email: r.email }]));
+}
+
+export interface BuiltinListing {
+  definition: DefinitionRow;
+  graph: WorkflowGraph;
+  wakeAt: Date | null;
+  armed: boolean;
+  run: RunRow | null;
+  sent: boolean;
+  waitAt: Date | null;
+}
+
+export async function listBuiltins(opts: {
+  kind: WorkflowKind;
+  mailboxIds: string[];
+}): Promise<BuiltinListing[]> {
+  if (opts.mailboxIds.length === 0) return [];
+  const rows = await db
+    .select({ definition: workflow, revision: workflowRevision })
+    .from(workflow)
+    .innerJoin(workflowRevision, currentRevisionJoin())
+    .where(
+      and(
+        eq(workflow.kind, opts.kind),
+        inArray(workflow.mailboxId, opts.mailboxIds),
+        isNull(workflow.deletedAt),
+      ),
+    )
+    .orderBy(asc(workflow.createdAt));
+  if (rows.length === 0) return [];
+  const ids = rows.map((row) => row.definition.id);
+
+  const [triggers, runs, sends, waits] = await Promise.all([
+    db
+      .select({
+        workflowId: workflowTrigger.workflowId,
+        nextDueAt: workflowTrigger.nextDueAt,
+        armed: workflowTrigger.armed,
+      })
+      .from(workflowTrigger)
+      .where(
+        and(inArray(workflowTrigger.workflowId, ids), eq(workflowTrigger.kind, "trigger.once")),
+      ),
+    db
+      .select()
+      .from(workflowRun)
+      .where(inArray(workflowRun.workflowId, ids))
+      .orderBy(desc(workflowRun.createdAt)),
+    db
+      .select({ workflowId: workflowRun.workflowId })
+      .from(workflowStepRun)
+      .innerJoin(workflowRun, eq(workflowRun.id, workflowStepRun.runId))
+      .where(
+        and(
+          inArray(workflowRun.workflowId, ids),
+          eq(workflowStepRun.status, "completed"),
+          sql`json_extract(${workflowStepRun.receipt}, '$.operation') = 'send'`,
+        ),
+      ),
+    db
+      .select({ workflowId: workflowWait.workflowId, wakeAt: workflowWait.wakeAt })
+      .from(workflowWait)
+      .where(
+        and(
+          inArray(workflowWait.workflowId, ids),
+          eq(workflowWait.status, "open"),
+          eq(workflowWait.kind, "time"),
+        ),
+      ),
+  ]);
+  const latest = new Map<string, RunRow>();
+  for (const run of runs) if (!latest.has(run.workflowId)) latest.set(run.workflowId, run);
+  const sent = new Set(sends.map((row) => row.workflowId));
+  const wake = new Map(triggers.map((t) => [t.workflowId, t]));
+  const waitAt = new Map(waits.map((w) => [w.workflowId, w.wakeAt]));
+  return rows.map((row) => ({
+    definition: row.definition,
+    graph: row.revision.graph,
+    wakeAt: wake.get(row.definition.id)?.nextDueAt ?? null,
+    armed: wake.get(row.definition.id)?.armed ?? false,
+    run: latest.get(row.definition.id) ?? null,
+    sent: sent.has(row.definition.id),
+    waitAt: waitAt.get(row.definition.id) ?? null,
+  }));
+}
+
+export async function pruneWorkflowData(opts: {
+  now: Date;
+  stepDataDays: number;
+  historyDays: number;
+}): Promise<{ cleared: number; deletedRuns: number; deletedEvents: number }> {
+  const dataCutoff = new Date(opts.now.getTime() - opts.stepDataDays * 86_400_000);
+  const historyCutoff = new Date(opts.now.getTime() - opts.historyDays * 86_400_000);
+  const eventCutoff = new Date(opts.now.getTime() - 30 * 86_400_000);
+  const settled = ["completed", "partial", "failed", "blocked", "cancelled"] as const;
+
+  const stale = db
+    .select({ id: workflowRun.id })
+    .from(workflowRun)
+    .where(and(inArray(workflowRun.status, [...settled]), lt(workflowRun.finishedAt, dataCutoff)));
+  const cleared = await db
+    .update(workflowStepRun)
+    .set({ output: null, input: null, state: null })
+    .where(
+      and(
+        inArray(workflowStepRun.runId, stale),
+        ne(workflowStepRun.itemKey, BARRIER_ITEM_KEY),
+        or(isNotNull(workflowStepRun.output), isNotNull(workflowStepRun.input)),
+      ),
+    )
+    .returning({ id: workflowStepRun.id });
+  await db
+    .delete(workflowBlob)
+    .where(and(eq(workflowBlob.kind, "bytes"), inArray(workflowBlob.runId, stale)));
+  await db
+    .update(workflowRun)
+    .set({ output: null, input: sql`json_set(${workflowRun.input}, '$.event', null)` })
+    .where(
+      and(
+        inArray(workflowRun.id, stale),
+        or(
+          isNotNull(workflowRun.output),
+          sql`json_extract(${workflowRun.input}, '$.event') is not null`,
+        ),
+      ),
+    );
+  await db
+    .update(workflowEvent)
+    .set({ payload: null })
+    .where(
+      and(
+        isNotNull(workflowEvent.payload),
+        inArray(
+          workflowEvent.id,
+          db
+            .select({ id: workflowRun.eventId })
+            .from(workflowRun)
+            .where(
+              and(
+                inArray(workflowRun.status, [...settled]),
+                lt(workflowRun.finishedAt, dataCutoff),
+              ),
+            ),
+        ),
+      ),
+    );
+
+  const unresolved = db
+    .select({ runId: workflowStepRun.runId })
+    .from(workflowStepRun)
+    .where(
+      and(
+        inArray(workflowStepRun.status, ["dispatching", "unknown"]),
+        isNull(workflowStepRun.resolvedAt),
+      ),
+    );
+  const doomed = await db
+    .select({ eventId: workflowRun.eventId })
+    .from(workflowRun)
+    .where(
+      and(
+        inArray(workflowRun.status, [...settled]),
+        lt(workflowRun.finishedAt, historyCutoff),
+        sql`${workflowRun.id} not in ${unresolved}`,
+      ),
+    )
+    .limit(5000);
+  const doomedEvents = doomed.map((row) => row.eventId);
+  if (doomedEvents.length > 0) {
+    await db.delete(workflowEvent).where(inArray(workflowEvent.id, doomedEvents));
+  }
+
+  const orphaned = await db
+    .delete(workflowEvent)
+    .where(
+      and(
+        lt(workflowEvent.createdAt, eventCutoff),
+        notExists(
+          db
+            .select({ id: workflowRun.id })
+            .from(workflowRun)
+            .where(eq(workflowRun.eventId, workflowEvent.id)),
+        ),
+      ),
+    )
+    .returning({ id: workflowEvent.id });
+
+  return {
+    cleared: cleared.length,
+    deletedRuns: doomedEvents.length,
+    deletedEvents: orphaned.length,
+  };
+}
+
+export async function runForEventKey(triggerId: string, key: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: workflowRun.id })
+    .from(workflowRun)
+    .innerJoin(workflowEvent, eq(workflowEvent.id, workflowRun.eventId))
+    .where(and(eq(workflowEvent.triggerId, triggerId), eq(workflowEvent.key, key)))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+export interface CancelResult {
+  cancelled: boolean;
+  reason?: string;
+}
+
+export async function cancelBuiltinWorkflow(workflowId: string): Promise<CancelResult> {
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    const [executing] = await tx
+      .select({ id: workflowRun.id })
+      .from(workflowRun)
+      .where(and(eq(workflowRun.workflowId, workflowId), eq(workflowRun.status, "running")))
+      .limit(1);
+    if (executing) {
+      return { cancelled: false, reason: "That is still being handled — try again in a moment" };
+    }
+    const [unresolved] = await tx
+      .select({ id: workflowStepRun.id })
+      .from(workflowStepRun)
+      .innerJoin(workflowRun, eq(workflowRun.id, workflowStepRun.runId))
+      .where(
+        and(
+          eq(workflowRun.workflowId, workflowId),
+          inArray(workflowStepRun.status, ["running", "dispatching", "unknown"]),
+          isNull(workflowStepRun.resolvedAt),
+        ),
+      )
+      .limit(1);
+    if (unresolved) {
+      return {
+        cancelled: false,
+        reason:
+          "A step of this item has an unresolved outcome — check the message before cancelling",
+      };
+    }
+    const [dispatched] = await tx
+      .select({ id: workflowStepRun.id })
+      .from(workflowStepRun)
+      .innerJoin(workflowRun, eq(workflowRun.id, workflowStepRun.runId))
+      .where(
+        and(
+          eq(workflowRun.workflowId, workflowId),
+          eq(workflowStepRun.status, "completed"),
+          sql`json_extract(${workflowStepRun.receipt}, '$.operation') = 'send'`,
+        ),
+      )
+      .limit(1);
+    if (dispatched) {
+      return {
+        cancelled: false,
+        reason: "That has already started — it can no longer be called back",
+      };
+    }
+
+    const updated = await tx
+      .update(workflow)
+      .set({ deletedAt: now, enabled: false, updatedAt: now })
+      .where(and(eq(workflow.id, workflowId), isNull(workflow.deletedAt)))
+      .returning({ id: workflow.id });
+    if (updated.length === 0) return { cancelled: false, reason: "That item is already gone" };
+
+    await tx
+      .update(workflowTrigger)
+      .set({ armed: false, nextDueAt: null, updatedAt: now })
+      .where(eq(workflowTrigger.workflowId, workflowId));
+    await cancelOpenRuns(tx, workflowId, now);
+    await clearWorkflowOutputs(tx, workflowId);
+    await tx.delete(workflowBlob).where(eq(workflowBlob.workflowId, workflowId));
+    return { cancelled: true };
+  });
+}
+
+export async function rescheduleOnce(opts: {
+  workflowId: string;
+  at: Date;
+}): Promise<CancelResult> {
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    const fired = await tx
+      .select({ id: workflowRun.id })
+      .from(workflowRun)
+      .where(and(eq(workflowRun.workflowId, opts.workflowId), ne(workflowRun.status, "cancelled")))
+      .limit(1);
+    if (fired.length > 0) return { cancelled: false, reason: "That has already started" };
+    const updated = await tx
+      .update(workflowTrigger)
+      .set({ armed: true, nextDueAt: opts.at, updatedAt: now })
+      .where(
+        and(
+          eq(workflowTrigger.workflowId, opts.workflowId),
+          eq(workflowTrigger.kind, "trigger.once"),
+        ),
+      )
+      .returning({ id: workflowTrigger.id });
+    return updated.length > 0
+      ? { cancelled: true }
+      : { cancelled: false, reason: "That item is gone" };
+  });
+}
+
+export async function noteStepState(opts: {
+  id: string;
+  runId: string;
+  leaseToken: string;
+  state: WaitState;
+}): Promise<boolean> {
+  const rows = await db
+    .update(workflowStepRun)
+    .set({ state: opts.state })
+    .where(and(eq(workflowStepRun.id, opts.id), ownsRun(opts.runId, opts.leaseToken)))
+    .returning({ id: workflowStepRun.id });
+  return rows.length > 0;
+}
+
+const MAX_SAMPLE_BYTES = 64 * 1024;
+
+export async function pinSample(
+  workflowId: string,
+  triggerNodeId: string,
+  event: unknown,
+): Promise<boolean> {
+  if (JSON.stringify(event ?? null).length > MAX_SAMPLE_BYTES) return false;
+  const [row] = await db
+    .select({ samples: workflow.samples })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+    .limit(1);
+  if (!row) return false;
+  await db
+    .update(workflow)
+    .set({ samples: { ...row.samples, [triggerNodeId]: event } })
+    .where(eq(workflow.id, workflowId));
+  return true;
+}
+
+export async function unpinSample(workflowId: string, triggerNodeId: string): Promise<void> {
+  const [row] = await db
+    .select({ samples: workflow.samples })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+    .limit(1);
+  if (!row?.samples) return;
+  const { [triggerNodeId]: _removed, ...rest } = row.samples;
+  await db.update(workflow).set({ samples: rest }).where(eq(workflow.id, workflowId));
 }

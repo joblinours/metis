@@ -1,21 +1,23 @@
 import "server-only";
-import { authorizeMailboxAccess, resolvePrincipal } from "./authorization";
-import { graphMailboxIds } from "./graph";
-import type { RunStatus } from "./schema";
+import { getInstanceConfig } from "@/config/runtime";
+
 import {
-  isResumableStatus,
-  loadRunScope,
-  RESUME_WINDOW_MS,
-  type ResumeRefusal,
-  resumeRun,
-} from "./store";
-import { firstError, validateGraph } from "./validation";
+  authorizeCalendar,
+  authorizeDrive,
+  authorizeMailboxAccess,
+  resolvePrincipal,
+} from "./authorization";
+import type { RunStatus } from "./schema";
+import { isResumableStatus, loadRunScope, type ResumeRefusal, resumeRun } from "./store";
+import { firstError, graphResources, validateGraph } from "./validation";
 
 export type RunResume =
   | { state: "resumed"; retrying: number; kept: number; message: string }
   | { state: "refused"; status: RunStatus; message: string };
 
-const WINDOW_DAYS = Math.round(RESUME_WINDOW_MS / 86_400_000);
+function windowDays(): number {
+  return getInstanceConfig().workflowRunner.stepDataDays;
+}
 
 const REFUSALS: Record<ResumeRefusal, string> = {
   "in-progress": "This run is already queued or running — wait for it to finish before retrying.",
@@ -24,7 +26,10 @@ const REFUSALS: Record<ResumeRefusal, string> = {
   unsupported: "This kind of run cannot be retried.",
   deleted: "This was deleted, so its runs can no longer be retried.",
   disabled: "This workflow is turned off. Turn it back on, then retry the run.",
-  expired: `This run finished more than ${WINDOW_DAYS} days ago and its saved step results have been discarded, so it can no longer be retried.`,
+  expired:
+    "This run finished longer ago than step results are kept, and they have been discarded, so it can no longer be retried.",
+  upgraded:
+    "This run started before the upgrade to the new workflow engine, and its saved step results are in the old format, so it can no longer be retried. Run the workflow again instead.",
   "ambiguous-send":
     "A send in this run has an unconfirmed outcome. Retrying could send the message twice, so resolve it first: confirm it from the Sent folder, or close it without resending.",
   "send-closed":
@@ -69,12 +74,16 @@ export async function resumeCheckedRun(runId: string): Promise<RunResume | null>
       return refuse(`${principal.reason}. Retrying would be blocked again.`);
     }
     const checks = await Promise.all(
-      graphMailboxIds(row.graph).map((mailboxId) =>
-        authorizeMailboxAccess({
-          definition: row.definition,
-          principal: principal.value,
-          mailboxId,
-        }),
+      graphResources(row.graph).map((resource) =>
+        resource.kind === "mailbox"
+          ? authorizeMailboxAccess({
+              definition: row.definition,
+              principal: principal.value,
+              mailboxId: resource.id,
+            })
+          : resource.kind === "calendar"
+            ? authorizeCalendar({ principal: principal.value, accountId: resource.id })
+            : authorizeDrive({ principal: principal.value, driveId: resource.id }),
       ),
     );
     for (const access of checks) {
@@ -84,7 +93,7 @@ export async function resumeCheckedRun(runId: string): Promise<RunResume | null>
     }
   }
 
-  const result = await resumeRun(runId, new Date());
+  const result = await resumeRun(runId, new Date(), Math.max(1, windowDays()) * 86_400_000);
   if (!result) return null;
   if (result.state === "refused") return refuse(REFUSALS[result.reason]);
   return { ...result, message: describe(result.retrying, result.kept) };

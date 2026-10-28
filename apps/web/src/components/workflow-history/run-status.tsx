@@ -3,22 +3,25 @@ import {
   CheckCircle2,
   CircleDashed,
   CircleSlash,
+  Clock,
   HelpCircle,
   Loader2,
   XCircle,
 } from "lucide-react";
 
 import type { WorkflowRunDetail } from "@/server/schema";
-import type { NodeStatus } from "@/workflow/schema";
+import type { StepStatus } from "@/workflow/schema";
+import { isTriggerStep } from "@/workflow/steps";
 
 export type RunNode = WorkflowRunDetail["nodes"][number];
 
-const STATUS_RANK: NodeStatus[] = [
+const STATUS_RANK: StepStatus[] = [
   "unknown",
   "failed",
   "blocked",
   "dispatching",
   "running",
+  "waiting",
   "pending",
   "completed",
   "skipped",
@@ -33,12 +36,12 @@ export function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status;
 }
 
-export function worstStatus(statuses: Iterable<NodeStatus>): NodeStatus | null {
+export function worstStatus(statuses: Iterable<StepStatus>): StepStatus | null {
   const seen = new Set(statuses);
   return STATUS_RANK.find((status) => seen.has(status)) ?? null;
 }
 
-function nodeStatus(node: RunNode): NodeStatus | null {
+function nodeStatus(node: RunNode): StepStatus | null {
   return worstStatus([
     ...node.lines.map((line) => line.status),
     ...node.items.map((item) => item.status),
@@ -46,7 +49,7 @@ function nodeStatus(node: RunNode): NodeStatus | null {
 }
 
 export interface StepState {
-  status: NodeStatus | null;
+  status: StepStatus | null;
   label: string;
   taken: boolean;
 }
@@ -55,7 +58,7 @@ export function stepState(node: RunNode | undefined): StepState {
   if (!node?.reached) {
     return { status: null, label: "not reached", taken: false };
   }
-  if (node.kind.startsWith("trigger.")) {
+  if (isTriggerStep(node.step)) {
     return { status: "completed", label: "fired", taken: true };
   }
   const status = nodeStatus(node);
@@ -73,6 +76,9 @@ export function StatusIcon({ status, className }: { status: string | null; class
   }
   if (status === "pending" || status === "running" || status === "dispatching") {
     return <Loader2 className={cn(base, "animate-spin text-faint")} />;
+  }
+  if (status === "waiting") {
+    return <Clock className={cn(base, "text-brand-text")} />;
   }
   if (status === "unknown") {
     return <HelpCircle className={cn(base, "text-brand-text")} />;

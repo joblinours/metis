@@ -29,5 +29,4 @@ WORKDIR /app/apps/web
 ENV NODE_ENV=production
 COPY --from=modules /modules/node_modules /app/node_modules
 COPY --from=build /app/apps/web/preflight.mjs ./preflight.mjs
-COPY --from=build /app/apps/web/migrations ./migrations
 CMD ["node", "preflight.mjs"]

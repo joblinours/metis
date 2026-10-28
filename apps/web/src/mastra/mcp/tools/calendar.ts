@@ -2,7 +2,6 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import * as calendar from "@/mastra/toolkit/calendar";
 import { requireCalendarAccount, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   createEventFields,
@@ -11,6 +10,7 @@ import {
   respondEventFields,
   updateEventFields,
 } from "@/mastra/toolkit/schema";
+import * as calendar from "@/ops/calendar";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace, workspaceTarget } from "../schema";

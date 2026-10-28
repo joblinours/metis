@@ -333,6 +333,7 @@ export const messagesRouter = {
           messageId: target.messageId,
           threadId: input.id,
         },
+        folder: input.folder,
         wakeAt: new Date(input.wakeAt),
       });
 

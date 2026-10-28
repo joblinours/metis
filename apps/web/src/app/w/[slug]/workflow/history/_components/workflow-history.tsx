@@ -13,22 +13,17 @@ import {
 import { cn } from "@metis/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
-import { ArrowLeft, CheckCircle2, History, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, History, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { StatusIcon } from "@/components/workflow-history/run-status";
 import { usePollingRefresh } from "@/hooks/use-polling-refresh";
 import { useWorkspaceScope } from "@/hooks/use-workspace-path";
-import { isOneOf } from "@/lib/guards";
 import { rpc } from "@/lib/orpc";
 import type { WorkflowOutput, WorkflowRun } from "@/server/schema";
-import { NODE_KINDS } from "@/workflow/kinds";
-import { WORKFLOW_NODE_KINDS } from "@/workflow/schema";
+import { stepLabel } from "@/workflow/steps";
 import { workflowPath } from "@/workspace/path";
-
-function stepLabel(kind: string): string {
-  return isOneOf(WORKFLOW_NODE_KINDS, kind) ? NODE_KINDS[kind].label : kind;
-}
 
 const ALL_WORKFLOWS = "all";
 
@@ -128,13 +123,7 @@ export function WorkflowHistoryView() {
                       className="block rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
                       <div className="flex items-center gap-2">
-                        {run.status === "completed" ? (
-                          <CheckCircle2 className="size-4 shrink-0 text-status-success" />
-                        ) : run.status === "pending" || run.status === "running" || stopping ? (
-                          <Loader2 className="size-4 shrink-0 animate-spin text-faint" />
-                        ) : (
-                          <XCircle className="size-4 shrink-0 text-destructive-text" />
-                        )}
+                        <StatusIcon status={stopping ? "running" : run.status} />
                         <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
                           {run.workflowName}
                         </span>
@@ -148,6 +137,7 @@ export function WorkflowHistoryView() {
                       <p className="mt-1 truncate text-[13px] text-muted-foreground">
                         {stopping ? "stopping" : run.status}
                         {run.attempts > 1 && ` · attempt ${run.attempts}`}
+                        {run.upgraded && " · from before the upgrade"}
                       </p>
                       {run.error && (
                         <p className="truncate font-mono text-[11px] text-destructive-text">
@@ -164,15 +154,16 @@ export function WorkflowHistoryView() {
                               "rounded-full border px-2 py-0.5 text-[11px]",
                               step.status === "completed"
                                 ? "border-border bg-panel text-muted-foreground"
-                                : step.status === "skipped"
+                                : step.status === "skipped" || step.status === "waiting"
                                   ? "border-border-soft bg-panel text-faint"
                                   : "border-destructive/40 bg-destructive/10 text-destructive-text",
                             )}
                           >
-                            {stepLabel(step.kind)}
+                            {stepLabel(step.step)}
                             {step.count > 1 && ` ×${step.count}`}
                             {step.status === "unknown" && " ?"}
                             {step.status === "failed" && " ✕"}
+                            {step.status === "waiting" && " …"}
                           </span>
                         ))}
                       </div>

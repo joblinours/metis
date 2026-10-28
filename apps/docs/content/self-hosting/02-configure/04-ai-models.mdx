@@ -26,7 +26,7 @@ Open **Dashboard**, **System**, **LLM** under **Drivers**.
 
 All four model fields are required when a driver is on. Enter the model names your provider uses. You can use the same model for all four.
 
-Without structured outputs, the page notes that summaries need a model with a context window of about 8k tokens or more.
+Without structured outputs, summaries need a model with a context window of about 8k tokens or more.
 
 Click **Save changes** and enter your authenticator code. Saving a change to these fields checks the LLM before anything is stored: it lists your provider's models with your key and confirms that every model you entered is offered. If the check fails, for example with "the API key was rejected (401)", nothing is saved. A model that is "not in the provider's model list" does not stop the save. The save does not show this warning. Click **Run check** to see it.
 
@@ -58,6 +58,25 @@ METIS_LLM_SUMMARY_MODEL=<model>
 
 Use `ANTHROPIC_API_KEY` for `anthropic`. For `openai-compatible`, use `METIS_LLM_BASE_URL`, `METIS_LLM_API_KEY` and, optionally, `METIS_LLM_NAME` and `METIS_LLM_STRUCTURED_OUTPUTS`.
 
+### Where to get a key
+
+| Provider   | **Driver**          | **API key**                                                                                                                             | **Base URL**                    |
+| ---------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| OpenAI     | `openai`            | Create one on OpenAI's [API keys page](https://platform.openai.com/settings/organization/api-keys).                                     | Not used.                       |
+| Anthropic  | `anthropic`         | In the Claude Console, open [API keys](https://platform.claude.com/settings/keys) and click **Create key**. The key is shown only once. | Not used.                       |
+| OpenRouter | `openai-compatible` | Create one on OpenRouter's [keys page](https://openrouter.ai/keys).                                                                     | `https://openrouter.ai/api/v1`  |
+| Ollama     | `openai-compatible` | Leave it empty. Ollama ignores the key.                                                                                                 | `http://<ollama host>:11434/v1` |
+
+For Ollama, use an address your Metis Suite server can reach. Ollama's own guide uses `http://localhost:11434/v1`, the address on the machine where Ollama runs. See the guides from [OpenAI](https://developers.openai.com/api/docs/quickstart), [Anthropic](https://platform.claude.com/docs/en/get-api-key), [OpenRouter](https://openrouter.ai/docs/quickstart) and [Ollama](https://docs.ollama.com/api/openai-compatibility).
+
+### What the models need
+
+- **Structured output.** Inbox labels, summaries, smart replies and workflow AI steps ask the model for answers in a fixed format. With `openai-compatible` and **Structured outputs** off, the endpoint gets JSON mode and the format is written into the prompt. Turn **Structured outputs** on only if your endpoint supports JSON schema output.
+- **Tools.** The assistant and agents call tools, so choose a **Chat and agents model** that supports tool calling.
+- **Images.** With **Images in summaries** on, the summaries model must accept images.
+- **OpenRouter.** Support for structured outputs and tools varies by model. OpenRouter's models list can show only the models with [structured outputs](https://openrouter.ai/models?supported_parameters=structured_outputs) or with [tool calling](https://openrouter.ai/models?supported_parameters=tools). See OpenRouter's [structured outputs](https://openrouter.ai/docs/features/structured-outputs) and [tool calling](https://openrouter.ai/docs/guides/features/tool-calling) guides.
+- **Ollama.** Ollama supports JSON mode and structured outputs through its OpenAI-compatible API. Ollama's cloud does not support structured outputs. See Ollama's [structured outputs](https://docs.ollama.com/capabilities/structured-outputs) guide.
+
 The **AI usage** page of the dashboard shows the tokens every feature uses. See [Owner dashboard](/self-hosting/operate/owner-dashboard).
 
 ## Add a decision model (optional)
@@ -73,9 +92,10 @@ You set it up on the same **LLM** page, in the **Decision model** card.
 | **Base URL** | `systemone` only, optional. The server's address.                                                        |
 | **API key**  | Required for `openai`. Optional for `systemone`, but a server that checks keys rejects calls without it. |
 
-**Base URL** defaults to `https://api.typesafe.ai/v1`, TypeSafe's hosted service. You can point it at any other server that speaks the systemone protocol, such as Ollama 0.35 or later.
+**Model** has no default. Type the model name exactly as your provider names it.
 
-The `openai` driver uses OpenAI's decision model, `gpt-6-luna`. Enter your OpenAI API key in the card's **API key** field. Changing the key on the LLM card does not change it.
+- **`systemone`:** **Base URL** defaults to `https://api.typesafe.ai/v1`, TypeSafe's hosted service. You can point it at any other server that implements TypeSafe's SystemOne API (`POST /systemone`). Without an API key, every deploy warns that a server that checks keys will reject every decision call.
+- **`openai`:** Metis Suite sends the model name you type to OpenAI's own API. Enter a decision model name that your OpenAI account offers. This driver has no **Base URL**. Enter your OpenAI API key in the card's **API key** field. Changing the key on the LLM card does not change it.
 
 A driver alone turns nothing on. Each feature has its own switch in the card, all off by default:
 

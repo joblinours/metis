@@ -11,7 +11,7 @@ Mail for an address with no mailbox token is dropped. Creating a token for an ad
 
 - A Resend account with your domain verified and receiving turned on, including Resend's inbound MX record on the domain. If the domain already has MX records, use a subdomain.
 - A Resend API key with full access. It stays inside the gateway.
-- A Postgres database. You can share one with other apps: set `DB_SCHEMA` to keep the gateway's tables apart.
+- A Postgres database. You can share one with other apps: set `DB_SCHEMA` to keep the gateway's tables apart. The gateway creates its schema and tables itself, so its database user needs permission to create them. On Neon and Supabase, click **Connect** to see the connection string. Supabase's direct connection uses IPv6; on a network with IPv4 only, use its session mode string. See [Neon](https://neon.com/docs/connect/connect-from-any-app) and [Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres).
 - [Bun](https://bun.sh) and a copy of the Metis Suite source code:
 
 ```bash
@@ -26,20 +26,13 @@ No ready-made image of the gateway is published. You build or run it yourself.
 ## Run the gateway
 
 <Steps>
-  <Step title="Create the tables">
-    ```bash
-    DATABASE_URL=postgres://... DB_SCHEMA=resend_gw bun run db:apply
-    ```
-  </Step>
-
   <Step title="Set its variables">
-    Write the gateway's settings to `apps/gateway-resend/.env`. Use the
-    same `DB_SCHEMA` you used in step 1.
+    Write the gateway's settings to `apps/gateway-resend/.env`.
 
     | Variable | Required | What it is |
     | --- | --- | --- |
-    | `DATABASE_URL` | yes | The Postgres connection string. |
-    | `DB_SCHEMA` | no | The schema for the gateway's tables. Default `public`. |
+    | `DATABASE_URL` | yes | The Postgres connection string. Percent-encode special characters in the password. |
+    | `DB_SCHEMA` | no | The schema for the gateway's tables, a plain name such as `resend_gw`. Default `public`. |
     | `MAIL_DOMAIN` | yes | The domain this gateway serves. |
     | `API_TOKEN` | yes | The admin token, for example from `openssl rand -hex 32`. |
     | `RESEND_API_KEY` | yes | Your full-access Resend key. |
@@ -52,17 +45,23 @@ No ready-made image of the gateway is published. You build or run it yourself.
   </Step>
 
   <Step title="Start it">
-    Use any one of these:
+    Use one of these:
 
-    - Docker, built from the root of the source code:
+    - Docker, built from the root of the source code. The container
+      creates its schema and tables every time it starts.
 
       ```bash
       docker build -f apps/gateway-resend/Dockerfile -t metis-resend .
       docker run --env-file apps/gateway-resend/.env -p 8787:8787 metis-resend
       ```
 
-    - Bun, from `apps/gateway-resend`: `bun run start`.
-    - A serverless function host.
+    - Bun, from `apps/gateway-resend`. Create the schema and tables first,
+      then start it:
+
+      ```bash
+      bun run db:apply
+      bun run start
+      ```
 
     Serve it over `https://` on an address Resend and your Metis Suite
     instance can both reach.
@@ -82,7 +81,9 @@ No ready-made image of the gateway is published. You build or run it yourself.
 
     - **Name**: what users see in the connect dialog.
     - **Domain**: your domain, such as `example.com`.
-    - **Gateway endpoint**: the gateway's `https://` address.
+    - **Gateway endpoint**: the gateway's `https://` address. Any other
+      address is refused with "The Worker endpoint must be an https://
+      URL".
 
     Click **Save changes** and enter your authenticator code.
 

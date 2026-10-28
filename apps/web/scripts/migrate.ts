@@ -1,7 +1,9 @@
 import { db } from "@/db";
 import { migrateDatabase } from "@/db/migrations";
 
-const { applied, baselined } = await migrateDatabase(db.$client);
+import { MIGRATIONS } from "../migrations";
+
+const { applied, baselined } = await migrateDatabase(db.$client, MIGRATIONS);
 if (baselined)
   console.log("[migrate] recorded 0000_baseline for a database created before migrations");
 console.log(

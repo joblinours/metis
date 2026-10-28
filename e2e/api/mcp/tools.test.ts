@@ -5,10 +5,11 @@ import { z } from "zod";
 
 import { type Account, harness } from "../../clients/harness";
 import { type Rpc, rpcWithCookie } from "../../clients/rpc";
+import { signIn } from "../../clients/sign-in";
 import { TOOL_GROUPS, type ToolGroup } from "../../lib/mcp-clients";
 import { type McpSession, session } from "../support/mcp";
 import { uniqueName, until } from "../support/poll";
-import { ana, signIn, totpCode } from "../support/session";
+import { ana, totpCode } from "../support/session";
 import { SETTLED } from "../support/workflow";
 
 const BANK = "INR 1,250.00 debited from a/c **4821";
@@ -26,6 +27,9 @@ const SEEDED_WORKFLOWS = [
   "Collect rebrand and GitHub mail",
   "Label orders once both checks finish",
   "Triage with the decision model",
+  "Triage new mail",
+  "Star the newest mail once approved",
+  "Label mail a webhook names",
 ];
 const CONFIGURED_PROVIDERS: Record<string, number> = {
   imap: 1,
@@ -113,35 +117,38 @@ async function backToInbox(s: McpSession, c: Context, subject: string) {
 }
 
 const GRAPH = (mailboxId: string) => ({
+  version: 2,
   nodes: [
-    { id: "manual", kind: "trigger.manual", position: { x: 0, y: 0 } },
+    { id: "manual", step: "trigger.manual", position: { x: 0, y: 0 }, params: {} },
     {
       id: "inbox",
-      kind: "mailbox.source",
+      step: "mail.list",
       position: { x: 0, y: 170 },
-      mailboxId,
-      operation: "list",
-      folder: "inbox",
-      limit: 5,
+      params: {
+        mailbox: { kind: "literal", value: mailboxId },
+        folder: { kind: "literal", value: "inbox" },
+        limit: { kind: "literal", value: 5 },
+      },
     },
     {
       id: "never",
-      kind: "condition",
+      step: "logic.filter",
       position: { x: 0, y: 340 },
-      predicate: {
-        kind: "predicate",
-        field: "from",
-        op: "contains",
-        value: `nobody@${OUTSIDE_DOMAIN}`,
-      },
+      params: { condition: { kind: "expr", cel: `item.from == "nobody@${OUTSIDE_DOMAIN}"` } },
     },
-    { id: "star", kind: "action.star", position: { x: 0, y: 510 } },
+    {
+      id: "star",
+      step: "mail.star",
+      position: { x: 0, y: 510 },
+      params: { message: { kind: "expr", cel: "item" }, starred: { kind: "literal", value: true } },
+    },
   ],
   edges: [
     { id: "e1", source: "manual", target: "inbox", sourceHandle: "out" },
     { id: "e2", source: "inbox", target: "never", sourceHandle: "out" },
-    { id: "e3", source: "never", target: "star", sourceHandle: "matched" },
+    { id: "e3", source: "never", target: "star", sourceHandle: "out" },
   ],
+  settings: {},
 });
 
 async function withWorkflow(
@@ -779,6 +786,29 @@ const READS: Case[] = [
       }>("listWorkflows", ws(c));
       expect(out.workflows.map((w) => w.name)).toEqual(expect.arrayContaining(SEEDED_WORKFLOWS));
       expect(out.mailboxes.map((m) => m.mailboxId)).toContain(c.mailboxId);
+    },
+  },
+  {
+    tool: "listWorkflowSteps",
+    run: async (s, c) => {
+      const all = await s.ok<{
+        steps: { step: string; params: Record<string, { kind: string }> }[];
+      }>("listWorkflowSteps", ws(c));
+      const keys = all.steps.map((step) => step.step);
+      expect(keys).toEqual(
+        expect.arrayContaining(["trigger.manual", "mail.list", "logic.if", "flow.approval"]),
+      );
+      expect(keys).not.toContain("trigger.once");
+      expect(keys).not.toContain("system.workflowPrune");
+      expect(all.steps.find((step) => step.step === "mail.label")?.params.label?.kind).toBe(
+        "label",
+      );
+      const ai = await s.ok<{ steps: { step: string }[] }>("listWorkflowSteps", {
+        ...ws(c),
+        category: "ai",
+      });
+      expect(ai.steps.map((step) => step.step)).toContain("ai.agent");
+      expect(ai.steps.every((step) => step.step.startsWith("ai."))).toBe(true);
     },
   },
   {
@@ -1675,19 +1705,21 @@ const WORKFLOWS: Case[] = [
               name,
               enabled: true,
               graph: {
+                version: 2,
                 nodes: [
                   {
                     id: "once",
-                    kind: "trigger.once",
+                    step: "trigger.once",
                     position: { x: 0, y: 0 },
-                    at: "2030-01-01T00:00:00.000Z",
+                    params: { at: { kind: "literal", value: "2030-01-01T00:00:00.000Z" } },
                   },
                 ],
                 edges: [],
+                settings: {},
               },
             },
           }),
-        ).toContain("reserved for built-in workflows");
+        ).toContain("is only used by built-in workflows");
       });
     },
   },
@@ -2071,7 +2103,7 @@ beforeAll(async () => {
       workspaceId,
     });
     const { workflows } = await s.ok<{
-      workflows: { name: string; graph: { nodes: { kind: string }[] } }[];
+      workflows: { name: string; graph: { nodes: { step: string }[] } }[];
     }>("listWorkflows", { workspaceId });
     if (!workCalendar || !design || !runs[0])
       throw new Error("the seeded calendar or workflow history is missing");
@@ -2097,7 +2129,7 @@ beforeAll(async () => {
       runId: runs[0].id,
       ask: workflows
         .find((w) => w.name === "Triage with the decision model")
-        ?.graph.nodes.find((n) => n.kind === "decision.ask"),
+        ?.graph.nodes.find((n) => n.step === "ai.ask"),
     };
   } finally {
     await s.close();

@@ -94,7 +94,9 @@
       {
         "waitFor": "role=dialog[name=\"Search\"] >> role=group[name=\"Suggestions\"] >> role=option[name=/^mail-folder:/]"
       },
-      { "wait": 600 }
+      { "wait": 600 },
+      { "waitForHidden": "role=dialog[name=\"Search\"] >> .animate-spin" },
+      { "wait": 400 }
     ],
     "element": "role=dialog[name=\"Search\"]"
   },

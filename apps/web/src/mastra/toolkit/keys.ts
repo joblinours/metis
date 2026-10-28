@@ -27,6 +27,7 @@ export const TOOL_KEYS = [
   "applyWorkflows",
   "cancelWorkflowRun",
   "resumeWorkflowRun",
+  "listWorkflowSteps",
   "listCalendars",
   "listEvents",
   "getEvent",
@@ -84,6 +85,110 @@ export const TOOL_KEYS = [
 ] as const;
 
 export type ToolKey = (typeof TOOL_KEYS)[number];
+
+export const READ_TOOL_KEYS = [
+  "listMailboxes",
+  "aggregateInbox",
+  "searchMail",
+  "listEmails",
+  "getEmail",
+  "getThread",
+  "analyzePhishing",
+  "listLabels",
+  "listWorkflows",
+  "listWorkflowRuns",
+  "getWorkflowRun",
+  "listWorkflowSteps",
+  "listCalendars",
+  "listEvents",
+  "getEvent",
+  "listWorkspaceMembers",
+  "findMemberMail",
+  "findMemberEvents",
+  "findMemberFiles",
+  "listDrives",
+  "listFolder",
+  "searchFiles",
+  "getFile",
+  "getFileText",
+  "listSnoozed",
+  "listScheduled",
+  "listAttachments",
+  "getAttachmentText",
+  "listMuted",
+  "listReadLater",
+  "listSubscriptions",
+  "searchContacts",
+  "getRawEmail",
+  "summarizeThread",
+  "listPins",
+  "getDriveQuota",
+  "previewDecision",
+  "listInvites",
+] as const satisfies readonly ToolKey[];
+
+export const WRITE_TOOL_KEYS = [
+  "markRead",
+  "starEmail",
+  "archiveEmail",
+  "restoreEmail",
+  "deleteEmails",
+  "sendEmail",
+  "createDraft",
+  "updateDraft",
+  "setLabel",
+  "clearLabel",
+  "createWorkflow",
+  "updateWorkflow",
+  "toggleWorkflow",
+  "deleteWorkflow",
+  "applyWorkflows",
+  "cancelWorkflowRun",
+  "resumeWorkflowRun",
+  "createEvent",
+  "updateEvent",
+  "deleteEvent",
+  "respondToEvent",
+  "createFolder",
+  "renameFile",
+  "moveFile",
+  "deleteFile",
+  "snoozeEmail",
+  "cancelSnooze",
+  "unsnoozeEmail",
+  "scheduleEmail",
+  "cancelScheduled",
+  "retryScheduled",
+  "muteThread",
+  "unmuteThread",
+  "addReadLater",
+  "removeReadLater",
+  "unsubscribe",
+  "createLabel",
+  "deleteLabel",
+  "setLabels",
+  "deleteDraft",
+  "pinFolder",
+  "unpinFolder",
+  "removeMember",
+  "revokeInvite",
+  "setWorkspaceTheme",
+] as const satisfies readonly ToolKey[];
+
+export type ReadToolKey = (typeof READ_TOOL_KEYS)[number];
+export type WriteToolKey = (typeof WRITE_TOOL_KEYS)[number];
+
+type Unpartitioned = Exclude<ToolKey, ReadToolKey | WriteToolKey>;
+type BothSides = Extract<ReadToolKey, WriteToolKey>;
+export const TOOL_PARTITION_IS_COMPLETE: [Unpartitioned, BothSides] extends [never, never]
+  ? true
+  : never = true;
+
+const READ_KEYS = new Set<string>(READ_TOOL_KEYS);
+
+export function isReadTool(key: string): key is ReadToolKey {
+  return READ_KEYS.has(key);
+}
 
 export const MCP_ONLY_TOOL_KEYS = [
   "listWorkspaces",

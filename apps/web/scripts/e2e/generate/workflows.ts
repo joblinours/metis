@@ -2,14 +2,29 @@ import { createUserWorkflow } from "../../../src/workflow";
 import { scheduleSend } from "../../../src/workflow/builtins/scheduled-send";
 import { workspaceScope } from "../workspace-scope";
 import type { Account } from "./account";
-import { seededWorkflows } from "./workflow-graphs";
+import type { Resources } from "./connections";
+import { calledWorkflow, seededWorkflows } from "./workflow-graphs";
 
-export async function seedWorkflows(account: Account): Promise<void> {
+export async function seedWorkflows(account: Account, resources: Resources): Promise<void> {
   const scope = await workspaceScope(account.userId, account.workspaceId);
   const [box] = scope.mailboxes;
   if (!box) throw new Error("the seeded mailbox is not in the workspace");
+  const calendar = scope.calendars.find((c) => c.slug === resources.calendarSlug);
+  if (!calendar) throw new Error("the seeded calendar is not in the workspace");
+  const drive = scope.drives.find((d) => d.slug === resources.driveSlugs.s3);
+  if (!drive) throw new Error("the seeded S3 drive is not in the workspace");
 
-  for (const workflow of seededWorkflows(box.mailboxId)) {
+  const called = await createUserWorkflow(scope, calledWorkflow());
+  if (typeof called === "string") throw new Error(`workflow "${calledWorkflow().name}": ${called}`);
+
+  const seeded = seededWorkflows({
+    mailboxId: box.mailboxId,
+    userId: account.userId,
+    calendarId: calendar.accountId,
+    driveId: drive.driveId,
+    calledWorkflowId: called.id,
+  });
+  for (const workflow of seeded) {
     const created = await createUserWorkflow(scope, workflow);
     if (typeof created === "string") {
       throw new Error(`workflow "${workflow.name}": ${created}`);
@@ -29,7 +44,5 @@ export async function seedWorkflows(account: Account): Promise<void> {
     },
     at: new Date("2099-01-05T09:00:00Z"),
   });
-  console.log(
-    `[generate] seeded ${seededWorkflows(box.mailboxId).length} workflows and a scheduled send`,
-  );
+  console.log(`[generate] seeded ${seeded.length + 1} workflows and a scheduled send`);
 }

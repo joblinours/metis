@@ -154,6 +154,7 @@
   {
     "name": "self-hosting/driver-runner",
     "path": "/dashboard/system/drivers/runner",
+    "fullPage": true,
     "steps": [
       { "waitFor": "role=heading[level=1][name=\"Workflow runner\"]" },
       { "waitFor": "main >> text=Last tick" },

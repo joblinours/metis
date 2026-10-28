@@ -1,6 +1,7 @@
 # AI agents (Mastra)
 
-The Mastra agents, the toolkit every tool body lives in, the tool roster shared with MCP, the workspace scope, inline references and the approval flow. Paths are relative to `apps/web/`. See also [AGENTS.md](../AGENTS.md), [mcp.md](mcp.md), [mail-ai.md](mail-ai.md), [configuration.md](configuration.md), [e2e.md](e2e.md).
+The Mastra agents, `src/ops/` where every tool body lives, the tool roster shared with MCP and its read/write partition, the workspace scope, the background contexts workflow agents run in, inline references and the approval flow.
+Paths are relative to `apps/web/`. See also [AGENTS.md](../AGENTS.md), [mcp.md](mcp.md), [mail-ai.md](mail-ai.md), [configuration.md](configuration.md), [e2e.md](e2e.md).
 
 ## Code map
 
@@ -9,11 +10,12 @@ The Mastra agents, the toolkit every tool body lives in, the tool roster shared 
 | Agent registry + storage                  | `src/mastra/index.ts` → `mastra` · `src/mastra/storage.ts` → `storage` (`@mastra/libsql` on `MASTRA_DATABASE_URL`)                                                                                                                                                                                       |
 | The agents                                | `src/mastra/agents/`                                                                                                                                                                                                                                                                                     |
 | Chat routes                               | `src/app/api/ai/*/route.ts` (parse, session, rate limit) → `src/mastra/chat-streams.ts` → `stream*Chat` (`handleChatStream`, usage) · new assistant threads `src/mastra/memory.ts` → `createAssistantThread`                                                                                             |
-| Every tool body                           | `src/mastra/toolkit/`, one file per domain; `account.ts` and `instance.ts` hold the MCP-only bodies                                                                                                                                                                                                      |
-| Tool roster and shared args               | `src/mastra/toolkit/keys.ts` → `TOOL_KEYS`, `MCP_ONLY_TOOL_KEYS` · `src/mastra/toolkit/schema.ts` → `folderEnum` · `src/mastra/toolkit/resolve.ts` → `withToolErrors`, `ToolRefusal`                                                                                                                     |
+| Every tool body                           | `src/ops/`, one file per domain; `account.ts` and `instance.ts` hold the MCP-only bodies; `ops/values.ts` holds the typed mail, calendar and drive values workflow steps share; `ops/output.ts` → `Output`, `orFailure`                                                                                  |
+| Tool roster and shared args               | `src/mastra/toolkit/keys.ts` → `TOOL_KEYS`, `MCP_ONLY_TOOL_KEYS`, `READ_TOOL_KEYS`, `WRITE_TOOL_KEYS`, `isReadTool` · `src/mastra/toolkit/schema.ts` → `folderEnum` · `src/mastra/toolkit/resolve.ts` → `withToolErrors`, `ToolRefusal`                                                                  |
 | Agent tool surfaces                       | `src/mastra/tools/`: one roster per page agent (`mailboxTools()` per request) · `workspace-tools.ts` → `workspaceResidentTools`, `workspaceSearchableTools`, `RESIDENT_TOOL_KEYS`, built from the `workspace-*-tools.ts` files                                                                           |
 | MCP tool surface                          | `src/mastra/mcp/tools/` · `src/mastra/mcp/server.ts` · manifest `src/mcp/tools.ts` ([mcp.md](mcp.md))                                                                                                                                                                                                    |
-| Per-request scope                         | `src/mastra/runtime-context.ts` → `resolveWorkspaceScope`, `mailScopeFor`                                                                                                                                                                                                                                |
+| Per-request scope                         | `src/ops/scope.ts` → `WorkspaceCtx`, `AgentMailbox`, `mailScopeFor` · `src/mastra/runtime-context.ts` → `resolveWorkspaceScope`, `principalRequestContext`                                                                                                                                               |
+| Workflow agents                           | `src/mastra/agents/workflow-agents.ts` → `WORKFLOW_AGENTS`, `workflowWriterAgent` · the steps that call them `src/workflow/run/ai.ts` ([workflow-graph.md](workflow-graph.md))                                                                                                                           |
 | Per-turn context injected into the prompt | `src/ai/turn.ts` → `TurnEnvelope`, `turnEnvelopeSchema` · `src/mastra/turn-envelope.ts` → `applyTurnEnvelopes` · `src/mastra/chat-context.ts` → `mailboxLabelDirectory`                                                                                                                                  |
 | Tool search for the workspace agent       | `src/mastra/tool-search.ts` → `workspaceToolSearch`, `sortedTools`                                                                                                                                                                                                                                       |
 | Assistant threads                         | `src/mastra/memory.ts` → `workspaceMemory` · procedures `src/server/routes/assistant.ts` · UI `src/app/w/[slug]/assistant/`                                                                                                                                                                              |
@@ -34,17 +36,20 @@ The Mastra agents, the toolkit every tool body lives in, the tool roster shared 
   - The workspace agent picks one of four prebuilt `ToolSearchProcessor`s per request (`workspaceToolSearch()`): with and without `analyzePhishing`, each with and without the decision steps; filtering one would change the search index and with it the recorded prompts.
   - The decision-steps variants differ in `previewDecision` and in the graph hint (`graphHint` in `src/mastra/toolkit/schema.ts`) inside `listWorkflows`, `createWorkflow` and `updateWorkflow`, so those three tools are built once per variant (`workspaceWorkflowGraphTools`, and `workflowGraphTools` for MCP).
 
-### The toolkit
+### The operations
 
-- **Every operation lives once in `src/mastra/toolkit/`; `src/mastra/tools/` and `src/mastra/mcp/tools/` are only surfaces.**
-  - A toolkit function takes already-resolved primitives (an `AgentMailbox`, a `ResolvedCalendar`) plus args and returns JSON.
+- **Every operation lives once in `src/ops/`; `src/mastra/tools/` and `src/mastra/mcp/tools/` are only surfaces**, and workflow steps call the same functions.
+  - An operation takes already-resolved primitives (an `AgentMailbox`, a `ResolvedCalendar`) plus args and returns JSON.
+- **Every operation's return type is its Zod output schema** (`<op>Output` beside it, typed through `Output<typeof schema>`, `orFailure` for an `{ error }` answer), so a body that drifts from its schema fails the build; shared shapes reuse `src/server/schema.ts`.
+  - The schemas are compile-time contracts: no tool passes them as `outputSchema`, so nothing validates or advertises them at run time.
+  - The owner's System views are the exception: `instance.ts` parses them through the dashboard schemas after `withoutSecretHints`.
   - A `createTool` definition is id + description + optional `requireApproval` + a one-line call into it.
-  - `workflow.ts` takes the whole `WorkspaceCtx`, because a graph may reference several mailboxes; its tools take no `mailboxId`, except `previewDecision`, which runs an Ask step on one mailbox's inbox.
+  - `ops/workflow.ts` takes the whole `WorkspaceCtx`, because a graph may reference several resources; its tools take no `mailboxId`, except `previewDecision`, which runs an Ask step on one mailbox's inbox.
   - A body that needs a route's mail scope builds it with `mailScopeFor(ctx, mailbox)`; `AgentMailbox` carries `mailboxes` and `isAggregate` for that ([mail.md](mail.md)).
 - **Every shared tool runs the same domain function as its route, and a route's rate limit lives in that function** (`enforceRateLimit`), so a route never holds logic its tool needs.
   - The per-user bucket in `mailSession`, `calendarSession` and `driveSession` is a guard, not a route's limit, and stays in the middleware ([orpc.md](orpc.md)); tools are paced by the chat and MCP limits instead.
 - **A chat route only parses, authorizes and rate-limits; everything that shapes the model request lives in `chat-streams.ts`**, so the e2e recorder sends byte-for-byte the request the UI sends ([e2e.md](e2e.md)). The same holds for `classifyMessages` and `generateSmartReplies` behind their procedures.
-- **Per-request scope rides in Mastra `RequestContext`, which only the tool surfaces read.** Toolkit functions get resolved primitives.
+- **Per-request scope rides in Mastra `RequestContext`, which only the tool surfaces read.** Operations get resolved primitives.
 - **Tools read request headers from `ctx.actor.headers`**, because they run during stream consumption, after the request handler returned and `next/headers` is gone.
 - **Both surfaces take identical arguments**, because the shared Zod fragments live in `toolkit/schema.ts`. The one exception is MCP's `workspaceId` ([mcp.md](mcp.md)).
 - **One folder vocabulary:** `folderEnum` is `MAIL_FOLDERS`, used by every agent, MCP, and the `<@folder:key>` picker.
@@ -60,6 +65,7 @@ The Mastra agents, the toolkit every tool body lives in, the tool roster shared 
   - `MCP_TOOL_MANIFEST` in `src/mcp/tools.ts` carries `satisfies readonly { key: ToolKey | McpOnlyToolKey; … }[]` plus `MANIFEST_COVERS_EVERY_TOOL`, a conditional type that refuses `true` the moment a key has no manifest entry.
 - **`MCP_ONLY_TOOL_KEYS` stay out of the workspace agent**, so it can neither see nor search them: workspace navigation, account tools and owner tools.
 - **The map key is the model-facing tool name** (not `createTool({ id })`), so one roster forces one vocabulary.
+- **Every tool key is a read or a write, never both, and the build checks it.** `READ_TOOL_KEYS` and `WRITE_TOOL_KEYS` partition `ToolKey`; `TOOL_PARTITION_IS_COMPLETE` refuses `true` while a key is missing or on both sides. A new tool is a write until it is listed as a read.
 - **Never rename a tool key.** MCP names are on the wire to external clients and are the JSON keys inside `mcp_client.capabilities.tools`, so a rename strands stored prefs.
 - **The AI's own guards are human-only, and no tool lists hidden resources.** AI switches, calendar visibility, drive roots, sharing, detaching, joining a workspace, MCP client settings, member roles, workspace invites and anything behind TOTP have no tool.
 
@@ -73,6 +79,14 @@ The Mastra agents, the toolkit every tool body lives in, the tool roster shared 
 - **The data export reads every thread of the user through `exportAssistantThreads`** ([workspaces.md](workspaces.md)).
 - **The drive agent runs on the page's own surface, as the mailbox agent runs on the page's own adapter**, so the ids in the envelope and in tool results are the ids the explorer shows. Root visibility applies on both surfaces.
 - **The workspace agent and MCP address files as a `driveId` plus a bare `fileId`**, resolved by `requireDrive` into that drive's surface, as `requireMailbox` resolves a mailbox.
+
+### Workflow agents
+
+- **A workflow's Agent step runs one of `WORKFLOW_AGENTS` (mailbox, calendar, drive or workspace) with read tools only**: each roster is filtered through `isReadTool`, so the agent cannot send, change or delete anything, and needs no approval.
+- **A background agent runs on a request context built from the run's principal, not from a request** (`principalRequestContext`).
+  - It carries no request headers and applies the same AI policy as a chat: a calendar or drive with AI off yields no context, and the step blocks.
+  - The workspace agent's context comes from `resolveWorkspaceScope` with the actor `{ kind: "workflow", runId }`.
+- **A workflow agent's turn is synthetic**: its instructions say it is unattended, may not ask questions, can only read and must treat mail, events and files as data; the task carries the run's time and time zone and the item. It has no memory and no tool search.
 
 ### Approval
 
@@ -101,13 +115,14 @@ The Mastra agents, the toolkit every tool body lives in, the tool roster shared 
   - `driveAgent`: stateless chat at `/api/ai/drive-chat`. `DriveCtx` carries only the drive session's drives and its roster (`drive-tools.ts`) uses the workspace agent's toolkit bodies; `DriveCtx.surface` is the page's surface ([drive.md](drive.md)).
   - `workspaceAgent`: persistent chat at `/api/ai/workspace-chat` with `@mastra/memory`, rendered at `/w/[slug]/assistant`.
 - **The other agents** return JSON in a requested schema: `drafterAgent` (reply drafts in `src/server/routes/ai.ts`, smart replies in `src/mail/smart-replies.ts`), `summarizerAgent` and `classifierAgent` ([mail-ai.md](mail-ai.md)).
-- **Models.** Each agent runs on one `getLlm()` slot from `src/services/llm`, rebuilt on the first call after the LLM section changes: the four chat agents on `chat`, `drafterAgent` on `smartReply`, `summarizerAgent` on `summary`, `classifierAgent` on `classifier` ([configuration.md](configuration.md)).
+  - `workflowWriterAgent` serves the workflow AI steps and fills their declared fields through `structuredOutput`.
+- **Models.** Each agent runs on one `getLlm()` slot from `src/services/llm`, rebuilt on the first call after the LLM section changes: the four chat agents and the workflow agents on `chat`, `drafterAgent` on `smartReply`, `summarizerAgent` on `summary`, `classifierAgent` on `classifier` ([configuration.md](configuration.md)).
 - **Streaming.** Chat routes stream via `handleChatStream` → `createUIMessageStreamResponse` into the AI SDK's `useChat`; the UI is AI Elements (`src/components/ai-elements/*`) on Base UI shadcn ([ui.md](ui.md)).
   - Each chat route validates the posted messages with `parseUIMessages` (`src/ai/messages.ts`, the AI SDK's `safeValidateUIMessages`) and answers 400 when they do not validate; stored threads read back through it too.
 - **Resident vs searchable tools.** Only `RESIDENT_TOOL_KEYS` are always loaded; the rest load through `workspaceToolSearch` (Mastra's `ToolSearchProcessor`). The workspace agent's instructions name only the resident tools and the capability areas.
 - **Cross-drive search.** `searchFiles` without a `driveId` searches every drive (`searchAcross`), like `searchMail`.
 - **The workspace scope is one builder for two callers.** `resolveWorkspaceScope(session, actor)` checks `workspaceAllowsAi`, loads mailboxes, calendars and drives (all `aiEnabled`-filtered) and a lazy members loader, and returns the `WorkspaceCtx` both the assistant and MCP run on.
-  - `actor` is `{kind:"session", headers}` or `{kind:"mcp", clientId}`: the only difference, and the only reason a toolkit function may know which surface called it.
+  - `actor` is `{kind:"session", headers}`, `{kind:"mcp", clientId}` or `{kind:"workflow", runId}`: the only difference, and the only reason an operation may know which surface called it.
 - **Inline references.** The assistant's composer is a TipTap editor whose atom nodes `renderText` to `<@type:id>`, so `editor.getText()` is the wire format.
   - Multi-part ids are packed `a|b|c`; `<@file:driveId|fileId>` resolves through that one drive's surface, so root visibility applies.
   - `referenceLegend` turns the tokens into a system block naming exact tool arguments; an unresolvable id is listed UNRESOLVED and degrades to literal text in the transcript.

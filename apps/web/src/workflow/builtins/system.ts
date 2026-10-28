@@ -1,35 +1,28 @@
 import "server-only";
-import type { SystemOperation, WorkflowGraph } from "../schema";
+import { literal } from "../expr";
+import { GRAPH_VERSION, type WorkflowGraph } from "../schema";
 import { upsertSystemDefinition } from "../store";
 
 export const CIMD_PRUNE_ID = "system:cimd-prune";
 export const AUDIT_PRUNE_ID = "system:audit-prune";
+export const WORKFLOW_PRUNE_ID = "system:workflow-prune";
 
-function maintenanceGraph(cron: string, operation: SystemOperation): WorkflowGraph {
+function maintenanceGraph(cron: string, step: string): WorkflowGraph {
   return {
+    version: GRAPH_VERSION,
     nodes: [
       {
         id: "schedule",
-        kind: "trigger.schedule",
+        step: "trigger.schedule",
         position: { x: 0, y: 0 },
-        cron,
-        timezone: "Etc/UTC",
+        params: { cron: literal(cron), timezone: literal("Etc/UTC") },
       },
-      {
-        id: "prune",
-        kind: "action.system",
-        position: { x: 0, y: 170 },
-        operation,
-      },
+      { id: "prune", step, position: { x: 352, y: 0 }, params: {} },
     ],
     edges: [
-      {
-        id: "schedule:out->prune",
-        source: "schedule",
-        sourceHandle: "out",
-        target: "prune",
-      },
+      { id: "schedule:out->prune", source: "schedule", sourceHandle: "out", target: "prune" },
     ],
+    settings: {},
   };
 }
 
@@ -40,12 +33,17 @@ export function ensureSystemWorkflows(): Promise<void> {
     await upsertSystemDefinition({
       id: CIMD_PRUNE_ID,
       name: "Prune abandoned MCP clients",
-      graph: maintenanceGraph("0 * * * *", "cimd-prune"),
+      graph: maintenanceGraph("0 * * * *", "system.cimdPrune"),
     });
     await upsertSystemDefinition({
       id: AUDIT_PRUNE_ID,
       name: "Prune expired audit events",
-      graph: maintenanceGraph("30 3 * * *", "audit-prune"),
+      graph: maintenanceGraph("30 3 * * *", "system.auditPrune"),
+    });
+    await upsertSystemDefinition({
+      id: WORKFLOW_PRUNE_ID,
+      name: "Prune old workflow data",
+      graph: maintenanceGraph("15 4 * * *", "system.workflowPrune"),
     });
   })().catch((err) => {
     ensured = null;

@@ -78,6 +78,26 @@ When you remove an entry, every account connected through it is quarantined: it 
 
 With `direct` transfers, files go straight between the browser and the bucket, so the browser must be able to reach the endpoint and the bucket needs a CORS rule. Choose `relay` when browsers cannot reach the endpoint, the certificate is self-signed, or the bucket cannot have a CORS rule. Relayed files pass through your server. See [Drive transfers](/self-hosting/configure/drive-transfers).
 
+#### CORS rule for direct transfers
+
+The rule must allow your instance's address, exactly as in `BETTER_AUTH_URL` and without a trailing slash, to use `GET` and `PUT` with the `Content-Type` header. Uploads use `PUT`, and previews use `GET`. For example, as AWS S3 JSON:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://mail.example.com"],
+    "AllowedMethods": ["GET", "PUT"],
+    "AllowedHeaders": ["Content-Type"]
+  }
+]
+```
+
+- **AWS S3:** open the bucket under **General purpose buckets**, then **Permissions**. Under **Cross-origin resource sharing (CORS)**, click **Edit**, paste the rule and click **Save changes**. See AWS's [CORS guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enabling-cors-examples.html).
+- **Cloudflare R2:** the dashboard takes the same JSON. Open the bucket under **R2 object storage**, then **Settings**, **CORS Policy**, **Add CORS policy**, and the **JSON** tab. Click **Save**. See Cloudflare's [CORS guide](https://developers.cloudflare.com/r2/buckets/cors/).
+- **MinIO community edition:** it has no CORS rule for each bucket. It allows origins for the whole server, with `MINIO_API_CORS_ALLOW_ORIGIN`, which allows any origin by default.
+
+When a user connects a bucket that has no matching rule, they see: "That bucket does not allow browser uploads from &lt;origin&gt;. Add a CORS rule permitting GET and PUT from that origin, or ask the operator to set "transfer": "relay" on this server, then try again." Fix the rule, or set **Transfers** to `relay`.
+
 ### WebDAV
 
 | Field                               | Notes                              |

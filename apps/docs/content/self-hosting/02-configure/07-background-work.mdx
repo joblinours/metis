@@ -1,6 +1,6 @@
 ---
 title: Background work
-description: Choose how your instance runs workflows, scheduled sends, snooze reminders and housekeeping.
+description: Choose how your instance runs workflows, scheduled sends, snooze reminders and housekeeping, how long workflow run data is kept, and how webhooks and push reach it.
 ---
 
 Some work happens when nobody has a page open: workflows, mail scheduled to send later, snoozed mail coming back, and housekeeping. One background engine does all of it. It runs in short rounds called ticks. You choose what wakes it up, with the workflow runner setting.
@@ -12,6 +12,8 @@ Some work happens when nobody has a page open: workflows, mail scheduled to send
 | `bullmq`             | A separate worker process and your own Redis.        | You want background work off the web process.                   |
 
 All three run the same engine on the same database, so schedules, retries and history behave the same way with each.
+
+The same settings page also sets how long workflow run data is kept, and the public address that webhooks and providers use to reach your instance. See [Keep run data](#keep-run-data) and [Webhooks and push](#webhooks-and-push).
 
 ## Change the runner
 
@@ -40,11 +42,15 @@ Nothing needs to move between runners. While the old and new runner overlap for 
 
 The app runs one tick when it starts, then one every cadence (60 seconds by default). It needs a server process that runs all the time. Hosts that suspend the process between requests never work with it, for example scale-to-zero containers or sleeping free tiers. On Vercel, Netlify, AWS Lambda, Azure Functions and Google Cloud Functions, the dashboard refuses to select `internal`. Use `cron` or `bullmq` there.
 
+Container platforms that stop idle containers are not detected, so the dashboard lets you select `internal` there. Examples are Google Cloud Run with a minimum of zero instances and Fly.io machines that stop when idle. On these hosts, keep at least one app container always running, or use `cron` or `bullmq`. On Google Cloud Run, one container that always runs is not enough: also turn on CPU always allocated (instance-based billing). By default, Cloud Run gives a container CPU only while it handles a request. See [Deploy on a container platform](/self-hosting/install/deploy-on-a-container-platform).
+
 Background work shares the app's CPU and memory, so a large backlog can slow pages down. If you run several copies of the app, they never do the same work twice.
 
 ## cron
 
-Point any scheduler (a crontab, cron-job.org, or your host's cron feature) at the tick endpoint, at least once per cadence. Send the cron secret in the `X-Metis-Secret` header:
+Point a scheduler at the tick endpoint, at least once per cadence. The scheduler must send a `POST` request with the cron secret in the `X-Metis-Secret` header. A crontab, cron-job.org or a scheduled GitHub Actions workflow can do this. Vercel Cron cannot. It sends a `GET` request, and the endpoint answers a `GET` request with `405`. Vercel Cron also never sends `X-Metis-Secret`. Its only secret is an `Authorization` header, which it sends only when a `CRON_SECRET` variable is set. The endpoint does not read that header.
+
+A request that works looks like this:
 
 ```bash
 curl -fsS -X POST https://mail.example.com/api/workflows/tick \
@@ -58,11 +64,70 @@ curl -fsS -X POST https://mail.example.com/api/workflows/tick \
 | `401`  | The secret is wrong or missing.                 |
 | `404`  | The runner is not set to `cron`.                |
 
-Calling more often than the cadence is harmless and runs ready work sooner. Each call runs for up to the tick budget. The endpoint allows 60 seconds. Keep **Tick budget (ms)** under your host's request limit. Under `cron`, its maximum is 55000. Set your scheduler's timeout above the budget.
+Calling more often than the cadence is harmless and runs ready work sooner. Triggers are still checked at most once per cadence. Each call runs for up to the tick budget. The endpoint allows 60 seconds. Under `cron`, **Tick budget (ms)** is at most 55000.
+
+### Timeouts
+
+The tick answers only when it is done. If the scheduler gives up and closes the request first, the tick stops there. So the scheduler's timeout, and your host's request limit, must be longer than **Tick budget (ms)**. With a short limit, lower the budget under it. For example:
+
+| Scheduler or host                | Limit                                                     |
+| -------------------------------- | --------------------------------------------------------- |
+| An app on Heroku                 | The first byte of the answer must come within 30 seconds. |
+| AWS EventBridge API destinations | 5 seconds.                                                |
+
+See [Heroku](https://devcenter.heroku.com/articles/request-timeout) and [AWS](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html).
+
+### Schedulers that run less often
+
+Many schedulers cannot run every 60 seconds:
+
+| Scheduler                                | Shortest interval                                                                                                                                                                         |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub Actions                           | 5 minutes. Runs can be delayed when GitHub is busy, and some are dropped. See [GitHub](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows). |
+| Railway cron jobs                        | 5 minutes. See [Railway](https://docs.railway.com/reference/cron-jobs).                                                                                                                   |
+| Heroku Scheduler                         | 10 minutes. See [Heroku](https://devcenter.heroku.com/articles/scheduler).                                                                                                                |
+| DigitalOcean App Platform scheduled jobs | 15 minutes. See [DigitalOcean](https://docs.digitalocean.com/products/app-platform/how-to/manage-jobs/).                                                                                  |
+| Fly.io scheduled Machines                | About once an hour. See [Fly.io](https://docs.fly.io/machines/flyctl/fly-machine-run).                                                                                                    |
+
+With fewer ticks, work runs later. A schedule that comes due more than once between two ticks runs once, and its run notes how many times were combined. The runner status shows **Delayed** when the last successful tick is older than twice **Cadence (seconds)** plus **Tick budget (ms)**, which is 165 seconds with the defaults. To avoid that, set **Cadence (seconds)** a little under your scheduler's interval, for example `270` for a 5-minute schedule.
+
+Triggers are checked at most once per cadence. With a cadence equal to or longer than the interval, a call that arrives a few seconds early skips the trigger check until the next call. The tick's log line then shows `discovery=skipped`.
+
+### Examples
+
+Both examples run `curl` on the scheduler's side, not inside the Metis Suite container.
+
+A scheduled GitHub Actions workflow. Save the cron secret as an Actions secret named `CRON_SECRET`. GitHub runs schedules only on the default branch, and turns them off in a public repository after 60 days without activity.
+
+```yaml
+name: Metis Suite tick
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - run: >-
+          curl -fsS -X POST --max-time 60
+          -H "X-Metis-Secret: ${{ secrets.CRON_SECRET }}"
+          https://mail.example.com/api/workflows/tick
+```
+
+A crontab line on another machine that is always on, every minute:
+
+```bash
+* * * * * curl -fsS -X POST --max-time 60 -H "X-Metis-Secret: <cron secret>" https://mail.example.com/api/workflows/tick > /dev/null
+```
+
+Keep the crontab readable only by you, since it holds the secret.
 
 ## bullmq
 
-Run the published worker image, `ghcr.io/trymetis/metis:latest-worker` or `ghcr.io/trymetis/metis:<version>-worker`, on any server that can reach your database. You also need your own Redis, hosted or self-run, with persistence on and `maxmemory-policy noeviction`.
+Run the published worker image, `ghcr.io/trymetis/metis:<version>-worker`, on the same version as the app, on any server that can reach your database and your Redis. It needs no port and has no health endpoint. You also need your own Redis, hosted or self-run, with persistence on and `maxmemory-policy noeviction`. Enter its address in **Redis URL**. The **Health** card connects to it, and a failed check stops the save.
+
+The `bullmq` runner is for container platforms and setups you run yourself. The bundled Docker Compose stack uses the `internal` runner by default and has no worker service.
 
 The worker needs only these variables, with the same values as the app:
 
@@ -70,10 +135,23 @@ The worker needs only these variables, with the same values as the app:
 - `MASTRA_DATABASE_URL`, `MASTRA_DATABASE_AUTH_TOKEN`
 - `METIS_ENCRYPTION_KEY`
 - `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+- `METIS_AUDIT_RETENTION_DAYS`, if you changed it on the app. Under `bullmq`, the daily audit log clean-up runs on the worker.
 
-It reads everything else from the database, and stays idle while the runner is set to anything other than `bullmq`. The Compose stack does not start a worker.
+It reads everything else from the database, and stays idle while the runner is set to anything other than `bullmq`. Its log shows which state it is in:
+
+| Log line contains               | Meaning                                                                                |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `idle until bullmq is selected` | The runner is not set to `bullmq`. The worker waits.                                   |
+| `[workflow-worker] ready`       | The worker is running. The line shows its cadence, budget, batch size and concurrency. |
+| `[workflow-worker] not ready`   | The worker could not reach the database or Redis. It names which one and exits.        |
 
 When Redis is down, no work is lost: the worker waits and catches up once Redis is back. When you stop the worker, it finishes the tick in progress first, so give it a stop timeout longer than the tick budget (75 seconds is enough for the default budget of 45 seconds).
+
+### Redis on Upstash
+
+- **Eviction:** Upstash databases have eviction off by default, which is what the worker needs. Do not turn on **Eviction** for this database. See Upstash's guide to [eviction](https://upstash.com/docs/redis/features/eviction).
+- **Address:** under **Connect**, **TCP**, copy the connection string, of the form `rediss://default:<token>@<endpoint>:<port>`.
+- **Cost:** the worker reads Redis regularly, even when there is no work. Upstash bills its pay-as-you-go plan per request, and recommends a Fixed plan for this kind of use. See Upstash's guide to [BullMQ](https://upstash.com/docs/redis/integrations/bullmq).
 
 ## Tuning
 
@@ -87,7 +165,56 @@ When Redis is down, no work is lost: the worker waits and catches up once Redis 
 
 Each tick takes up to **Batch size** pieces of work and runs **Concurrency** of them at a time, until the budget runs out. A backlog drains over several ticks on its own. To drain it faster, call the tick endpoint more often (`cron`), or raise the batch size and concurrency.
 
-You can also set the starting values before the first start, with `METIS_WORKFLOW_RUNNER_DRIVER`, `METIS_WORKFLOW_CADENCE_SEC`, `METIS_WORKFLOW_TICK_BUDGET_MS`, `METIS_WORKFLOW_BATCH_SIZE`, `METIS_WORKFLOW_CONCURRENCY`, `METIS_WORKFLOW_REDIS_URL`, `METIS_WORKFLOW_QUEUE_PREFIX` and `CRON_SECRET`.
+You can also set the starting values before the first start, with `METIS_WORKFLOW_RUNNER_DRIVER`, `METIS_WORKFLOW_CADENCE_SEC`, `METIS_WORKFLOW_TICK_BUDGET_MS`, `METIS_WORKFLOW_BATCH_SIZE`, `METIS_WORKFLOW_CONCURRENCY`, `METIS_WORKFLOW_REDIS_URL`, `METIS_WORKFLOW_QUEUE_PREFIX` and `CRON_SECRET`. The settings in the next two sections have their own variables, listed there. All of these are read only by the first preflight of a new instance. On an instance that already runs, set the fields on the **Workflow runner** page instead.
+
+## Keep run data
+
+Each workflow run keeps the input and output of every step, the event that started it and its output, so people can read and retry it. Two fields decide how long this is kept:
+
+| Field                       | What it does                                                                                   | Default | Range     | Variable                        |
+| --------------------------- | ---------------------------------------------------------------------------------------------- | ------- | --------- | ------------------------------- |
+| **Keep step data (days)**   | "How long a finished run keeps each step's input and output. 0 clears them when the run ends." | 7       | 0 to 365  | `METIS_WORKFLOW_STEP_DATA_DAYS` |
+| **Keep run history (days)** | How long runs stay in the history. Older runs are removed.                                     | 90      | 1 to 3650 | `METIS_WORKFLOW_HISTORY_DAYS`   |
+
+Keep in mind:
+
+- **Step data is what makes a retry possible.** Once a run's step data is cleared, users can no longer retry it. With 0, they never see step inputs and outputs at all.
+- **Unresolved steps are kept.** A run stays in the history past the limit while a step in it still has an unconfirmed outcome that nobody has resolved, so someone can check it. This applies to steps that send mail, create an event, answer an invitation or write a file.
+- **A daily clean-up does the removing.** It runs on its own as part of background work. It is not listed on the users' Workflows page.
+
+## Webhooks and push
+
+Workflows can start from outside your instance in two ways:
+
+- **Webhooks**: another service sends a request to a workflow's webhook address.
+- **Push**: Google Calendar, Google Drive and Microsoft tell your instance about changes as they happen, instead of your instance checking every few minutes.
+
+Both need your instance to be reachable from the internet. Two optional fields control this:
+
+| Field                                | What it does                                                                                         | Variable                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------------------------------- |
+| **Public URL for webhooks and push** | "The HTTPS address providers and webhooks reach this instance at. Without it, triggers poll."        | `METIS_WORKFLOW_PUBLIC_URL`      |
+| **Trusted proxies**                  | "IP addresses or CIDR ranges, comma separated, whose X-Forwarded-For is believed." Up to 50 entries. | `METIS_WORKFLOW_TRUSTED_PROXIES` |
+
+How they work together:
+
+- **Webhook addresses** use the public URL when you set it. Without it, they use the app's own address, `BETTER_AUTH_URL`.
+- **Push** is used only while a public URL is set. Google Calendar, Google Drive and Microsoft mailboxes, calendars and drives need nothing else. Every other trigger checks for changes every few minutes.
+- **Gmail mailboxes are checked every few minutes.** Gmail does not use push.
+- **The inbound path must be open.** Requests for webhooks and push arrive under `/api/inbound/` on the public URL (or the app's address). Your firewall and reverse proxy must let `POST` requests from the internet reach that path.
+- **Trusted proxies** matter for webhooks that only accept requests from certain addresses (the **Only from these IPs** setting of a webhook trigger). They decide whose forwarded address is believed. If another proxy or load balancer sits in front of your reverse proxy and passes its own address on in `X-Forwarded-For`, list that address here. Each entry must be an IP address or CIDR range.
+
+### Webhooks that only accept some addresses
+
+For the **Only from these IPs** setting of a webhook trigger to work:
+
+- Put the app behind a reverse proxy that replaces any `X-Forwarded-For` header the caller sends. The Caddy proxy in the bundled `compose.yml` does this.
+- If another proxy or load balancer sits in front of it and passes its own address on in `X-Forwarded-For`, list that address under **Trusted proxies**.
+- Do not let callers reach the app directly.
+
+If your proxy does not pass on the caller's address, a webhook with **Only from these IPs** refuses the request with `403`.
+
+Users see which way each trigger is watched in the workflow editor: "Changes are pushed by the provider." or "Checks for changes every few minutes."
 
 ## Check that it runs
 
@@ -96,5 +223,5 @@ The **Automation** page of the dashboard shows whether ticks arrive and how much
 Every tick also writes one line to the log, from the worker under `bullmq`, or from the app otherwise. The line starts with `[workflow-runner] tick` and shows the outcome: `worked`, `idle` or `failed`. These lines carry ids, counts and error codes only, never message contents or recipients.
 
 :::note
-If a send was already leaving when a process stopped, it is not retried. It shows as unconfirmed in the scheduled view, where a person checks it and closes it.
+If a send was already leaving when a process stopped, it is not retried. For a scheduled message, it shows as unconfirmed in the scheduled view, where a person checks it and closes it. For a send in a workflow, the step shows "needs review", and a user resolves it from the run's details: they confirm it from the Sent folder, or close it. See [Resolve a step with an unconfirmed outcome](/guide/workflows/cancel-and-retry-runs#resolve-a-step-with-an-unconfirmed-outcome).
 :::

@@ -1,15 +1,20 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 
+import type { ResolvedCalendar } from "@/calendar/aggregate";
+import { workspaceCalendarAccounts } from "@/calendar/session";
 import { isMailProvider, resolveConnectionAuth } from "@/connections";
-import type { MailProvider } from "@/connections/types";
+import type { ConnectionAuth, ConnectionProvider, MailProvider } from "@/connections/types";
 import { db } from "@/db";
 import { connection, mailbox, mailboxWorkspace, workspaceMember } from "@/db/schema";
+import type { ResolvedDrive } from "@/drive/aggregate";
+import { workspaceDrives } from "@/drive/session";
 import { getMailAdapter, type MailAdapter } from "@/mail/adapter";
 import type { WorkspaceRole } from "@/types/workspace";
 import { getWorkspacePolicy } from "@/workspace";
 import { resolveMailboxPolicy } from "@/workspace/policy";
 
+import type { ResourceKind } from "./steps/types";
 import type { DefinitionRow } from "./store";
 
 export interface BackgroundPrincipal {
@@ -247,5 +252,97 @@ export async function authorizeMailbox(opts: {
       email: row.value.email,
       adapter: getMailAdapter(row.value.provider, auth, row.value.mailboxId),
     },
+  };
+}
+
+function principalWorkspace(
+  principal: BackgroundPrincipal,
+): Authorization<{ workspaceId: string; userId: string }> {
+  if (!principal.userId || !principal.workspaceId) {
+    return blocked("This workflow has no execution principal");
+  }
+  return { ok: true, value: { workspaceId: principal.workspaceId, userId: principal.userId } };
+}
+
+export async function authorizeCalendar(opts: {
+  principal: BackgroundPrincipal;
+  accountId: string;
+}): Promise<Authorization<ResolvedCalendar>> {
+  const scope = principalWorkspace(opts.principal);
+  if (!scope.ok) return scope;
+  const accounts = await workspaceCalendarAccounts(scope.value.workspaceId);
+  const account = accounts.find((candidate) => candidate.accountId === opts.accountId);
+  if (!account) return blocked("That calendar is no longer attached to this workspace");
+  return { ok: true, value: account };
+}
+
+export async function authorizeDrive(opts: {
+  principal: BackgroundPrincipal;
+  driveId: string;
+}): Promise<Authorization<ResolvedDrive>> {
+  const scope = principalWorkspace(opts.principal);
+  if (!scope.ok) return scope;
+  const drives = await workspaceDrives(scope.value.userId, scope.value.workspaceId);
+  const drive = drives.find((candidate) => candidate.driveId === opts.driveId);
+  if (!drive) return blocked("That drive is no longer attached to this workspace");
+  return { ok: true, value: drive };
+}
+
+const AI_OFF: Record<ResourceKind, string> = {
+  mailbox: "AI is turned off for this mailbox",
+  calendar: "AI is turned off for this calendar",
+  drive: "AI is turned off for this drive",
+};
+
+export async function authorizeResourceAi(opts: {
+  principal: BackgroundPrincipal;
+  kind: ResourceKind;
+  id: string;
+}): Promise<Authorization<true>> {
+  if (opts.kind === "mailbox") {
+    return authorizeMailboxAi({ principal: opts.principal, mailboxId: opts.id });
+  }
+  const resolved =
+    opts.kind === "calendar"
+      ? await authorizeCalendar({ principal: opts.principal, accountId: opts.id })
+      : await authorizeDrive({ principal: opts.principal, driveId: opts.id });
+  if (!resolved.ok) return resolved;
+  return resolved.value.policy.ai ? { ok: true, value: true } : blocked(AI_OFF[opts.kind]);
+}
+
+export async function resourceAuth(opts: {
+  definition: DefinitionRow;
+  principal: BackgroundPrincipal;
+  kind: ResourceKind;
+  id: string;
+}): Promise<Authorization<{ provider: ConnectionProvider; auth: ConnectionAuth; email: string }>> {
+  if (opts.kind === "mailbox") {
+    const row = await loadMailboxRow(opts.id);
+    if (!row.ok) return row;
+    const access = await checkAccess(opts.definition, opts.principal, row.value);
+    if (!access.ok) return access;
+    const auth = await resolveConnectionAuth({
+      connectionId: row.value.connectionId,
+      provider: row.value.provider,
+      accessToken: row.value.accessToken,
+      refreshToken: row.value.refreshToken,
+      accessTokenExpiresAt: row.value.accessTokenExpiresAt,
+      quarantinedAt: row.value.quarantinedAt,
+      email: row.value.email,
+      credentials: row.value.credentials,
+    });
+    if (!auth) return blocked("Could not authenticate that mailbox");
+    return { ok: true, value: { provider: row.value.provider, auth, email: row.value.email } };
+  }
+  const resolved =
+    opts.kind === "calendar"
+      ? await authorizeCalendar({ principal: opts.principal, accountId: opts.id })
+      : await authorizeDrive({ principal: opts.principal, driveId: opts.id });
+  if (!resolved.ok) return resolved;
+  const email =
+    "accountEmail" in resolved.value ? resolved.value.accountEmail : resolved.value.email;
+  return {
+    ok: true,
+    value: { provider: resolved.value.provider, auth: await resolved.value.auth(), email },
   };
 }

@@ -13,8 +13,18 @@ To get the app, see [Download the apps](/guide/apps/download). It has the file a
   <Step title="Enter your server address">
     The app shows "Connect to your Metis Suite server". Type the
     address you use in the browser into **Server address**, for example
-    `https://mail.example.com`, and tap **Continue**. The address must start
-    with `https://`.
+    `mail.example.com`, and tap **Continue**.
+
+    You do not need to type `https://`. The app adds it for you. If your
+    server uses a port, keep it, for example `mail.example.com:8443`. The
+    app ignores anything after the address, such as a page path.
+
+    If the app shows "Enter your server's address, for example
+    mail.example.com", the box is empty or the address is not valid. If it
+    shows "No Metis server answered at" followed by your address, or
+    "Could not reach that server.", check the address with the person who
+    runs your server.
+
   </Step>
 
 <Step title="Sign in with your browser">
@@ -40,19 +50,41 @@ Signing in to the app sends its own [sign-in alert](/guide/account/sign-in-alert
 
 - **All of Metis Suite:** mail, calendar, drive, the assistant and workflows.
 - **Offline:** a thin banner shows when you are offline. If your network works but the server does not answer, the app shows **Can't reach the server** with **Try again**.
-- **Back button:** goes back through the pages you visited.
+- **Slow loading:** if Metis Suite has not opened after 15 seconds, the app adds "This is taking longer than usual." Tap **Try again**, **Use a different server** or **Settings**.
+- **Back button:** goes back through the pages you visited. When the app settings or a page opened in its own window are showing, the back button closes them instead.
+- **Pages that open in a new window:** a link on your server that opens a new window shows the page full screen over the app. The top bar shows the page title and a close button. Close it to go back to where you were.
 - **Downloads:** the file is saved to **Downloads**, with a notification. Google Drive files open in your browser.
 - **Printing** and viewing a message's original source do not open on mobile.
 
 ## App settings
 
-Open your user menu (your initials) and tap **App settings**. The setup, sign-in and offline screens also have a link to the settings.
+Open your user menu (your initials) and tap **App settings**. The setup, sign-in, offline and slow-loading screens also have a **Settings** link.
 
-| Section      | Settings                                                                                                                                        |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **General**  | **Open where you left off**. **Text size**, from 50% to 300% (default 100%), with buttons to make text smaller or larger.                       |
-| **Server**   | **Change server…** connects to a different server. **Sign out** signs this app out.                                                             |
-| **Advanced** | **Clear cache**. **Reset the app** signs you out, forgets the server and restores the default settings, after you confirm "Reset Metis Suite?". |
-| **About**    | The app's version, build, Expo SDK and platform. **Log file** has a **Share** button, to send the log with a bug report.                        |
+| Section      | Settings                                                                                                                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **General**  | **Open where you left off**. **Check for updates** (on by default). **Text size**, from 50% to 300% (default 100%), with buttons to make text smaller or larger.                                               |
+| **Server**   | **Change server…** connects to a different server. **Sign out** signs this app out.                                                                                                                            |
+| **Advanced** | **Clear cache**. **Reset the app** signs you out, forgets the server and restores the default settings, after you confirm "Reset Metis Suite?".                                                                |
+| **About**    | The app's version, build, Expo SDK and platform. **Updates** shows whether a newer version is out, with **Check now** or **Download**. **Log file** has a **Share** button, to send the log with a bug report. |
 
-The mobile app has no tray, start-up, hardware acceleration, zoom, spelling or download folder settings. Those are in the [desktop app](/guide/apps/desktop-app) only.
+The mobile app has no tray, start-up, hardware acceleration, zoom or download folder settings. Those are in the [desktop app](/guide/apps/desktop-app) only.
+
+## Update the app
+
+The app tells you when a newer version of Metis Suite is out. It checks when it starts. It checks again when you come back to the app, if a day has passed since the last check.
+
+When a new version is out, the app shows an alert. Its title names the new version, for example "Metis Suite 0.2.0 is available". Below it, the alert says "Download the new version to install it over this one." Tap **Later** to close it, or **Download** to get the new APK in your browser. You see the alert for each new version only once. If a check fails, the app shows nothing.
+
+You can also check yourself. Open **App settings** and go to **About**. The **Updates** row shows one of these:
+
+- "You have version" followed by your version number
+- "Checking for updates…"
+- "Up to date."
+- "Version" followed by the new version number and "is available."
+- "Could not check for updates. Try again later."
+
+Tap **Check now** to check again. When a new version is out, **Check now** becomes **Download**, which opens the new APK in your browser.
+
+The app never installs anything itself. To install the new version, follow [Update the apps](/guide/apps/download#update-the-apps).
+
+**Check for updates** in **General** says "Asks downloads.trymetis.email once a day whether a newer version exists. Your server is never contacted." Turn it off to stop the checks.

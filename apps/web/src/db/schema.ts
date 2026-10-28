@@ -34,20 +34,25 @@ import {
   WORKSPACE_ROLES,
 } from "@/types/workspace";
 import type {
-  DiscoveryCursor,
-  NodeReceipt,
-  NodeResolution,
-  NodeRunOutput,
+  FeedCursor,
   RunInput,
   RunSummaryLine,
+  StepReceipt,
+  StepResolution,
+  StepRunOutput,
+  WaitState,
 } from "@/workflow/runtime";
 import {
-  NODE_STATUSES,
+  BLOB_KINDS,
+  ENDPOINT_KINDS,
   RUN_STATUSES,
-  TRIGGER_KINDS,
+  STEP_STATUSES,
+  WAIT_KINDS,
+  WAIT_STATUSES,
   WORKFLOW_KINDS,
   type WorkflowGraph,
 } from "@/workflow/schema";
+import { RESOURCE_KINDS } from "@/workflow/steps/types";
 
 import * as authSchemas from "./auth-schema";
 import { encryptedText } from "./crypto";
@@ -440,6 +445,8 @@ export const workflow = sqliteTable(
     name: text("name").notNull(),
     targetKey: text("target_key"),
     enabled: bool("enabled").notNull().default(true),
+    disabledReason: text("disabled_reason"),
+    samples: text("samples", { mode: "json" }).$type<Record<string, unknown>>(),
     revision: integer("revision").notNull().default(0),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at").notNull(),
@@ -493,16 +500,29 @@ export const workflowResource = sqliteTable(
       .notNull()
       .references(() => workflowRevision.id, { onDelete: "cascade" }),
     nodeId: text("node_id").notNull(),
-    mailboxId: text("mailbox_id")
-      .notNull()
-      .references(() => mailbox.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: RESOURCE_KINDS }).notNull(),
+    mailboxId: text("mailbox_id").references(() => mailbox.id, { onDelete: "cascade" }),
+    calendarId: text("calendar_id").references(() => calendar.id, { onDelete: "cascade" }),
+    driveId: text("drive_id").references(() => drive.id, { onDelete: "cascade" }),
     mailboxWorkspaceId: text("mailbox_workspace_id").references(() => mailboxWorkspace.id, {
+      onDelete: "cascade",
+    }),
+    calendarWorkspaceId: text("calendar_workspace_id").references(() => calendarWorkspace.id, {
+      onDelete: "cascade",
+    }),
+    driveWorkspaceId: text("drive_workspace_id").references(() => driveWorkspace.id, {
       onDelete: "cascade",
     }),
   },
   (table) => [
-    uniqueIndex("workflow_resource_node_idx").on(table.revisionId, table.nodeId),
+    index("workflow_resource_node_idx").on(table.revisionId, table.nodeId),
     index("workflow_resource_mailbox_idx").on(table.mailboxId),
+    index("workflow_resource_calendar_idx").on(table.calendarId),
+    index("workflow_resource_drive_idx").on(table.driveId),
+    check(
+      "workflow_resource_one_ck",
+      sql`(${table.kind} = 'mailbox' AND ${table.mailboxId} IS NOT NULL AND ${table.calendarId} IS NULL AND ${table.driveId} IS NULL) OR (${table.kind} = 'calendar' AND ${table.calendarId} IS NOT NULL AND ${table.mailboxId} IS NULL AND ${table.driveId} IS NULL) OR (${table.kind} = 'drive' AND ${table.driveId} IS NOT NULL AND ${table.mailboxId} IS NULL AND ${table.calendarId} IS NULL)`,
+    ),
   ],
 );
 
@@ -517,13 +537,12 @@ export const workflowTrigger = sqliteTable(
       .notNull()
       .references(() => workflowRevision.id, { onDelete: "cascade" }),
     nodeId: text("node_id").notNull(),
-    kind: text("kind", { enum: TRIGGER_KINDS }).notNull(),
+    kind: text("kind").notNull(),
     cron: text("cron"),
     timezone: text("timezone").notNull().default("Etc/UTC"),
     armed: bool("armed").notNull().default(true),
     nextDueAt: timestamp("next_due_at"),
     baselineAt: timestamp("baseline_at"),
-    cursor: text("cursor", { mode: "json" }).$type<DiscoveryCursor | null>(),
     claimedAt: timestamp("claimed_at"),
     claimToken: text("claim_token"),
     lastRunAt: timestamp("last_run_at"),
@@ -534,11 +553,26 @@ export const workflowTrigger = sqliteTable(
   (table) => [
     uniqueIndex("workflow_trigger_node_idx").on(table.workflowId, table.nodeId),
     index("workflow_trigger_due_idx").on(table.armed, table.nextDueAt),
+    index("workflow_trigger_kind_idx").on(table.kind, table.armed),
   ],
 );
 
-export const workflowOccurrence = sqliteTable(
-  "workflow_occurrence",
+export const workflowCursor = sqliteTable(
+  "workflow_cursor",
+  {
+    id: text("id").primaryKey(),
+    triggerId: text("trigger_id")
+      .notNull()
+      .references(() => workflowTrigger.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+    cursor: text("cursor", { mode: "json" }).$type<FeedCursor>().notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [uniqueIndex("workflow_cursor_trigger_scope_idx").on(table.triggerId, table.scope)],
+);
+
+export const workflowEvent = sqliteTable(
+  "workflow_event",
   {
     id: text("id").primaryKey(),
     workflowId: text("workflow_id")
@@ -549,11 +583,14 @@ export const workflowOccurrence = sqliteTable(
       .references(() => workflowTrigger.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
     scheduledFor: timestamp("scheduled_for").notNull(),
+    payload: text("payload", { mode: "json" }).$type<unknown>(),
+    skippedReason: text("skipped_reason"),
     createdAt: timestamp("created_at").notNull(),
   },
   (table) => [
-    uniqueIndex("workflow_occurrence_key_idx").on(table.triggerId, table.key),
-    index("workflow_occurrence_workflow_idx").on(table.workflowId),
+    uniqueIndex("workflow_event_key_idx").on(table.triggerId, table.key),
+    index("workflow_event_workflow_idx").on(table.workflowId),
+    index("workflow_event_created_idx").on(table.createdAt),
   ],
 );
 
@@ -567,9 +604,9 @@ export const workflowRun = sqliteTable(
     revisionId: text("revision_id")
       .notNull()
       .references(() => workflowRevision.id, { onDelete: "cascade" }),
-    occurrenceId: text("occurrence_id")
+    eventId: text("event_id")
       .notNull()
-      .references(() => workflowOccurrence.id, { onDelete: "cascade" }),
+      .references(() => workflowEvent.id, { onDelete: "cascade" }),
     kind: text("kind", { enum: WORKFLOW_KINDS }).notNull(),
     workspaceId: text("workspace_id").references(() => workspace.id, {
       onDelete: "cascade",
@@ -577,7 +614,10 @@ export const workflowRun = sqliteTable(
     principalUserId: text("principal_user_id").references(() => authSchemas.user.id, {
       onDelete: "cascade",
     }),
+    parentRunId: text("parent_run_id"),
+    limitKey: text("limit_key"),
     input: text("input", { mode: "json" }).$type<RunInput>().notNull(),
+    output: text("output", { mode: "json" }).$type<unknown>(),
     status: text("status", { enum: RUN_STATUSES }).notNull().default("pending"),
     dueAt: timestamp("due_at").notNull(),
     attempts: integer("attempts").notNull().default(0),
@@ -589,59 +629,139 @@ export const workflowRun = sqliteTable(
     blockedAt: timestamp("blocked_at"),
     error: text("error"),
     summary: text("summary", { mode: "json" }).$type<RunSummaryLine[]>(),
+    upgraded: bool("upgraded").notNull().default(false),
     createdAt: timestamp("created_at").notNull(),
   },
   (table) => [
-    uniqueIndex("workflow_run_occurrence_idx").on(table.occurrenceId),
+    uniqueIndex("workflow_run_event_idx").on(table.eventId),
     index("workflow_run_due_idx").on(table.status, table.dueAt),
     index("workflow_run_workflow_idx").on(table.workflowId, table.createdAt),
     index("workflow_run_workspace_idx").on(table.workspaceId, table.createdAt),
+    index("workflow_run_limit_idx").on(table.workflowId, table.limitKey),
+    index("workflow_run_parent_idx").on(table.parentRunId),
   ],
 );
 
-export const workflowNodeRun = sqliteTable(
-  "workflow_node_run",
+export const workflowStepRun = sqliteTable(
+  "workflow_step_run",
   {
     id: text("id").primaryKey(),
     runId: text("run_id")
       .notNull()
       .references(() => workflowRun.id, { onDelete: "cascade" }),
     nodeId: text("node_id").notNull(),
-    inputKey: text("input_key").notNull(),
+    itemKey: text("item_key").notNull(),
     branch: text("branch"),
-    status: text("status", { enum: NODE_STATUSES }).notNull(),
-    output: text("output", { mode: "json" }).$type<NodeRunOutput | null>(),
+    status: text("status", { enum: STEP_STATUSES }).notNull(),
+    input: text("input", { mode: "json" }).$type<unknown>(),
+    output: text("output", { mode: "json" }).$type<StepRunOutput | null>(),
     outputHandles: text("output_handles", { mode: "json" }).$type<string[] | null>(),
-    receipt: text("receipt", { mode: "json" }).$type<NodeReceipt | null>(),
+    state: text("state", { mode: "json" }).$type<WaitState | null>(),
+    wakeAt: timestamp("wake_at"),
+    receipt: text("receipt", { mode: "json" }).$type<StepReceipt | null>(),
     attempts: integer("attempts").notNull().default(0),
     error: text("error"),
     startedAt: timestamp("started_at"),
     finishedAt: timestamp("finished_at"),
     resolution: text("resolution", {
       mode: "json",
-    }).$type<NodeResolution | null>(),
+    }).$type<StepResolution | null>(),
     resolvedByUserId: text("resolved_by_user_id").references(() => authSchemas.user.id, {
       onDelete: "set null",
     }),
     resolvedAt: timestamp("resolved_at"),
   },
   (table) => [
-    uniqueIndex("workflow_node_run_identity_idx").on(table.runId, table.nodeId, table.inputKey),
-    index("workflow_node_run_run_idx").on(table.runId),
+    uniqueIndex("workflow_step_run_identity_idx").on(table.runId, table.nodeId, table.itemKey),
+    index("workflow_step_run_run_idx").on(table.runId),
   ],
 );
 
-export const workflowPayload = sqliteTable(
-  "workflow_payload",
+export const workflowWait = sqliteTable(
+  "workflow_wait",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => workflowRun.id, { onDelete: "cascade" }),
+    stepRunId: text("step_run_id")
+      .notNull()
+      .references(() => workflowStepRun.id, { onDelete: "cascade" }),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => workflow.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id").references(() => workspace.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: WAIT_KINDS }).notNull(),
+    status: text("status", { enum: WAIT_STATUSES }).notNull().default("open"),
+    wakeAt: timestamp("wake_at"),
+    deadlineAt: timestamp("deadline_at"),
+    approvers: text("approvers", { mode: "json" }).$type<string[] | null>(),
+    request: text("request"),
+    childRunId: text("child_run_id"),
+    decision: text("decision"),
+    decidedByUserId: text("decided_by_user_id").references(() => authSchemas.user.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: timestamp("decided_at"),
+    note: text("note"),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("workflow_wait_step_run_idx").on(table.stepRunId),
+    index("workflow_wait_due_idx").on(table.status, table.wakeAt),
+    index("workflow_wait_workspace_idx").on(table.workspaceId, table.status),
+    index("workflow_wait_run_idx").on(table.runId),
+  ],
+);
+
+export const workflowBlob = sqliteTable(
+  "workflow_blob",
   {
     id: text("id").primaryKey(),
     workflowId: text("workflow_id")
       .notNull()
       .references(() => workflow.id, { onDelete: "cascade" }),
-    payload: text("payload", { mode: "json" }).$type<DraftPayload>().notNull(),
+    runId: text("run_id").references(() => workflowRun.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: BLOB_KINDS }).notNull(),
+    name: text("name"),
+    mimeType: text("mime_type"),
+    size: integer("size").notNull().default(0),
+    payload: text("payload", { mode: "json" }).$type<DraftPayload | null>(),
+    data: text("data"),
     createdAt: timestamp("created_at").notNull(),
   },
-  (table) => [uniqueIndex("workflow_payload_workflow_idx").on(table.workflowId)],
+  (table) => [
+    uniqueIndex("workflow_blob_draft_idx")
+      .on(table.workflowId)
+      .where(sql`${table.kind} = 'draft'`),
+    index("workflow_blob_run_idx").on(table.runId),
+  ],
+);
+
+export const workflowEndpoint = sqliteTable(
+  "workflow_endpoint",
+  {
+    id: text("id").primaryKey(),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => workflow.id, { onDelete: "cascade" }),
+    triggerId: text("trigger_id")
+      .notNull()
+      .references(() => workflowTrigger.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ENDPOINT_KINDS }).notNull(),
+    secret: encryptedText("secret").notNull(),
+    externalId: text("external_id"),
+    resourceId: text("resource_id"),
+    expiresAt: timestamp("expires_at"),
+    lastSeenAt: timestamp("last_seen_at"),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("workflow_endpoint_trigger_kind_idx").on(table.triggerId, table.kind),
+    index("workflow_endpoint_expiry_idx").on(table.kind, table.expiresAt),
+  ],
 );
 
 export const workflowTick = sqliteTable("workflow_tick", {
@@ -938,6 +1058,10 @@ export const instanceConfig = sqliteTable(
     runnerRedisUrl: encryptedText("runner_redis_url"),
     runnerQueuePrefix: text("runner_queue_prefix"),
     runnerCronSecret: encryptedText("runner_cron_secret"),
+    runnerStepDataDays: integer("runner_step_data_days").notNull().default(7),
+    runnerHistoryDays: integer("runner_history_days").notNull().default(90),
+    runnerPublicUrl: text("runner_public_url"),
+    runnerTrustedProxies: text("runner_trusted_proxies", { mode: "json" }).$type<string[]>(),
     googleClientId: text("google_client_id"),
     googleClientSecret: encryptedText("google_client_secret"),
     microsoftClientId: text("microsoft_client_id"),

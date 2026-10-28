@@ -69,8 +69,8 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
 
 ### Build traps
 
-- **The preflight image carries only `preflight.mjs`, `migrations/` and `libsql`.**
-  - `preflight.Dockerfile` bundles everything else into `preflight.mjs`, including `@libsql/client`, `ws`, `ssh2` and `ssh2-sftp-client`.
+- **The preflight image carries only `preflight.mjs` and `libsql`.**
+  - `preflight.Dockerfile` bundles everything else into `preflight.mjs`, including every migration, `@libsql/client`, `ws`, `ssh2` and `ssh2-sftp-client`.
   - `libsql` stays external because it loads its native binding from a target computed at runtime.
   - `cpu-features` stays external because ssh2 loads it, like its own `sshcrypto.node`, inside a `try/catch`; neither addon is built in these images, so ssh2 uses pure-JS crypto.
 - **The preflight image installs `libsql` fresh, at the exact version `bun.lock` pins.**
@@ -88,9 +88,10 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
 - **A Vercel deploy needs `NODE_OPTIONS=--experimental-require-module` in the project's environment.**
   - Next never bundles jsdom (it is on Next's built-in external list), so `isomorphic-dompurify` loads it from `node_modules`, and its `html-encoding-sniffer` `require()`s the ESM-only `@exodus/bytes`.
   - Node allows `require()` of ESM by default and the images' `node:26-alpine` runtime needs no flag, but Vercel turns it off, so every route that sanitizes mail HTML fails with `ERR_REQUIRE_ESM`.
-- **The worker bundle is `workflow-worker.mjs`, with `ssh2` and `ssh2-sftp-client` external.**
+- **The worker bundle is `workflow-worker.mjs`, with `ssh2`, `ssh2-sftp-client` and `@opentelemetry/api` external.**
   - `.mjs` because the standalone `package.json` has no `"type": "module"`.
   - Under the isolated layout `ssh2` resolves only from inside `ssh2-sftp-client`, so both stay external with the native and Redis packages.
+  - `@opentelemetry/api` is not installed: `posthog-node`, which Mastra brings into the worker for the AI steps, imports it as an optional peer with a dynamic `import()` inside a `try/catch`. The bundler fails on the unresolvable specifier, so it stays external, and at run time the import fails and is caught.
 
 ### sqld
 

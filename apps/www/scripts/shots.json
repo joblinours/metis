@@ -536,12 +536,7 @@
   {
     "name": "workflows/if",
     "from": "workflows/workflow-canvas",
-    "focus": {
-      "x": 756,
-      "y": 548,
-      "width": 210,
-      "height": 170
-    }
+    "focus": ".react-flow__node[data-id=\"digest\"]"
   },
   {
     "name": "workflows/shared",
@@ -555,70 +550,35 @@
   },
   {
     "name": "workflows/combine",
-    "from": "workflows/add-step-menu",
-    "focus": {
-      "x": 597,
-      "y": 168,
-      "width": 200,
-      "height": 118
-    }
+    "from": "workflows/combine-workflow",
+    "focus": [
+      ".react-flow__node[data-id=\"rebrand\"]",
+      ".react-flow__node[data-id=\"github\"]",
+      ".react-flow__node[data-id=\"append\"]"
+    ]
   },
   {
     "name": "workflows/bcc",
-    "from": "workflows/add-step-menu",
-    "focus": {
-      "x": 597,
-      "y": 358,
-      "width": 200,
-      "height": 194
-    }
+    "from": "workflows/bcc-steps"
   },
   {
     "name": "workflows/try",
-    "from": "workflows/branch-step",
-    "steps": [
-      {
-        "click": ".react-flow__controls-fitview"
-      },
-      {
-        "wait": 900
-      }
-    ],
-    "focus": {
-      "x": 662,
-      "y": 690,
-      "width": 116,
-      "height": 60
-    }
+    "from": "workflows/try-on-recent-mail",
+    "focus": "role=dialog[name=\"Try on recent mail\"]"
   },
   {
     "name": "workflows/runs-as",
     "from": "workflows/run-detail",
-    "focus": {
-      "x": 440,
-      "y": 190,
-      "width": 310,
-      "height": 72
-    }
+    "focus": "dl > div:has(> dt:text-is(\"Runs as\"))"
   },
   {
     "name": "workflows/versions",
     "from": "workflows/run-detail",
-    "focus": {
-      "x": 748,
-      "y": 98,
-      "width": 310,
-      "height": 72
-    }
+    "focus": "dl > div:has(> dt:text-is(\"Revision\"))"
   },
   {
     "name": "workflows/statuses",
     "from": "workflows/run-detail",
-    "focus": {
-      "x": 428,
-      "y": 812,
-      "width": 594,
-      "height": 48
-    }
+    "focus": "ul:has(> li:has-text(\"Path taken\"))"
   }
 ]

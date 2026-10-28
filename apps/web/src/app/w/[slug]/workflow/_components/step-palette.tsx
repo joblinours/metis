@@ -12,40 +12,42 @@ import {
 import { cn } from "@metis/ui/lib/utils";
 
 import { CATEGORY_BADGE, NodeIcon } from "@/components/workflow-graph/node-meta";
-import { CATEGORY_LABELS, kindOf, NODE_CATEGORIES } from "@/workflow/kinds";
-import { isDecisionKind, WORKFLOW_NODE_KINDS, type WorkflowNodeKind } from "@/workflow/schema";
+import { allSteps, CATEGORY_LABELS, STEP_CATEGORIES, type StepDef } from "@/workflow/steps";
 
 import { useEditorEnv } from "./editor-context";
 import { STEP_DRAG_TYPE, useAddStep } from "./workflow-canvas";
 
+const DECISION_STEPS = new Set(["ai.ask", "ai.branch"]);
+
 function usePaletteGroups() {
-  const { allowDecisionNodes } = useEditorEnv();
-  const kinds = WORKFLOW_NODE_KINDS.filter(
-    (kind) => kindOf(kind).scope === "any" && (allowDecisionNodes || !isDecisionKind(kind)),
+  const { allowDecisionSteps } = useEditorEnv();
+  const steps = allSteps().filter(
+    (def) =>
+      (def.scope === undefined || def.scope === "any") &&
+      (allowDecisionSteps || !DECISION_STEPS.has(def.key)),
   );
-  return NODE_CATEGORIES.map((category) => ({
+  return STEP_CATEGORIES.map((category) => ({
     category,
-    kinds: kinds.filter((kind) => kindOf(kind).category === category),
-  })).filter((group) => group.kinds.length > 0);
+    steps: steps.filter((def) => def.category === category),
+  })).filter((group) => group.steps.length > 0);
 }
 
 function StepItem({
-  kind,
+  def,
   onPick,
   draggable,
 }: {
-  kind: WorkflowNodeKind;
-  onPick: (kind: WorkflowNodeKind) => void;
+  def: StepDef;
+  onPick: (step: string) => void;
   draggable: boolean;
 }) {
-  const def = kindOf(kind);
   return (
     <CommandItem
       value={`${def.label} ${CATEGORY_LABELS[def.category]} ${def.description}`}
-      onSelect={() => onPick(kind)}
+      onSelect={() => onPick(def.key)}
       draggable={draggable}
       onDragStart={(event: React.DragEvent) => {
-        event.dataTransfer.setData(STEP_DRAG_TYPE, kind);
+        event.dataTransfer.setData(STEP_DRAG_TYPE, def.key);
         event.dataTransfer.effectAllowed = "copy";
       }}
       className={cn("items-start gap-2.5 py-2", draggable && "cursor-grab active:cursor-grabbing")}
@@ -56,7 +58,7 @@ function StepItem({
           CATEGORY_BADGE[def.category],
         )}
       >
-        <NodeIcon kind={kind} className="size-3.5" />
+        <NodeIcon step={def.key} className="size-3.5" />
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-[13px] text-foreground">{def.label}</span>
@@ -68,21 +70,15 @@ function StepItem({
   );
 }
 
-function StepList({
-  onPick,
-  draggable,
-}: {
-  onPick: (kind: WorkflowNodeKind) => void;
-  draggable: boolean;
-}) {
+function StepList({ onPick, draggable }: { onPick: (step: string) => void; draggable: boolean }) {
   const groups = usePaletteGroups();
   return (
     <CommandList className="max-h-none">
       <CommandEmpty>No step matches.</CommandEmpty>
       {groups.map((group) => (
         <CommandGroup key={group.category} heading={CATEGORY_LABELS[group.category]}>
-          {group.kinds.map((kind) => (
-            <StepItem key={kind} kind={kind} onPick={onPick} draggable={draggable} />
+          {group.steps.map((def) => (
+            <StepItem key={def.key} def={def} onPick={onPick} draggable={draggable} />
           ))}
         </CommandGroup>
       ))}
@@ -103,7 +99,7 @@ export function StepPalette() {
         Drag a step onto the canvas, or click it
       </p>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <StepList onPick={(kind) => addStep(kind)} draggable />
+        <StepList onPick={(step) => addStep(step)} draggable />
       </div>
     </Command>
   );
@@ -131,8 +127,8 @@ export function QuickAdd({
         <div className="max-h-[60vh] overflow-y-auto">
           <StepList
             draggable={false}
-            onPick={(kind) => {
-              addStep(kind);
+            onPick={(step) => {
+              addStep(step);
               onOpenChange(false);
             }}
           />

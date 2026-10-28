@@ -18,6 +18,12 @@ import { imapMail } from "./providers/imap";
 import { microsoftMail } from "./providers/microsoft";
 import { zohoMail } from "./providers/zoho";
 
+export interface MailChanges {
+  cursor: string;
+  ids: string[];
+  expired?: boolean;
+}
+
 export interface MailAdapter {
   listMessages(folder: MailFolder, pageToken?: string, max?: number): Promise<MessagesResponse>;
   getMessage(id: string): Promise<Partial<Email>>;
@@ -44,6 +50,7 @@ export interface MailAdapter {
     id: string,
     attachmentId: string,
   ): Promise<{ buffer: Buffer; mimeType?: string } | null>;
+  changes?(folder: MailFolder, cursor: string | null): Promise<MailChanges | null>;
 }
 
 function credentialEmail(auth: ConnectionAuth): string {

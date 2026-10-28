@@ -2,7 +2,7 @@
   "expo": {
     "name": "Metis Suite",
     "slug": "metis-suite",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "scheme": "metis-suite",
     "orientation": "default",
     "icon": "./assets/icon.png",

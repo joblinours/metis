@@ -1,48 +1,67 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import type { Client, InStatement, InValue } from "@libsql/client";
 
-import type { Client } from "@libsql/client";
+export type Row = Record<string, unknown>;
 
-export const MIGRATIONS_DIR = "migrations";
+export interface MigrationDb {
+  read(sql: string, args?: InValue[]): Promise<Row[]>;
+  apply(statements: InStatement[]): Promise<void>;
+}
+
+export interface Migration {
+  id: string;
+  up(db: MigrationDb): Promise<void>;
+}
+
+export function schemaMigration(id: string, statements: InStatement[]): Migration {
+  return { id, up: (db) => db.apply(statements) };
+}
 
 const BASELINE = "0000_baseline";
-const FILE_PATTERN = /^(\d{4})_[a-z0-9_]+\.sql$/;
-const BREAKPOINT = /^--> statement-breakpoint$/m;
+const ID_PATTERN = /^\d{4}_[a-z0-9_]+$/;
 const MIGRATION_TABLE = "schema_migration";
 const MIGRATION_TABLE_DDL =
   "CREATE TABLE `schema_migration` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`applied_at` integer NOT NULL\n)";
 const RECORD = "INSERT INTO `schema_migration` (`id`, `applied_at`) VALUES (?, ?)";
-
-export interface Migration {
-  id: string;
-  statements: string[];
-}
 
 export interface MigrateResult {
   applied: string[];
   baselined: boolean;
 }
 
-function isComment(chunk: string): boolean {
-  return chunk.split("\n").every((line) => line.trim() === "" || line.trim().startsWith("--"));
+function checkOrder(migrations: readonly Migration[]): void {
+  const numbers = new Set<string>();
+  for (const migration of migrations) {
+    if (!ID_PATTERN.test(migration.id)) {
+      throw new Error(`[migrate] ${migration.id} is not named NNNN_name`);
+    }
+    const number = migration.id.slice(0, 4);
+    if (numbers.has(number)) throw new Error(`[migrate] two migrations are numbered ${number}`);
+    numbers.add(number);
+  }
+  const ids = migrations.map((migration) => migration.id);
+  if (ids.join("\n") !== ids.toSorted().join("\n")) {
+    throw new Error("[migrate] the migrations are not listed in number order");
+  }
 }
 
-export function readMigrations(dir = MIGRATIONS_DIR): Migration[] {
-  const numbers = new Set<string>();
-  return readdirSync(dir)
-    .filter((file) => file.endsWith(".sql"))
-    .toSorted()
-    .map((file) => {
-      const number = FILE_PATTERN.exec(file)?.[1];
-      if (!number) throw new Error(`[migrate] ${file} is not named NNNN_name.sql`);
-      if (numbers.has(number)) throw new Error(`[migrate] two migrations are numbered ${number}`);
-      numbers.add(number);
-      const statements = readFileSync(join(dir, file), "utf8")
-        .split(BREAKPOINT)
-        .map((chunk) => chunk.trim())
-        .filter((chunk) => !isComment(chunk));
-      return { id: file.slice(0, -".sql".length), statements };
-    });
+function migrationDb(client: Client, id: string): { db: MigrationDb; applied: () => boolean } {
+  let applied = false;
+  return {
+    applied: () => applied,
+    db: {
+      async read(sql, args = []) {
+        const result = await client.execute({ sql, args });
+        return result.rows.map((row): Row =>
+          Object.fromEntries(result.columns.map((column) => [column, row[column]])),
+        );
+      },
+      async apply(statements) {
+        if (applied) throw new Error(`[migrate] ${id} applied twice; a migration applies once`);
+        applied = true;
+        await client.migrate([...statements, { sql: RECORD, args: [id, Date.now()] }]);
+      },
+    },
+  };
 }
 
 async function tableExists(client: Client, name: string): Promise<boolean> {
@@ -63,11 +82,12 @@ function messageOf(err: unknown): string {
 
 export async function migrateDatabase(
   client: Client,
-  migrations: Migration[] = readMigrations(),
+  migrations: readonly Migration[],
 ): Promise<MigrateResult> {
+  checkOrder(migrations);
   const ids = migrations.map((migration) => migration.id);
   if (ids[0] !== BASELINE) {
-    throw new Error(`[migrate] the first migration must be ${BASELINE}.sql`);
+    throw new Error(`[migrate] the first migration must be ${BASELINE}`);
   }
 
   let baselined = false;
@@ -100,11 +120,10 @@ export async function migrateDatabase(
   const applied: string[] = [];
   for (const migration of pending) {
     try {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- migrations apply in order; each builds on the schema the previous one left
-      await client.migrate([
-        ...migration.statements,
-        { sql: RECORD, args: [migration.id, Date.now()] },
-      ]);
+      const run = migrationDb(client, migration.id);
+      // oxlint-disable-next-line eslint/no-await-in-loop -- migrations apply in order; each builds on the schema and data the previous one left
+      await migration.up(run.db);
+      if (!run.applied()) throw new Error("it never applied its changes");
     } catch (err) {
       const kept = applied.length > 0 ? ` ${applied.join(", ")} stay applied.` : "";
       throw new Error(

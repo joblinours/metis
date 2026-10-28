@@ -34,9 +34,12 @@ function Setup() {
           </Label>
           <Input
             id="server"
-            type="url"
-            placeholder="https://mail.example.com"
+            type="text"
+            inputMode="url"
+            placeholder="mail.example.com"
             autoComplete="url"
+            autoCapitalize="off"
+            spellCheck={false}
             required
             autoFocus
             disabled={checking}

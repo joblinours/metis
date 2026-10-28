@@ -2,6 +2,7 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import { decisionEnabled } from "@/config/runtime";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   CANCEL_RUN_HINT,
@@ -12,9 +13,10 @@ import {
   SOURCES_HINT,
   workflowRunDetailFields,
   workflowRunFields,
+  workflowInputsField,
   workflowTarget,
 } from "@/mastra/toolkit/schema";
-import * as workflow from "@/mastra/toolkit/workflow";
+import * as workflow from "@/ops/workflow";
 import { workflowDefinitionInputSchema } from "@/workflow/schema";
 
 import { mcpScopeFromCall } from "../context";
@@ -99,7 +101,7 @@ export const getWorkflowRun = createTool({
 export const toggleWorkflow = createTool({
   id: "toggleWorkflow",
   description:
-    "Enable or disable a workflow without changing it. Re-enabling resets its schedule and new-mail baseline.",
+    "Enable or disable a workflow without changing it. Re-enabling resets its schedules and the baselines of triggers that watch mail, calendars and drives.",
   inputSchema: inWorkspace({ ...workflowTarget, enabled: z.boolean() }),
   execute: async ({ workspaceId, workflowId, enabled }, { requestContext }) =>
     withToolErrors(async () =>
@@ -129,13 +131,14 @@ export const deleteWorkflow = createTool({
 export const applyWorkflows = createTool({
   id: "applyWorkflows",
   description:
-    "Queue a manual run of one workflow. The run is durable: the workflow runner executes it on its next tick and listWorkflowRuns reports the outcome.",
-  inputSchema: inWorkspace(workflowTarget),
-  execute: async ({ workspaceId, workflowId }, { requestContext }) =>
+    "Queue a manual run of one workflow through its Run by hand trigger (or its schedule trigger when it has none). The run is durable: the workflow runner executes it on its next tick and listWorkflowRuns reports the outcome.",
+  inputSchema: inWorkspace({ ...workflowTarget, ...workflowInputsField }),
+  execute: async ({ workspaceId, workflowId, inputs }, { requestContext }) =>
     withToolErrors(async () =>
       workflow.applyWorkflows({
         ctx: await mcpScopeFromCall(requestContext, workspaceId),
         workflowId,
+        inputs,
       }),
     ),
 });
@@ -143,7 +146,7 @@ export const applyWorkflows = createTool({
 export const previewDecision = createTool({
   id: "previewDecision",
   description:
-    "Try a decision.ask step on the latest inbox mail of one mailbox and see how each question would be answered, before saving it in a workflow. Nothing is saved or changed. The mailbox must have AI on.",
+    "Try an ai.ask step on the latest inbox mail of one mailbox and see how each question would be answered, before saving it in a workflow. Nothing is saved or changed. The mailbox must have AI on.",
   inputSchema: inWorkspace(previewDecisionFields),
   execute: async ({ workspaceId, mailboxId, node, limit }, { requestContext }) =>
     withToolErrors(async () => {
@@ -178,4 +181,24 @@ export const resumeWorkflowRun = createTool({
         runId,
       }),
     ),
+});
+
+export const listWorkflowSteps = createTool({
+  id: "listWorkflowSteps",
+  description:
+    "List the workflow triggers and steps: each step's key, settings (with their kinds, types and defaults), outputs, effect and what it passes on. Read it before building or changing a workflow graph.",
+  inputSchema: inWorkspace({
+    category: z
+      .string()
+      .optional()
+      .describe("Only one category, such as mail, calendar, drive, logic, flow or ai"),
+  }),
+  execute: async ({ workspaceId, category }, { requestContext }) =>
+    withToolErrors(async () => {
+      await mcpScopeFromCall(requestContext, workspaceId);
+      return workflow.listWorkflowSteps({
+        category,
+        decisionSteps: decisionEnabled("workflowNode"),
+      });
+    }),
 });

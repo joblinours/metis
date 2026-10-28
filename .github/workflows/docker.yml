@@ -110,4 +110,5 @@ jobs:
           R2_BUCKET: ${{ secrets.SH_R2_BUCKET }}
           VERSION: ${{ needs.release.outputs.version }}
           LATEST: ${{ needs.release.outputs.latest }}
+          CHANGELOG: CHANGELOG.md
         run: .github/scripts/r2-upload.sh out "v$VERSION/" "" bootstrap compose.yml

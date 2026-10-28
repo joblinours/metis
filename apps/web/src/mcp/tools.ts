@@ -484,7 +484,13 @@ export const MCP_TOOL_MANIFEST = [
     key: "getWorkflowRun",
     label: "Get workflow run",
     description:
-      "Open one workflow run — its trigger, revision, mailboxes and every step's attempts",
+      "Open one workflow run — its trigger, revision, every step's attempts and its open waits",
+    group: "Workflows",
+  },
+  {
+    key: "listWorkflowSteps",
+    label: "List workflow steps",
+    description: "Read the catalog of workflow triggers and steps, with their settings",
     group: "Workflows",
   },
   {

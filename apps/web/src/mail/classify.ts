@@ -8,6 +8,7 @@ import { classifierAgent } from "@/mastra/agents/classifier";
 import { BUILT_IN_LABELS, type ClassifyItemInput } from "@/server/schema";
 import { decisionEnabled } from "@/services/decision";
 import { getLlm } from "@/services/llm";
+import { labelsApplied } from "@/workflow/hooks";
 
 import { compositeId } from "./aggregate";
 import { CLASSIFY_GENERATE_OPTIONS, classifyPrompt } from "./classify-prompt";
@@ -122,6 +123,9 @@ export async function classifyMessages(
       .onConflictDoNothing({
         target: [mailLabel.mailboxId, mailLabel.messageId],
       });
+    for (const c of newClassifications) {
+      labelsApplied([scopeMessage(mail, c.id)], c.label, "ai");
+    }
   }
 
   const merged: LabelMap = {};

@@ -1,46 +1,46 @@
 import type { DecisionAnswer } from "./decision";
-import type {
-  DecisionQuestion,
-  NodeStatus,
-  SendCloseReason,
-  SendResolutionOutcome,
-  SourceHandle,
-  WorkflowNodeKind,
-} from "./schema";
+import type { SendCloseReason, SendResolutionOutcome, StepStatus } from "./schema";
 
-export interface DiscoveredMessage {
-  mailboxId: string;
-  messageId: string;
-  threadId?: string;
-  from: string;
-  fromName?: string;
-  to: string[];
-  cc?: string[];
-  subject: string;
-  snippet: string;
-  date?: string;
+export const RUN_SOURCES = [
+  "manual",
+  "schedule",
+  "once",
+  "feed",
+  "app",
+  "inbound",
+  "call",
+] as const;
+export type RunSource = (typeof RUN_SOURCES)[number];
+
+export interface RunInput {
+  triggerNodeId: string;
+  source: RunSource;
+  event: unknown;
+  firedFor?: string;
+  missed?: number;
+  requestedByUserId?: string;
+  parentRunId?: string;
+  parentStepRunId?: string;
 }
 
-export interface DiscoveryCursor {
-  mailboxId: string;
-  folder: string;
-  pageToken?: string;
-  seen: string[];
-  baselined: boolean;
-  sweepPages?: number;
-  scans: number;
-  updatedAt: string;
+export interface LoopFrame {
+  node: string;
+  origin: string;
 }
 
-export interface NodeReceipt {
-  operation?: string;
-  message?: { subject: string; from: string };
-  providerMessageId?: string | null;
-  dispatchedAt?: string;
-  settledAt?: string;
-  verifiedAt?: string;
-  fingerprint?: string;
-  decision?: DecisionReceipt;
+export interface Item {
+  key: string;
+  value: unknown;
+  trail: Record<string, unknown>;
+  error?: string;
+  loops?: LoopFrame[];
+}
+
+export interface Emit {
+  handle: string;
+  key: string;
+  value: unknown;
+  result: unknown;
 }
 
 export interface DecisionReceipt {
@@ -50,14 +50,27 @@ export interface DecisionReceipt {
   score?: number;
 }
 
-export interface EnvelopeDecision {
-  askNodeId: string;
-  question: DecisionQuestion;
-  answer: DecisionAnswer;
-  model: string;
+export interface StepReceipt {
+  operation?: string;
+  item?: { title: string; subtitle: string };
+  message?: { subject: string; from: string };
+  providerMessageId?: string | null;
+  resourceId?: string;
+  dispatchedAt?: string;
+  settledAt?: string;
+  verifiedAt?: string;
+  fingerprint?: string;
+  decision?: DecisionReceipt;
+  usage?: { model: string; inputTokens: number; outputTokens: number };
 }
 
-export interface NodeResolution {
+export interface StepRunOutput {
+  emits?: Emit[];
+  detail?: string;
+  inputs?: { port: number; state: string; count: number }[];
+}
+
+export interface StepResolution {
   outcome: SendResolutionOutcome;
   reason: SendCloseReason | null;
   note: string | null;
@@ -67,89 +80,28 @@ export interface NodeResolution {
   finished?: boolean;
 }
 
-export type RunInput =
-  | {
-      kind: "newMail";
-      triggerNodeId: string;
-      messages: DiscoveredMessage[];
-    }
-  | {
-      kind: "schedule";
-      triggerNodeId: string;
-      firedFor: string;
-      missed: number;
-    }
-  | {
-      kind: "once";
-      triggerNodeId: string;
-      firedFor: string;
-    }
-  | {
-      kind: "manual";
-      triggerNodeId: string;
-      requestedByUserId: string;
-      messages?: { mailboxId: string; messageId: string }[];
-    };
-
 export interface RunSummaryLine {
   nodeId: string;
-  kind: WorkflowNodeKind;
-  status: NodeStatus;
+  step: string;
+  status: StepStatus;
   count: number;
   detail?: string;
 }
 
-export interface MessageFacts {
-  id: string;
-  threadId?: string;
-  from: string;
-  fromName?: string;
-  to: string[];
-  cc?: string[];
-  subject: string;
-  snippet: string;
-  bodyText?: string;
-  hasAttachment?: boolean;
-  date?: string;
-  loaded: boolean;
+export interface FeedCursor {
+  scope: string;
+  token?: string;
+  resource?: string | null;
+  seen?: string[];
+  snapshot?: Record<string, string>;
+  pageToken?: string;
+  sweepPages?: number;
+  scans: number;
+  baselined: boolean;
+  updatedAt: string;
 }
 
-export interface DraftFacts {
-  to: string[];
-  cc?: string[];
-  bcc?: string[];
-  subject: string;
-  bodyHtml?: string;
-  bodyText?: string;
-  hasAttachment: boolean;
-}
-
-export type Envelope =
-  | { port: "signal"; key: string; lineage: string[] }
-  | {
-      port: "message";
-      key: string;
-      mailboxId: string;
-      messageId: string;
-      message: MessageFacts;
-      lineage: string[];
-      decision?: EnvelopeDecision;
-    }
-  | {
-      port: "draft";
-      key: string;
-      mailboxId: string;
-      draft: DraftFacts;
-      lineage: string[];
-    };
-
-export interface NodeRunOutput {
-  outputs?: { handle: SourceHandle; envelopes: Envelope[] }[];
-  detail?: string;
-  inputs?: { port: number; state: string; count: number }[];
-}
-
-export type RetryClass = "safe" | "dispatch" | "none";
+export type WaitState = Record<string, unknown>;
 
 export type TickStage = "setup" | "discovery" | "maintenance" | "execution";
 
@@ -173,3 +125,5 @@ export interface TickSummary {
   failure?: TickFailure;
   error?: string;
 }
+
+export type { DecisionAnswer };

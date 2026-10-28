@@ -2,8 +2,9 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import * as inbox from "@/ops/inbox";
+
 import { getWorkspaceCtx } from "../runtime-context";
-import * as inbox from "../toolkit/inbox";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
   mailboxTarget,

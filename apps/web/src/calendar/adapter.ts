@@ -20,6 +20,12 @@ import { microsoftCalendar } from "./providers/microsoft";
 import { zohoCalendar } from "./providers/zoho";
 import type { EventAstSearch } from "./text-search";
 
+export interface CalendarChangeSignal {
+  cursor: string;
+  changed: boolean;
+  expired?: boolean;
+}
+
 export interface CalendarAdapter {
   listCalendars(): Promise<ProviderCalendar[]>;
   listEvents(opts: ListEventsOptions): Promise<EventsResponse>;
@@ -29,6 +35,7 @@ export interface CalendarAdapter {
   deleteEvent(calendarId: string, eventId: string): Promise<void>;
   respondToEvent(calendarId: string, eventId: string, response: AttendeeResponse): Promise<void>;
   searchAst(search: EventAstSearch): Promise<EventsResponse>;
+  changes?(calendarIds: string[], cursor: string | null): Promise<CalendarChangeSignal | null>;
 }
 
 const CALENDAR_ADAPTERS: Record<

@@ -100,6 +100,6 @@ export const config = {
     "/dashboard",
     "/dashboard/:path*",
     "/invite/accept",
-    "/api/((?!auth/|mcp|workflows/tick|drive/relay/|livez|readyz).*)",
+    "/api/((?!auth/|mcp|workflows/tick|inbound/|drive/relay/|livez|readyz).*)",
   ],
 };

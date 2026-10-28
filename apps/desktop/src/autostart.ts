@@ -17,7 +17,7 @@ function execArgument(value: string): string {
 }
 
 function launchCommand(hidden: boolean): string {
-  const parts = [process.env.APPIMAGE || process.execPath];
+  const parts = [process.execPath];
   if (process.defaultApp) parts.push(app.getAppPath());
   if (hidden) parts.push(HIDDEN_ARG);
   return parts.map(execArgument).join(" ");

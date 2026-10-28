@@ -2,8 +2,9 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import * as member from "@/ops/member";
+
 import { getWorkspaceCtx } from "../runtime-context";
-import * as member from "../toolkit/member";
 import { requireMember, withToolErrors } from "../toolkit/resolve";
 import { memberEventFields, memberFileFields, memberMailFields } from "../toolkit/schema";
 

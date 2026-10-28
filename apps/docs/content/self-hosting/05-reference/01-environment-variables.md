@@ -6,9 +6,23 @@ description: Every environment variable a Metis Suite instance reads, grouped by
 Each variable is one of two kinds:
 
 - **Startup:** read every time the app starts. Change it in `.env` and restart the app.
-- **Starting value:** read once, the first time preflight runs, to fill in a setting the owner then manages in the dashboard. For a setting that a release moves into the dashboard, it is read once, on the first preflight after that update. After that, change it under **Dashboard**, **System**. See [How configuration works](/self-hosting/configure/how-configuration-works).
+- **Starting value:** read once, the first time preflight runs, to fill in a setting the owner then manages in the dashboard. After that, change it under **Dashboard**, **System**. When a release adds a new group of settings to the dashboard, such as the **Decision model** card, preflight reads that group's variables once, on the first run after that update. A new field in a group you already have is not read on an existing instance: set it in the dashboard. See [How configuration works](/self-hosting/configure/how-configuration-works).
 
-Any variable can also come from the optional config file. A wrong value stops the app from starting, and the error names the variable.
+Any variable can also come from the optional config file. A missing or wrong value stops the app from starting with an "Invalid configuration" error. The error names each setting by a key, not by its variable name. For the startup settings, it is the config file key. For example:
+
+```
+Invalid configuration:
+  - auth.secret: Too small: expected string to have >=32 characters
+  - encryption.key: must be 32 bytes, base64-encoded
+  - db.app.url: Turso needs a libsql:// URL
+```
+
+| Key in the error                       | Variable                                            |
+| -------------------------------------- | --------------------------------------------------- |
+| `auth.url`, `auth.secret`              | `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`             |
+| `encryption.key`                       | `METIS_ENCRYPTION_KEY`                              |
+| `db.app.url`, `db.app.authToken`       | `DATABASE_URL`, `DATABASE_AUTH_TOKEN`               |
+| `db.mastra.url`, `db.mastra.authToken` | `MASTRA_DATABASE_URL`, `MASTRA_DATABASE_AUTH_TOKEN` |
 
 ## Core
 
@@ -29,13 +43,52 @@ Any variable can also come from the optional config file. A wrong value stops th
 | `DATABASE_URL`               | Startup | The app database: `http(s)://` or `ws(s)://` for sqld, `libsql://` for Turso, `file:` for local.                               |         |
 | `DATABASE_AUTH_TOKEN`        | Startup | Its token. Required for sqld and Turso.                                                                                        |         |
 | `MASTRA_DATABASE_URL`        | Startup | The AI memory database. A separate database on the same driver.                                                                |         |
-| `MASTRA_DATABASE_AUTH_TOKEN` | Startup | Its token.                                                                                                                     |         |
+| `MASTRA_DATABASE_AUTH_TOKEN` | Startup | Its token. Required for sqld and Turso.                                                                                        |         |
 | `SQLD_AUTH_JWT_KEY`          | Startup | The bundled database server's public key. The bootstrap script generates it.                                                   |         |
 | `SQLD_ADMIN_KEY`             | Startup | The key for the bundled database server's admin access. The bootstrap script generates it.                                     |         |
 
 For a stack you set up without the bootstrap script, `bash bootstrap.sh sqld-auth` prints a matching `SQLD_AUTH_JWT_KEY` and token pair.
 
-## Sign-in providers
+### Create the databases on Turso
+
+With Turso, you need two separate databases: one for the app and one for AI memory. Use the [Turso CLI](https://docs.turso.tech/quickstart), signed in to your Turso account. The names below are examples.
+
+1. Create the two databases:
+
+   ```bash
+   turso db create metis-app
+   turso db create metis-memory
+   ```
+
+2. Get the URL of each one, and copy it exactly as printed. It starts with `libsql://`.
+
+   ```bash
+   turso db show metis-app --url
+   turso db show metis-memory --url
+   ```
+
+3. Create a token for each one:
+
+   ```bash
+   turso db tokens create metis-app
+   turso db tokens create metis-memory
+   ```
+
+   Do not use `--read-only`, because the app writes to both databases. If you give a token an end date with `--expiration`, replace it before that date.
+
+4. Set the variables:
+
+   | Variable                     | Value                        |
+   | ---------------------------- | ---------------------------- |
+   | `METIS_DB_DRIVER`            | `turso`                      |
+   | `DATABASE_URL`               | The URL of `metis-app`.      |
+   | `DATABASE_AUTH_TOKEN`        | The token of `metis-app`.    |
+   | `MASTRA_DATABASE_URL`        | The URL of `metis-memory`.   |
+   | `MASTRA_DATABASE_AUTH_TOKEN` | The token of `metis-memory`. |
+
+Leave both databases empty. Preflight creates the app's tables, and the AI memory database sets itself up when the app first uses it. In the dashboard's database health checks, the two show as **App database** and **Mastra database**. See Turso's guides to [creating a database](https://docs.turso.tech/cli/db/create), [showing its URL](https://docs.turso.tech/cli/db/show) and [creating a token](https://docs.turso.tech/cli/db/tokens/create).
+
+## OAuth providers
 
 | Variable                                         | Kind           | What it does                         | Default |
 | ------------------------------------------------ | -------------- | ------------------------------------ | ------- |
@@ -134,26 +187,39 @@ A decision switch does nothing while the LLM driver is `disabled`, because AI is
 
 ## Cache
 
-| Variable             | Kind           | What it does                                                                                                                                                                                       | Default  |
-| -------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `METIS_CACHE_DRIVER` | Starting value | `memory`, `redis` or `upstash`. With `memory`, each process keeps its own sessions and rate-limit counters and loses them on restart. Use `redis` or `upstash` when you run more than one process. | `memory` |
-| `METIS_CACHE_URL`    | Starting value | The Redis or Upstash address.                                                                                                                                                                      |          |
-| `METIS_CACHE_TOKEN`  | Starting value | The Upstash token.                                                                                                                                                                                 |          |
+| Variable             | Kind           | What it does                                                                                                                                                                                                                                                                                                                                                                                                                 | Default  |
+| -------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `METIS_CACHE_DRIVER` | Starting value | `memory`, `redis` or `upstash`. Sessions are stored in the database, so sign-in works on every process and survives a restart. The cache holds copies of sessions and the rate-limit counters. With `memory`, each process counts rate limits on its own and loses the counts on restart, and a sign-out may not end the session on other processes right away. Use `redis` or `upstash` when you run more than one process. | `memory` |
+| `METIS_CACHE_URL`    | Starting value | For `redis`, a `redis://` or `rediss://` URL. For `upstash`, the database's REST URL, which starts with `https://`.                                                                                                                                                                                                                                                                                                          |          |
+| `METIS_CACHE_TOKEN`  | Starting value | For `upstash` only: the database's REST token.                                                                                                                                                                                                                                                                                                                                                                               |          |
+
+The dashboard sets the same values on the **Cache** page under **System**, in the **URL** and **Token** fields. Where to find them on Upstash:
+
+- **`upstash`:** open the database in the Upstash console. Copy the `HTTPS` value of the **Endpoint** field into **URL**, and the **Token** into **Token**.
+- **`redis` with Upstash:** under **Connect**, **TCP**, copy the connection string. It has the form `rediss://default:<token>@<endpoint>:<port>`. The **Token** field does not appear for `redis`. The token is part of the connection string.
+
+See Upstash's guides to the [REST API](https://upstash.com/docs/redis/features/restapi) and [connecting a client](https://upstash.com/docs/redis/howto/connectclient). The **Health** card's check writes, reads and deletes a value, and a failed check stops the save.
 
 ## Background work
 
 See [Background work](/self-hosting/configure/background-work).
 
-| Variable                        | Kind           | What it does                                                            | Default           |
-| ------------------------------- | -------------- | ----------------------------------------------------------------------- | ----------------- |
-| `METIS_WORKFLOW_RUNNER_DRIVER`  | Starting value | `internal`, `cron` or `bullmq`.                                         | `internal`        |
-| `METIS_WORKFLOW_CADENCE_SEC`    | Starting value | Seconds between ticks, 1 to 86400.                                      | `60`              |
-| `METIS_WORKFLOW_TICK_BUDGET_MS` | Starting value | How long one tick may run, 1000 to 600000 (at most 55000 under `cron`). | `45000`           |
-| `METIS_WORKFLOW_BATCH_SIZE`     | Starting value | Work taken per round, 1 to 500.                                         | `25`              |
-| `METIS_WORKFLOW_CONCURRENCY`    | Starting value | Work run at the same time, 1 to 64.                                     | `4`               |
-| `METIS_WORKFLOW_REDIS_URL`      | Starting value | Your Redis, for `bullmq`.                                               |                   |
-| `METIS_WORKFLOW_QUEUE_PREFIX`   | Starting value | The queue name prefix, for `bullmq`.                                    | `metis-workflows` |
-| `CRON_SECRET`                   | Starting value | The secret your scheduler sends in `X-Metis-Secret`, for `cron`.        |                   |
+| Variable                         | Kind           | What it does                                                                                                                                                                                                                   | Default           |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| `METIS_WORKFLOW_RUNNER_DRIVER`   | Starting value | `internal`, `cron` or `bullmq`.                                                                                                                                                                                                | `internal`        |
+| `METIS_WORKFLOW_CADENCE_SEC`     | Starting value | Seconds between ticks (`internal`, `bullmq`), and the shortest time between trigger checks. 1 to 86400.                                                                                                                        | `60`              |
+| `METIS_WORKFLOW_TICK_BUDGET_MS`  | Starting value | How long one tick may run, 1000 to 600000 (at most 55000 under `cron`).                                                                                                                                                        | `45000`           |
+| `METIS_WORKFLOW_BATCH_SIZE`      | Starting value | Work taken per round, 1 to 500.                                                                                                                                                                                                | `25`              |
+| `METIS_WORKFLOW_CONCURRENCY`     | Starting value | Work run at the same time, 1 to 64.                                                                                                                                                                                            | `4`               |
+| `METIS_WORKFLOW_REDIS_URL`       | Starting value | Your Redis, for `bullmq`.                                                                                                                                                                                                      |                   |
+| `METIS_WORKFLOW_QUEUE_PREFIX`    | Starting value | The queue name prefix, for `bullmq`.                                                                                                                                                                                           | `metis-workflows` |
+| `CRON_SECRET`                    | Starting value | The secret your scheduler sends in `X-Metis-Secret`, for `cron`.                                                                                                                                                               |                   |
+| `METIS_WORKFLOW_STEP_DATA_DAYS`  | Starting value | Days a finished run keeps each step's input and output, 0 to 365. `0` clears them when the run ends.                                                                                                                           | `7`               |
+| `METIS_WORKFLOW_HISTORY_DAYS`    | Starting value | Days runs stay in the history, 1 to 3650.                                                                                                                                                                                      | `90`              |
+| `METIS_WORKFLOW_PUBLIC_URL`      | Starting value | The HTTPS address that webhooks and providers reach this instance at. Without it, webhook addresses use `BETTER_AUTH_URL`, and Google Calendar, Google Drive and Microsoft triggers check for changes instead of getting push. | Not set           |
+| `METIS_WORKFLOW_TRUSTED_PROXIES` | Starting value | IP addresses or CIDR ranges, comma separated, whose `X-Forwarded-For` is believed. Up to 50. Used by the **Only from these IPs** check of webhook triggers.                                                                    | Not set           |
+
+The last four variables are read only by the first preflight of a new instance. On an instance that already runs, they are not read, even after the update that adds them, and setting them only adds a warning to the deploy checks. Set **Keep step data (days)**, **Keep run history (days)**, **Public URL for webhooks and push** and **Trusted proxies** under **Dashboard**, **System**, **Workflow runner** instead.
 
 ## Sign-up and legal
 

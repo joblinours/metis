@@ -3,9 +3,9 @@ import type { RequestContext } from "@mastra/core/request-context";
 import { z } from "zod";
 
 import { listMcpWorkspaces, type McpWorkspace, visibleMcpWorkspaces } from "@/mcp/workspaces";
+import type { AccountCtx } from "@/ops/account";
 
 import { resolveWorkspaceScope, type WorkspaceCtx } from "../runtime-context";
-import type { AccountCtx } from "../toolkit/account";
 import { ToolRefusal } from "../toolkit/resolve";
 
 const mcpAuthInfoSchema = z.object({

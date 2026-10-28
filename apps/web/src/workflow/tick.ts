@@ -2,10 +2,13 @@ import "server-only";
 import { getInstanceConfig } from "@/config/runtime";
 import { sanitizeError } from "@/lib/errors/sanitize-error";
 
+import { emitAppEvent } from "./app-events";
 import { resolvePrincipal } from "./authorization";
 import { ensureSystemWorkflows } from "./builtins/system";
 import { errorCode, formatTickFailure, tickFailure } from "./diagnostics";
+import { discoverTrigger } from "./discovery";
 import { executeRun } from "./executor";
+import { renewEndpoints } from "./inbound/subscriptions";
 import { finishPendingResolutions } from "./reconcile";
 import type { RunSummaryLine, TickFailure, TickStage, TickSummary } from "./runtime";
 import type { RunStatus } from "./schema";
@@ -14,25 +17,20 @@ import {
   claimRun,
   claimRuns,
   closeStrandedCancels,
-  dropPayload,
+  dropDraftBlob,
   dueTriggers,
-  expireRetainedOutputs,
-  getPayload,
   heartbeatRun,
-  isResumableKind,
+  listStepRuns,
   loadRevision,
   pendingRunCount,
   type RunRow,
   recordTick,
-  redactSentOutputs,
   releaseDiscovery,
   releaseRun,
   runIsCancelled,
-  runTriggerKind,
   sendReceipted,
   settleRun,
 } from "./store";
-import { discoverTrigger } from "./triggers";
 
 const MAX_ATTEMPTS = 5;
 const BLOCKED_RETRY_MS = 600_000;
@@ -73,6 +71,7 @@ async function runOne(
 ): Promise<RunStatus> {
   const token = run.leaseToken;
   if (!token) return "failed";
+  const keepDays = getInstanceConfig().workflowRunner.stepDataDays;
 
   const loaded = await loadRevision(run.revisionId);
   if (!loaded) {
@@ -81,24 +80,25 @@ async function runOne(
       token,
       status: "failed",
       error: "That workflow revision no longer exists",
-      retainOutputs: false,
+      clearOutputs: true,
     });
     return "failed";
   }
 
   const principal = await resolvePrincipal(loaded.definition);
-
   let summary: RunSummaryLine[] = [];
   let status: RunStatus = "failed";
   let error: string | undefined;
   let retryable = false;
-  let blockedNode = false;
+  let blockedStep = false;
   let interrupted = false;
+  let wakeAt: Date | null = null;
+  let output: unknown;
 
   if (!principal.ok) {
     status = "blocked";
     error = principal.reason;
-    blockedNode = true;
+    blockedStep = true;
   }
 
   try {
@@ -114,7 +114,7 @@ async function runOne(
       signal,
       deadline,
       reserveMs,
-      payload: () => getPayload(run.workflowId),
+      stepRuns: await listStepRuns(run.id),
       isCancelled: () => runIsCancelled(run.id),
       heartbeat: () => heartbeatRun(run.id, token, new Date(Date.now() + RUN_LEASE_MS)),
     });
@@ -123,8 +123,10 @@ async function runOne(
     status = outcome.status;
     error = outcome.error;
     retryable = outcome.retryable;
-    blockedNode = outcome.blocked;
+    blockedStep = outcome.blocked;
     interrupted = outcome.interrupted;
+    wakeAt = outcome.wakeAt;
+    output = outcome.output;
   } catch (err) {
     if (!(err instanceof PrincipalBlocked)) {
       error = sanitizeError(err);
@@ -132,9 +134,9 @@ async function runOne(
     }
   }
 
-  const oneShot = run.kind === "scheduled-send" || run.kind === "snooze";
-  const blocked = blockedNode && oneShot;
-  const shouldRetry = retryable && run.attempts < MAX_ATTEMPTS;
+  const builtin = run.kind === "scheduled-send" || run.kind === "snooze";
+  const blocked = blockedStep && builtin;
+  const shouldRetry = retryable && run.attempts < MAX_ATTEMPTS && status !== "waiting";
   const retryAt = interrupted
     ? clock()
     : blocked
@@ -143,13 +145,7 @@ async function runOne(
         ? new Date(clock().getTime() + backoffMs(run.attempts))
         : null;
 
-  let transition: "enable" | "retire" | undefined;
-  if (run.kind === "snooze" && status === "completed" && !retryAt) {
-    const kind = await runTriggerKind(run.id);
-    if (kind === "trigger.manual") transition = "enable";
-    else if (kind === "trigger.once") transition = "retire";
-  }
-
+  const sent = run.kind === "scheduled-send" && !retryAt && (await sendReceipted(run.id));
   const settled = await settleRun({
     runId: run.id,
     token,
@@ -157,16 +153,31 @@ async function runOne(
     error: error ?? null,
     summary,
     retryAt,
+    wakeAt,
+    output,
     restoreAttempt: blocked || interrupted,
-    retainOutputs: isResumableKind(run.kind),
-    definition: transition,
-    blocked: blockedNode,
+    clearOutputs: keepDays === 0 || sent,
+    definition: run.kind === "snooze" && status === "completed" && !retryAt ? "retire" : undefined,
+    blocked: blockedStep,
   });
   if (!settled) return "pending";
 
-  if (run.kind === "scheduled-send" && (await sendReceipted(run.id))) {
-    await dropPayload(run.workflowId);
-    await redactSentOutputs(run.id);
+  if (sent) await dropDraftBlob(run.workflowId);
+  if (!retryAt && run.kind === "user" && (status === "failed" || status === "partial")) {
+    await emitAppEvent({
+      kind: "trigger.app.runFailed",
+      key: `run:${run.id}`,
+      workspaceId: run.workspaceId,
+      match: { workflow: run.workflowId },
+      exceptWorkflowId: run.workflowId,
+      event: {
+        workflowId: run.workflowId,
+        workflow: loaded.definition.name,
+        runId: run.id,
+        error: error ?? "",
+        failedAt: clock().toISOString(),
+      },
+    });
   }
 
   return retryAt ? "pending" : status;
@@ -198,7 +209,7 @@ async function drain(
           }
           const status = await runOne(run, signal, deadline, reserveMs, clock);
           /* oxlint-enable eslint/no-await-in-loop */
-          if (status === "completed") tally.completed += 1;
+          if (status === "completed" || status === "waiting") tally.completed += 1;
           else if (status === "blocked") tally.blocked += 1;
           else if (status !== "pending") tally.failed += 1;
         } catch (error) {
@@ -274,8 +285,8 @@ export async function runWorkflowTick(opts: TickOptions = {}): Promise<TickSumma
 
     stage = "maintenance";
     await closeStrandedCancels(clock());
-    await expireRetainedOutputs(clock());
     await finishPendingResolutions(clock());
+    await renewEndpoints(clock());
 
     stage = "execution";
     /* oxlint-disable eslint/no-await-in-loop -- claims the next batch only after the current one drains, until the tick deadline */

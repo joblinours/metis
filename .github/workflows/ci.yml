@@ -29,6 +29,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Shell core tests
+        run: bun run --cwd packages/shell-core test
+
       - name: Migrations match the schema
         run: bun run db:check
 

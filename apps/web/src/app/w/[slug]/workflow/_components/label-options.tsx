@@ -6,7 +6,6 @@ import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { useWorkspaceScope } from "@/hooks/use-workspace-path";
 import { rpc } from "@/lib/orpc";
 import { LABEL_SELECT_OPTIONS } from "@/mail/label-meta";
-import type { GraphMailbox } from "@/workflow/graph";
 
 type LabelOption = { value: string; label: string };
 
@@ -16,7 +15,7 @@ export function LabelOptionsProvider({
   mailboxes,
   children,
 }: {
-  mailboxes: GraphMailbox[];
+  mailboxes: readonly { slug: string }[];
   children: ReactNode;
 }) {
   const scope = useWorkspaceScope();

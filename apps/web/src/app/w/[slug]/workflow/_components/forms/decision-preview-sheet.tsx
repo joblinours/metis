@@ -9,9 +9,15 @@ import { useMemo, useState } from "react";
 import { useWorkspaceScope } from "@/hooks/use-workspace-path";
 import { orpc } from "@/lib/orpc";
 import type { PreviewDecisionOutput } from "@/server/schema";
-import { answerLabel, type DecisionAnswer, questionIdOf, routeAnswer } from "@/workflow/decision";
-import type { NodeOf } from "@/workflow/kinds";
-import { DECISION_OTHER_OPTION_ID, type DecisionQuestion } from "@/workflow/schema";
+import {
+  answerLabel,
+  type DecisionAnswer,
+  type DecisionThresholds,
+  nodeQuestions,
+  questionIdOf,
+  routeAnswer,
+} from "@/workflow/decision";
+import { DECISION_OTHER_OPTION_ID, type DecisionQuestion, type GraphNode } from "@/workflow/schema";
 
 import { useEditorEnv } from "../editor-context";
 import { useEditor } from "../editor-store";
@@ -35,6 +41,19 @@ function describeAnswer(question: DecisionQuestion, answer: DecisionAnswer): str
   return `${level?.name ?? best[0]} ${percent(best[1])}`;
 }
 
+function threshold(node: GraphNode, name: keyof DecisionThresholds, fallback: number): number {
+  const bound = node.params[name];
+  return bound?.kind === "literal" && typeof bound.value === "number" ? bound.value : fallback;
+}
+
+function thresholdsOf(node: GraphNode): DecisionThresholds {
+  return {
+    yesAt: threshold(node, "yesAt", 0.8),
+    noAt: threshold(node, "noAt", 0.2),
+    minProbability: threshold(node, "minProbability", 0.6),
+  };
+}
+
 export function DecisionPreviewSheet({
   open,
   onOpenChange,
@@ -42,12 +61,13 @@ export function DecisionPreviewSheet({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  node: NodeOf<"decision.ask">;
+  node: GraphNode;
 }) {
   const scope = useWorkspaceScope();
-  const { mailboxes } = useEditorEnv();
-  const usable = mailboxes.filter((m) => m.aiEnabled);
-  const [mailboxId, setMailboxId] = useState(usable[0]?.mailboxId ?? "");
+  const { directory } = useEditorEnv();
+  const usable = directory.mailboxes.filter((m) => m.aiEnabled);
+  const questions = nodeQuestions(node);
+  const [mailboxId, setMailboxId] = useState(usable[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<PreviewDecisionOutput["items"]>([]);
@@ -58,8 +78,8 @@ export function DecisionPreviewSheet({
         if (edge.source !== node.id) return [];
         const target = graph.nodes.find((n) => n.id === edge.target);
         const questionId = questionIdOf(edge.sourceHandle);
-        return target?.kind === "decision.branch" && questionId
-          ? [{ questionId, node: target }]
+        return target?.step === "ai.branch" && questionId
+          ? [{ questionId, node: target, thresholds: thresholdsOf(target) }]
           : [];
       }),
     [graph, node.id],
@@ -69,7 +89,12 @@ export function DecisionPreviewSheet({
     setLoading(true);
     setError(null);
     try {
-      const result = await orpc.workflows.previewDecision({ ...scope, mailboxId, node, limit: 10 });
+      const result = await orpc.workflows.previewDecision({
+        ...scope,
+        mailboxId,
+        node: { params: node.params },
+        limit: 10,
+      });
       setItems(result.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not run the preview");
@@ -105,7 +130,7 @@ export function DecisionPreviewSheet({
                   className="flex-1"
                   value={mailboxId}
                   onValueChange={setMailboxId}
-                  options={usable.map((m) => ({ value: m.mailboxId, label: m.email }))}
+                  options={usable.map((m) => ({ value: m.id, label: m.email }))}
                 />
                 <Button size="sm" onClick={run} disabled={loading || !mailboxId}>
                   {loading && <Loader2 className="animate-spin" />}
@@ -120,7 +145,7 @@ export function DecisionPreviewSheet({
                   {item.subject || "(no subject)"}
                 </span>
                 <span className="truncate text-muted-foreground text-xs">{item.from}</span>
-                {node.questions.map((question, index) => {
+                {questions.map((question, index) => {
                   const answer = item.answers?.[question.id] ?? { type: "refusal" as const };
                   return (
                     <div key={question.id} className="text-xs">
@@ -131,7 +156,10 @@ export function DecisionPreviewSheet({
                         .map((b) => (
                           <span key={b.node.id} className="text-muted-foreground">
                             {" → "}
-                            {answerLabel(question, routeAnswer(question, answer, b.node).handle)}
+                            {answerLabel(
+                              question,
+                              routeAnswer(question, answer, b.thresholds).handle,
+                            )}
                           </span>
                         ))}
                     </div>

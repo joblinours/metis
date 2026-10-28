@@ -4,9 +4,10 @@ import { expect, test } from "vitest";
 
 import { HARNESS } from "../../clients/harness";
 import { type Rpc, rpcWithCookie } from "../../clients/rpc";
+import { signIn } from "../../clients/sign-in";
 import { setSection } from "../support/config";
 import { until } from "../support/poll";
-import { ana, signIn, totpCode } from "../support/session";
+import { ana, totpCode } from "../support/session";
 
 const QUIET_MS = 3_000;
 const SUBJECT = "New sign-in to your Metis Suite account";

@@ -1,3 +1,5 @@
+import { parseDeepLink } from "@metis/shell-core/links";
+import { isRestorablePath, normalizeServer } from "@metis/shell-core/store";
 import { fetch as fetchNetworkState } from "@react-native-community/netinfo";
 import { Alert, Linking } from "react-native";
 import { create } from "zustand";
@@ -13,19 +15,10 @@ import {
   StaleLoginError,
   signOut,
 } from "./auth";
-import { parseDeepLink } from "./links";
 import { log, urlPath } from "./log";
 import { DEFAULT_SETTINGS, readSettings, writeSettings } from "./settings";
 import type { OfflineReason, Settings } from "./settings-types";
-import {
-  isRestorablePath,
-  normalizeServer,
-  readLastPath,
-  readServer,
-  resetStore,
-  writeLastPath,
-  writeServer,
-} from "./store";
+import { readLastPath, readServer, resetStore, writeLastPath, writeServer } from "./store";
 
 export const HOME_PATH = "/w";
 
@@ -238,7 +231,7 @@ export async function setServer(input: string): Promise<{ ok: boolean; error?: s
   if (!server) {
     return {
       ok: false,
-      error: "Enter an https:// address, for example https://mail.example.com",
+      error: "Enter your server's address, for example mail.example.com",
     };
   }
   if (!(await checkServer(server))) {

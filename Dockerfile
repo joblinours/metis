@@ -13,7 +13,7 @@ WORKDIR /app
 COPY --from=deps /app/ .
 COPY --from=pruner /app/out/full/ .
 WORKDIR /app/apps/web
-RUN bun build scripts/workflow-worker.ts --target=node --conditions=react-server --external @libsql/client --external libsql --external bullmq --external ioredis --external ssh2 --external ssh2-sftp-client --outfile workflow-worker.mjs
+RUN bun build scripts/workflow-worker.ts --target=node --conditions=react-server --external @libsql/client --external libsql --external bullmq --external ioredis --external ssh2 --external ssh2-sftp-client --external @opentelemetry/api --outfile workflow-worker.mjs
 RUN bun run scripts/licenses.ts
 
 # next build runs on node: bun segfaults on Next 16 + Turbopack builds in a

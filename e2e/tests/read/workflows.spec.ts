@@ -1,4 +1,21 @@
 import { LATE_ARRIVAL_WORKFLOW } from "@metis/e2e/lib/late-arrival";
+import {
+  AGENT_WORKFLOW,
+  AGGREGATE_WORKFLOW,
+  AI_WORKFLOW,
+  APPROVAL_WORKFLOW,
+  BEFORE_SEND_WORKFLOW,
+  CALENDAR_WORKFLOW,
+  CALLED_WORKFLOW,
+  CALLER_WORKFLOW,
+  DELAY_WORKFLOW,
+  DRIVE_WORKFLOW,
+  ERROR_WORKFLOW,
+  LOOP_WORKFLOW,
+  RUN_FAILED_WORKFLOW,
+  SWITCH_WORKFLOW,
+  WEBHOOK_WORKFLOW,
+} from "@metis/e2e/lib/workflow-seeds";
 
 import { expect, test } from "../fixtures";
 import { workspacePath } from "../harness";
@@ -11,13 +28,36 @@ const SEEDED = [
   "Label orders once both checks finish",
   "Triage with the decision model",
   LATE_ARRIVAL_WORKFLOW,
+  APPROVAL_WORKFLOW,
+  WEBHOOK_WORKFLOW,
+  CALLED_WORKFLOW,
+  CALLER_WORKFLOW,
+  CALENDAR_WORKFLOW,
+  DRIVE_WORKFLOW,
+  SWITCH_WORKFLOW,
+  DELAY_WORKFLOW,
+  AGGREGATE_WORKFLOW,
+  ERROR_WORKFLOW,
+  RUN_FAILED_WORKFLOW,
+  BEFORE_SEND_WORKFLOW,
+  LOOP_WORKFLOW,
+  AI_WORKFLOW,
+  AGENT_WORKFLOW,
 ];
 const REBRAND_SUBJECTS = [
   "Rebrand kickoff",
   "Invitation: Rebrand review @ Thu Oct 8, 2026 15:00 UTC",
 ];
-const NEW_MAIL = ["File new mail from Raj", LATE_ARRIVAL_WORKFLOW];
-const RUN_ONCE = SEEDED.filter((name) => !NEW_MAIL.includes(name));
+const NEW_MAIL = ["File new mail from Raj", LATE_ARRIVAL_WORKFLOW, WEBHOOK_WORKFLOW];
+const NOT_RUN_BY_HAND = new Set([
+  ...NEW_MAIL,
+  CALLED_WORKFLOW,
+  CALENDAR_WORKFLOW,
+  DRIVE_WORKFLOW,
+  RUN_FAILED_WORKFLOW,
+  BEFORE_SEND_WORKFLOW,
+]);
+const RUN_ONCE = SEEDED.filter((name) => !NOT_RUN_BY_HAND.has(name));
 
 function sidebarPanel(page: import("@playwright/test").Page) {
   return page.getByRole("complementary").filter({
@@ -88,21 +128,18 @@ test("the seeded history has one run per manual and schedule workflow, with take
   await runLink("Label rebrand mail").click();
   await expect(page.getByRole("heading", { level: 1, name: "Label rebrand mail" })).toBeVisible();
   const taken = page
-    .getByRole("img", { name: "If (Yes) to Apply label" })
+    .getByRole("img", { name: "Filter to Label" })
     .locator("path.react-flow__edge-path");
   await expect(taken).toHaveCSS("stroke-dasharray", "none");
 
-  await page.getByRole("group", { name: /^Apply label: / }).click();
+  await page.getByRole("group", { name: /^Label: / }).click();
   const step = page.getByRole("region", { name: "Selected step" });
-  await expect(
-    step.getByText(`completed ×${REBRAND_SUBJECTS.length} · ${account.email}`, {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(step.getByText(new RegExp(`^completed ×${REBRAND_SUBJECTS.length}`))).toBeVisible();
   const items = step.getByRole("listitem");
   await expect(items).toHaveCount(REBRAND_SUBJECTS.length);
   for (const item of await items.all()) {
-    await expect(item.getByText(`completed · ${account.email}`, { exact: true })).toBeVisible();
+    await expect(item.getByText("completed", { exact: true })).toBeVisible();
+    await expect(item.getByText("Input", { exact: true })).toBeVisible();
   }
   for (const subject of REBRAND_SUBJECTS) {
     await expect(items.filter({ hasText: subject })).toHaveCount(1);
@@ -118,18 +155,20 @@ test("a bad graph shows its validation error and is not saved", async ({ page, a
   await sidebarPanel(page).getByRole("button", { name: "New workflow", exact: true }).click();
   await page
     .getByRole("menu", { name: "New workflow" })
-    .getByRole("menuitem", { name: "One mailbox, on arrival", exact: true })
+    .getByRole("menuitem", { name: "Label mail from a sender", exact: true })
     .click();
   await page.getByRole("textbox", { name: "Workflow name" }).fill("Invalid on purpose");
   const trigger = page
     .getByRole("application")
     .getByRole("group")
-    .filter({ has: page.getByText("When mail arrives", { exact: true }) });
+    .filter({ has: page.getByText("Mail arrives", { exact: true }) });
   await trigger.getByRole("button", { name: "Remove step" }).click();
   await expect(trigger).toHaveCount(0);
   await page.getByRole("button", { name: "Create workflow", exact: true }).click();
   await expect(
-    page.getByRole("region", { name: "Inspector" }).getByText("Start the workflow with a trigger"),
+    page
+      .getByRole("region", { name: "Inspector" })
+      .getByText("Add a trigger to start this workflow"),
   ).toBeVisible();
   expect(creates).toEqual([]);
   await page.reload();

@@ -4,10 +4,26 @@ import type { Account } from "../../clients/harness";
 import { type Rpc, RpcError } from "../../clients/rpc";
 import { until, uniqueName } from "../support/poll";
 import { ana, mailboxScope, scope } from "../support/session";
-import { getRun, labelMap, nodeOf, restoreLabels, SETTLED, waitForRun } from "../support/workflow";
+import {
+  at,
+  cel,
+  edge,
+  getRun,
+  type Graph,
+  type GraphEdge,
+  type GraphNode,
+  graphOf,
+  labelMap,
+  lit,
+  node,
+  nodeOf,
+  restoreLabels,
+  SETTLED,
+  waitForRun,
+} from "../support/workflow";
 
-interface Mailbox {
-  mailboxId: string;
+interface DirectoryEntry {
+  id: string;
   slug: string;
   email: string;
 }
@@ -22,59 +38,59 @@ interface Email {
 interface TestResult {
   status: string;
   error: string | null;
-  sample: { subject: string; from: string } | null;
+  event: Record<string, unknown> | null;
   steps: { nodeId: string; status: string; count: number; detail: string | null }[];
   items: {
     nodeId: string;
     status: string;
-    subject: string | null;
-    from: string | null;
+    title: string | null;
+    subtitle: string | null;
     outputs: string[];
     detail: string | null;
     error: string | null;
+    input: unknown;
+    result: unknown;
   }[];
 }
 
-type Node = Record<string, unknown> & { id: string; kind: string };
-type Edge = { id: string; source: string; target: string; sourceHandle?: string };
-
-const at = (step: number, lane = 0) => ({ x: step * 352, y: lane * 200 });
-
-function edge(source: string, target: string, sourceHandle = "out"): Edge {
-  return { id: `${source}:${sourceHandle}->${target}`, source, target, sourceHandle };
+function inbox(mailboxId: string, step = 1, limit = 50): GraphNode {
+  return node("inbox", "mail.list", at(step), {
+    mailbox: lit(mailboxId),
+    folder: lit("inbox"),
+    limit: lit(limit),
+  });
 }
 
-function inbox(mailboxId: string, step = 1): Node {
-  return {
-    id: "inbox",
-    kind: "mailbox.source",
-    position: at(step),
-    mailboxId,
-    operation: "list",
-    folder: "inbox",
-    limit: 50,
-  };
+function subjectContains(id: string, value: string, step = 2): GraphNode {
+  return node(id, "logic.filter", at(step), {
+    condition: cel(`lower(item.subject).contains(${JSON.stringify(value.toLowerCase())})`),
+  });
 }
 
-function subjectContains(id: string, value: string, step = 2): Node {
-  return {
-    id,
-    kind: "condition",
-    position: at(step),
-    predicate: { kind: "predicate", field: "subject", op: "contains", value },
-  };
+function action(
+  id: string,
+  step: string,
+  column: number,
+  params: GraphNode["params"] = {},
+  extra: Partial<GraphNode> = {},
+) {
+  return node(id, step, at(column), { message: cel("item"), ...params }, extra);
 }
 
-function manualGraph(mailboxId: string, tail: Node[], tailEdges: Edge[]) {
-  return {
-    nodes: [{ id: "manual", kind: "trigger.manual", position: at(0) }, inbox(mailboxId), ...tail],
-    edges: [edge("manual", "inbox"), ...tailEdges],
-  };
+function manualGraph(mailboxId: string, tail: GraphNode[], tailEdges: GraphEdge[]): Graph {
+  return graphOf(
+    [node("manual", "trigger.manual", at(0)), inbox(mailboxId), ...tail],
+    [edge("manual", "inbox"), ...tailEdges],
+  );
 }
 
-async function primaryMailbox(rpc: Rpc, account: Account): Promise<Mailbox> {
-  const { mailboxes } = await rpc<{ mailboxes: Mailbox[] }>("workflows.list", scope(account));
-  const found = mailboxes.find((m) => m.slug === account.mailboxSlug) ?? mailboxes[0];
+async function primaryMailbox(rpc: Rpc, account: Account): Promise<DirectoryEntry> {
+  const { directory } = await rpc<{ directory: { mailboxes: DirectoryEntry[] } }>(
+    "workflows.list",
+    scope(account),
+  );
+  const found =
+    directory.mailboxes.find((m) => m.slug === account.mailboxSlug) ?? directory.mailboxes[0];
   if (!found) throw new Error("the workspace has no mailbox");
   return found;
 }
@@ -104,11 +120,11 @@ async function rejection(call: Promise<unknown>): Promise<RpcError> {
 async function withWorkflow<T>(
   rpc: Rpc,
   account: Account,
-  workflow: { name: string; enabled: boolean; graph: unknown },
-  run: (created: { id: string; revision: number; graph: { nodes: Node[] } }) => Promise<T>,
+  workflow: { name: string; enabled: boolean; graph: Graph },
+  run: (created: { id: string; revision: number; graph: Graph }) => Promise<T>,
 ): Promise<T> {
   const { workflow: created } = await rpc<{
-    workflow: { id: string; revision: number; graph: { nodes: Node[] } };
+    workflow: { id: string; revision: number; graph: Graph };
   }>("workflows.create", { ...scope(account), workflow });
   try {
     return await run(created);
@@ -117,93 +133,96 @@ async function withWorkflow<T>(
   }
 }
 
-test("a graph without a trigger is refused with its validation message", async () => {
-  const { rpc, account } = await ana();
-  const box = await primaryMailbox(rpc, account);
-  const err = await rejection(
-    rpc("workflows.create", {
-      ...scope(account),
-      workflow: {
-        name: uniqueName(),
-        enabled: false,
-        graph: { nodes: [inbox(box.mailboxId)], edges: [] },
-      },
-    }),
-  );
-  expect(err.status).toBe(400);
-  expect(err.message).toBe("Start the workflow with a trigger");
-});
-
-test("a skip flag on a step that is not an action is refused", async () => {
-  const { rpc, account } = await ana();
-  const box = await primaryMailbox(rpc, account);
-  const graph = manualGraph(
-    box.mailboxId,
-    [{ ...subjectContains("rebrand", "Rebrand"), skip: true }],
-    [edge("inbox", "rebrand")],
-  );
-  const err = await rejection(
+async function refusal(rpc: Rpc, account: Account, graph: Graph): Promise<RpcError> {
+  return rejection(
     rpc("workflows.create", {
       ...scope(account),
       workflow: { name: uniqueName(), enabled: false, graph },
     }),
   );
-  expect(err.message).toBe("Only an action step can be skipped");
+}
+
+test("a graph without a trigger is refused with its validation message", async () => {
+  const { rpc, account } = await ana();
+  const box = await primaryMailbox(rpc, account);
+  const err = await refusal(rpc, account, graphOf([inbox(box.id)], []));
+  expect(err.status).toBe(400);
+  expect(err.message).toBe("Add a trigger to start this workflow");
+});
+
+test("a skip flag on a step that changes nothing is refused", async () => {
+  const { rpc, account } = await ana();
+  const box = await primaryMailbox(rpc, account);
+  const graph = manualGraph(
+    box.id,
+    [{ ...subjectContains("rebrand", "Rebrand"), skip: true }],
+    [edge("inbox", "rebrand")],
+  );
+  const err = await refusal(rpc, account, graph);
+  expect(err.message).toBe("Only a step that changes something can be skipped");
 });
 
 test("an unknown time zone and a bad cron expression are refused", async () => {
   const { rpc, account } = await ana();
   const box = await primaryMailbox(rpc, account);
-  const schedule = (cron: string, timezone: string) => ({
-    nodes: [
-      { id: "daily", kind: "trigger.schedule", position: at(0), cron, timezone },
-      inbox(box.mailboxId),
-    ],
-    edges: [edge("daily", "inbox")],
-  });
-  const zone = await rejection(
-    rpc("workflows.create", {
-      ...scope(account),
-      workflow: { name: uniqueName(), enabled: false, graph: schedule("0 9 * * *", "Mars/Base") },
-    }),
-  );
-  expect(zone.message).toBe('"Mars/Base" is not a known time zone');
-  const cron = await rejection(
-    rpc("workflows.create", {
-      ...scope(account),
-      workflow: { name: uniqueName(), enabled: false, graph: schedule("every day", "Etc/UTC") },
-    }),
-  );
-  expect(cron.message).toBe("Use a five-field cron expression, for example 0 9 * * 1-5");
+  const schedule = (cron: string, timezone: string) =>
+    graphOf(
+      [
+        node("daily", "trigger.schedule", at(0), { cron: lit(cron), timezone: lit(timezone) }),
+        inbox(box.id),
+      ],
+      [edge("daily", "inbox")],
+    );
+  const zone = await refusal(rpc, account, schedule("0 9 * * *", "Mars/Base"));
+  expect(zone.message).toBe("Pick a valid time zone");
+  const cron = await refusal(rpc, account, schedule("every day", "Etc/UTC"));
+  expect(cron.message).toBe("Use a five-field cron expression");
 });
 
 test("a mailbox outside the workspace is refused", async () => {
   const { rpc, account } = await ana();
-  const err = await rejection(
-    rpc("workflows.create", {
-      ...scope(account),
-      workflow: {
-        name: uniqueName(),
-        enabled: false,
-        graph: manualGraph("no-such-mailbox", [], []),
-      },
-    }),
+  const err = await refusal(rpc, account, manualGraph("no-such-mailbox", [], []));
+  expect(err.message).toBe("That mailbox is not in this workspace");
+});
+
+test("an expression that does not type-check is refused with the setting it is in", async () => {
+  const { rpc, account } = await ana();
+  const box = await primaryMailbox(rpc, account);
+  const notBoolean = await refusal(
+    rpc,
+    account,
+    manualGraph(
+      box.id,
+      [node("check", "logic.filter", at(2), { condition: cel("item.subject") })],
+      [edge("inbox", "check")],
+    ),
   );
-  expect(err.message).toBe("That mailbox is not available in this workspace");
+  expect(notBoolean.message).toMatch(/^Keep when: /);
+  const unknownField = await refusal(
+    rpc,
+    account,
+    manualGraph(
+      box.id,
+      [node("check", "logic.filter", at(2), { condition: cel("item.nonsense == 1") })],
+      [edge("inbox", "check")],
+    ),
+  );
+  expect(unknownField.message).toMatch(/^Keep when: /);
 });
 
 test("step titles round-trip through create, list and update, and an update bumps the revision", async () => {
   const { rpc, account } = await ana();
   const box = await primaryMailbox(rpc, account);
   const graph = manualGraph(
-    box.mailboxId,
+    box.id,
     [{ ...subjectContains("rebrand", "Rebrand"), title: "Is it about the rebrand?" }],
     [edge("inbox", "rebrand")],
   );
   await withWorkflow(rpc, account, { name: uniqueName(), enabled: false, graph }, async (wf) => {
-    const listed = await rpc<{
-      workflows: { id: string; revision: number; graph: { nodes: Node[] } }[];
-    }>("workflows.list", scope(account));
+    const listed = await rpc<{ workflows: { id: string; graph: Graph }[] }>(
+      "workflows.list",
+      scope(account),
+    );
     const found = listed.workflows.find((w) => w.id === wf.id);
     expect(found?.graph.nodes.find((n) => n.id === "rebrand")?.title).toBe(
       "Is it about the rebrand?",
@@ -213,15 +232,28 @@ test("step titles round-trip through create, list and update, and an update bump
       ...graph,
       nodes: graph.nodes.map((n) => (n.id === "rebrand" ? { ...n, title: "Rebrand mail" } : n)),
     };
-    const { workflow: updated } = await rpc<{
-      workflow: { revision: number; graph: { nodes: Node[] } };
-    }>("workflows.update", {
-      ...scope(account),
-      id: wf.id,
-      workflow: { name: uniqueName(), enabled: false, graph: renamed },
-    });
+    const { workflow: updated } = await rpc<{ workflow: { revision: number; graph: Graph } }>(
+      "workflows.update",
+      {
+        ...scope(account),
+        id: wf.id,
+        workflow: { name: uniqueName(), enabled: false, graph: renamed },
+      },
+    );
     expect(updated.revision).toBeGreaterThan(wf.revision);
     expect(updated.graph.nodes.find((n) => n.id === "rebrand")?.title).toBe("Rebrand mail");
+
+    const { revisions } = await rpc<{ revisions: { revision: number; graph: Graph }[] }>(
+      "workflows.revisions",
+      { ...scope(account), id: wf.id },
+    );
+    expect(revisions.map((r) => r.revision)).toEqual(
+      expect.arrayContaining([wf.revision, updated.revision]),
+    );
+    const first = revisions.find((r) => r.revision === wf.revision);
+    expect(first?.graph.nodes.find((n) => n.id === "rebrand")?.title).toBe(
+      "Is it about the rebrand?",
+    );
   });
 });
 
@@ -230,13 +262,13 @@ test("a skipped action passes its mail straight on, and the run records the step
   const box = await primaryMailbox(rpc, account);
   const before = await labelMap(rpc, account);
   const graph = manualGraph(
-    box.mailboxId,
+    box.id,
     [
       subjectContains("order", "order"),
-      { id: "archive", kind: "action.archive", position: at(3), skip: true },
-      { id: "label", kind: "action.label", position: at(4), label: "work" },
+      action("archive", "mail.archive", 3, {}, { skip: true }),
+      action("label", "mail.label", 4, { label: lit("work") }),
     ],
-    [edge("inbox", "order"), edge("order", "archive", "matched"), edge("archive", "label")],
+    [edge("inbox", "order"), edge("order", "archive"), edge("archive", "label")],
   );
   try {
     await withWorkflow(rpc, account, { name: uniqueName(), enabled: true, graph }, async (wf) => {
@@ -247,9 +279,7 @@ test("a skipped action passes its mail straight on, and the run records the step
       const run = await waitForRun(rpc, account, runId);
       expect(run.status).toBe("completed");
       const detail = await rpc<{
-        run: {
-          nodes: { nodeId: string; lines: { status: string; detail: string | null }[] }[];
-        };
+        run: { nodes: { nodeId: string; lines: { status: string; detail: string | null }[] }[] };
       }>("workflows.getRun", { ...scope(account), runId });
       const archive = detail.run.nodes.find((n) => n.nodeId === "archive");
       expect(archive?.lines.map((l) => l.status)).toEqual(["skipped"]);
@@ -277,13 +307,13 @@ test("a test run of an unsaved graph reports what each step would do and changes
     limit: 100,
   });
   const graph = manualGraph(
-    box.mailboxId,
+    box.id,
     [
       subjectContains("rebrand", "Rebrand"),
-      { id: "label", kind: "action.label", position: at(3), label: "work" },
-      { id: "star", kind: "action.star", position: at(4) },
+      action("label", "mail.label", 3, { label: lit("work") }),
+      action("star", "mail.star", 4, { starred: lit(true) }),
     ],
-    [edge("inbox", "rebrand"), edge("rebrand", "label", "matched"), edge("label", "star")],
+    [edge("inbox", "rebrand"), edge("rebrand", "label"), edge("label", "star")],
   );
 
   const result = await rpc<TestResult>("workflows.test", {
@@ -294,25 +324,21 @@ test("a test run of an unsaved graph reports what each step would do and changes
 
   expect(result.status).toBe("completed");
   expect(result.error).toBeNull();
-  expect(result.sample).toBeNull();
-  const rebrand = emailsBefore.filter((e) => e.subject.includes("Rebrand"));
+  const rebrand = emailsBefore.filter((e) => e.subject.toLowerCase().includes("rebrand"));
   expect(rebrand.length).toBeGreaterThan(0);
 
-  const condition = result.items.filter((i) => i.nodeId === "rebrand");
-  expect(condition).toHaveLength(emailsBefore.length);
-  expect(condition.filter((i) => i.outputs.includes("matched"))).toHaveLength(rebrand.length);
-  expect(condition.filter((i) => i.outputs.includes("unmatched"))).toHaveLength(
-    emailsBefore.length - rebrand.length,
-  );
+  const filtered = result.items.filter((i) => i.nodeId === "rebrand");
+  expect(filtered).toHaveLength(emailsBefore.length);
+  expect(filtered.filter((i) => i.outputs.includes("out"))).toHaveLength(rebrand.length);
 
   for (const id of ["label", "star"]) {
     const items = result.items.filter((i) => i.nodeId === id);
-    expect(items.map((i) => i.subject).toSorted(bySubject), id).toEqual(
+    expect(items.map((i) => i.title).toSorted(bySubject), id).toEqual(
       rebrand.map((e) => e.subject).toSorted(bySubject),
     );
     for (const item of items) {
       expect(item.status).toBe("completed");
-      expect(item.detail).toBe("not applied in a test run");
+      expect(item.detail).toBe("would change this message");
       expect(item.outputs).toEqual(["out"]);
     }
   }
@@ -333,13 +359,13 @@ test("a test run follows a skipped action into the step after it", async () => {
   const { rpc, account } = await ana();
   const box = await primaryMailbox(rpc, account);
   const graph = manualGraph(
-    box.mailboxId,
+    box.id,
     [
       subjectContains("order", "order"),
-      { id: "trash", kind: "action.trash", position: at(3), skip: true },
-      { id: "label", kind: "action.label", position: at(4), label: "transactions" },
+      action("trash", "mail.trash", 3, {}, { skip: true }),
+      action("label", "mail.label", 4, { label: lit("transactions") }),
     ],
-    [edge("inbox", "order"), edge("order", "trash", "matched"), edge("trash", "label")],
+    [edge("inbox", "order"), edge("order", "trash"), edge("trash", "label")],
   );
   const result = await rpc<TestResult>("workflows.test", {
     ...scope(account),
@@ -350,103 +376,222 @@ test("a test run follows a skipped action into the step after it", async () => {
   const trash = result.items.filter((i) => i.nodeId === "trash");
   expect(trash.length).toBeGreaterThan(0);
   for (const item of trash) expect(item.status).toBe("skipped");
-  expect(result.items.filter((i) => i.nodeId === "label").map((i) => i.subject)).toEqual(
-    trash.map((i) => i.subject),
+  expect(result.items.filter((i) => i.nodeId === "label").map((i) => i.title)).toEqual(
+    trash.map((i) => i.title),
   );
 });
 
-test("a test run from a new-mail trigger runs on the sample message that was picked", async () => {
+test("a test run from a received-mail trigger runs on the sample that was picked", async () => {
   const { rpc, account } = await ana();
   const box = await primaryMailbox(rpc, account);
-  const { messages } = await rpc<{
-    messages: { messageId: string; subject: string; from: string; date: string | null }[];
-  }>("workflows.testSamples", { ...scope(account), mailboxId: box.mailboxId });
-  const kickoff = messages.find((m) => m.subject === "Rebrand kickoff");
-  const order = messages.find((m) => m.subject.includes("Your order A-42"));
+  const graph = graphOf(
+    [
+      node("arrives", "trigger.mail.received", at(0), {
+        mailbox: lit(box.id),
+        folder: lit("inbox"),
+      }),
+      node("raj", "logic.filter", at(1), { condition: cel('lower(item.from).contains("raj@")') }),
+      action("label", "mail.label", 2, { label: lit("work") }),
+    ],
+    [edge("arrives", "raj"), edge("raj", "label")],
+  );
+  const { samples } = await rpc<{ samples: { id: string; title: string; subtitle: string }[] }>(
+    "workflows.testSamples",
+    { ...scope(account), graph, triggerNodeId: "arrives" },
+  );
+  const kickoff = samples.find((s) => s.title === "Rebrand kickoff");
+  const order = samples.find((s) => s.title.includes("Your order A-42"));
   expect(kickoff).toBeDefined();
   expect(order).toBeDefined();
 
-  const graph = {
-    nodes: [
-      { id: "arrives", kind: "trigger.newMail", position: at(0) },
-      { ...inbox(box.mailboxId), operation: "incoming" },
-      {
-        id: "raj",
-        kind: "condition",
-        position: at(2),
-        predicate: { kind: "predicate", field: "from", op: "contains", value: "raj@" },
-      },
-      { id: "label", kind: "action.label", position: at(3), label: "work" },
-    ],
-    edges: [edge("arrives", "inbox"), edge("inbox", "raj"), edge("raj", "label", "matched")],
-  };
-  const runOn = (messageId: string) =>
+  const runOn = (sampleId: string) =>
     rpc<TestResult>("workflows.test", {
       ...scope(account),
       graph,
       triggerNodeId: "arrives",
-      messageId,
+      sampleId,
     });
 
-  const matched = await runOn(kickoff?.messageId ?? "");
+  const matched = await runOn(kickoff?.id ?? "");
   expect(matched.status).toBe("completed");
-  expect(matched.sample?.subject).toBe("Rebrand kickoff");
-  expect(matched.items.filter((i) => i.nodeId === "inbox")).toHaveLength(1);
-  expect(matched.items.find((i) => i.nodeId === "raj")?.outputs).toEqual(["matched"]);
+  expect(matched.event?.subject).toBe("Rebrand kickoff");
+  expect(matched.items.find((i) => i.nodeId === "raj")?.outputs).toEqual(["out"]);
   expect(matched.items.filter((i) => i.nodeId === "label")).toHaveLength(1);
 
-  const missed = await runOn(order?.messageId ?? "");
-  expect(missed.sample?.subject).toContain("Your order A-42");
-  expect(missed.items.find((i) => i.nodeId === "raj")?.outputs).toEqual(["unmatched"]);
+  const missed = await runOn(order?.id ?? "");
+  expect(String(missed.event?.subject)).toContain("Your order A-42");
+  expect(missed.items.find((i) => i.nodeId === "raj")?.outputs).toEqual([]);
   expect(missed.items.filter((i) => i.nodeId === "label")).toHaveLength(0);
 });
 
-test("a test run refuses an invalid graph, a before-send trigger and an unknown sample", async () => {
+test("a test run with a pasted event and with a pinned sample uses that event", async () => {
+  const { rpc, account } = await ana();
+  const box = await primaryMailbox(rpc, account);
+  const [newest] = await inboxEmails(rpc, account);
+  if (!newest) throw new Error("the inbox is empty");
+  const graph = graphOf(
+    [
+      node("arrives", "trigger.mail.received", at(0), {
+        mailbox: lit(box.id),
+        folder: lit("inbox"),
+      }),
+      node("shape", "logic.set", at(1), {
+        fields: lit([
+          {
+            name: "headline",
+            value: { kind: "template", text: "{{ item.subject }} from {{ item.from }}" },
+          },
+        ]),
+      }),
+    ],
+    [edge("arrives", "shape")],
+  );
+  const event = { ...newest, subject: "Pasted subject", from: "pasted@example.com" };
+  const pasted = await rpc<TestResult>("workflows.test", {
+    ...scope(account),
+    graph,
+    triggerNodeId: "arrives",
+    event,
+  });
+  expect(pasted.status).toBe("completed");
+  const shaped = pasted.items.find((i) => i.nodeId === "shape");
+  expect(shaped?.result).toMatchObject({ headline: "Pasted subject from pasted@example.com" });
+
+  await withWorkflow(rpc, account, { name: uniqueName(), enabled: false, graph }, async (wf) => {
+    await rpc("workflows.pinSample", {
+      ...scope(account),
+      id: wf.id,
+      triggerNodeId: "arrives",
+      event,
+    });
+    const { samples } = await rpc<{ samples: Record<string, { subject?: string }> }>(
+      "workflows.samples",
+      {
+        ...scope(account),
+        id: wf.id,
+      },
+    );
+    expect(samples.arrives?.subject).toBe("Pasted subject");
+    await rpc("workflows.pinSample", {
+      ...scope(account),
+      id: wf.id,
+      triggerNodeId: "arrives",
+      event: null,
+    });
+    const cleared = await rpc<{ samples: Record<string, unknown> }>("workflows.samples", {
+      ...scope(account),
+      id: wf.id,
+    });
+    expect(cleared.samples.arrives).toBeUndefined();
+  });
+});
+
+test("a Switch routes each item to the first case it matches, and the rest to Else", async () => {
+  const { rpc, account } = await ana();
+  const box = await primaryMailbox(rpc, account);
+  const emails = await inboxEmails(rpc, account);
+  const graph = manualGraph(
+    box.id,
+    [
+      node("route", "logic.switch", at(2), {
+        cases: lit([
+          { id: "rebrand", name: "Rebrand", when: 'lower(item.subject).contains("rebrand")' },
+          { id: "order", name: "Orders", when: 'lower(item.subject).contains("order")' },
+        ]),
+      }),
+    ],
+    [edge("inbox", "route")],
+  );
+  const result = await rpc<TestResult>("workflows.test", {
+    ...scope(account),
+    graph,
+    triggerNodeId: "manual",
+  });
+  expect(result.status).toBe("completed");
+  const routed = result.items.filter((i) => i.nodeId === "route");
+  expect(routed).toHaveLength(emails.length);
+  const rebrand = emails.filter((e) => e.subject.toLowerCase().includes("rebrand"));
+  const orders = emails.filter(
+    (e) =>
+      !e.subject.toLowerCase().includes("rebrand") && e.subject.toLowerCase().includes("order"),
+  );
+  expect(routed.filter((i) => i.outputs.includes("case:rebrand"))).toHaveLength(rebrand.length);
+  expect(routed.filter((i) => i.outputs.includes("case:order"))).toHaveLength(orders.length);
+  expect(routed.filter((i) => i.outputs.includes("else"))).toHaveLength(
+    emails.length - rebrand.length - orders.length,
+  );
+});
+
+test("a failing step set to branch on error routes the item to its Error output", async () => {
+  const { rpc, account } = await ana();
+  const box = await primaryMailbox(rpc, account);
+  const graph = graphOf(
+    [
+      node("manual", "trigger.manual", at(0)),
+      node(
+        "fetch",
+        "mail.get",
+        at(1),
+        { mailbox: lit(box.id), id: lit("no-such-message") },
+        { onError: "branch" },
+      ),
+      node("note", "logic.set", at(2), {
+        fields: lit([{ name: "failed", value: { kind: "expr", cel: "true" } }]),
+      }),
+    ],
+    [edge("manual", "fetch"), edge("fetch", "note", "error")],
+  );
+  const result = await rpc<TestResult>("workflows.test", {
+    ...scope(account),
+    graph,
+    triggerNodeId: "manual",
+  });
+  expect(result.status).toBe("completed");
+  const fetched = result.items.find((i) => i.nodeId === "fetch");
+  expect(fetched?.outputs).toEqual(["error"]);
+  expect(fetched?.error).toBeTruthy();
+  expect(result.items.find((i) => i.nodeId === "note")?.result).toMatchObject({ failed: true });
+});
+
+test("a test run refuses an invalid graph, a trigger with no event and a mailbox outside the workspace", async () => {
   const { rpc, account } = await ana();
   const box = await primaryMailbox(rpc, account);
 
   const noTrigger = await rejection(
     rpc("workflows.test", {
       ...scope(account),
-      graph: { nodes: [inbox(box.mailboxId)], edges: [] },
+      graph: graphOf([inbox(box.id)], []),
       triggerNodeId: "inbox",
     }),
   );
-  expect(noTrigger.message).toBe("Start the workflow with a trigger");
+  expect(noTrigger.message).toBe("Add a trigger to start this workflow");
 
   const beforeSend = await rejection(
     rpc("workflows.test", {
       ...scope(account),
-      graph: {
-        nodes: [
-          { id: "sending", kind: "trigger.beforeSend", position: at(0) },
-          { id: "bcc", kind: "action.autoBcc", position: at(1), address: "archive@harness.test" },
+      graph: graphOf(
+        [
+          node("sending", "trigger.mail.beforeSend", at(0)),
+          node("bcc", "mail.addBcc", at(1), { address: lit("archive@harness.test") }),
         ],
-        edges: [edge("sending", "bcc")],
-      },
+        [edge("sending", "bcc")],
+      ),
       triggerNodeId: "sending",
     }),
   );
-  expect(beforeSend.message).toBe("A test run starts from a new-mail, schedule or manual trigger");
+  expect(beforeSend.message).toBe("Pin a sample event to test this trigger");
 
-  const unknownSample = await rejection(
-    rpc("workflows.test", {
-      ...scope(account),
-      graph: {
-        nodes: [
-          { id: "arrives", kind: "trigger.newMail", position: at(0) },
-          { ...inbox(box.mailboxId), operation: "incoming" },
-        ],
-        edges: [edge("arrives", "inbox")],
-      },
-      triggerNodeId: "arrives",
-      messageId: "no-such-message",
-    }),
+  const outside = graphOf(
+    [
+      node("arrives", "trigger.mail.received", at(0), {
+        mailbox: lit("no-such-mailbox"),
+        folder: lit("inbox"),
+      }),
+    ],
+    [],
   );
-  expect(unknownSample.message).toBe("That message is no longer among the newest in the inbox");
-
   const samples = await rejection(
-    rpc("workflows.testSamples", { ...scope(account), mailboxId: "no-such-mailbox" }),
+    rpc("workflows.testSamples", { ...scope(account), graph: outside, triggerNodeId: "arrives" }),
   );
   expect(samples.message).toBe("That mailbox is not in this workspace");
 });
@@ -454,18 +599,14 @@ test("a test run refuses an invalid graph, a before-send trigger and an unknown 
 test("a test run validates and runs the graph it is sent, not the saved one", async () => {
   const { rpc, account } = await ana();
   const box = await primaryMailbox(rpc, account);
-  const saved = manualGraph(
-    box.mailboxId,
-    [subjectContains("cond", "Rebrand")],
-    [edge("inbox", "cond")],
-  );
+  const saved = manualGraph(box.id, [subjectContains("cond", "Rebrand")], [edge("inbox", "cond")]);
   await withWorkflow(
     rpc,
     account,
     { name: uniqueName(), enabled: false, graph: saved },
     async () => {
       const edited = manualGraph(
-        box.mailboxId,
+        box.id,
         [subjectContains("cond", "debited")],
         [edge("inbox", "cond")],
       );
@@ -474,10 +615,8 @@ test("a test run validates and runs the graph it is sent, not the saved one", as
         graph: edited,
         triggerNodeId: "manual",
       });
-      const matched = result.items.filter(
-        (i) => i.nodeId === "cond" && i.outputs.includes("matched"),
-      );
-      expect(matched.map((i) => i.subject)).toEqual([expect.stringContaining("debited")]);
+      const matched = result.items.filter((i) => i.nodeId === "cond" && i.outputs.includes("out"));
+      expect(matched.map((i) => i.title)).toEqual([expect.stringContaining("debited")]);
     },
   );
 });
@@ -487,21 +626,18 @@ test(
   async () => {
     const { rpc, account } = await ana();
     const box = await primaryMailbox(rpc, account);
-    const graph = {
-      nodes: [
-        {
-          id: "minutely",
-          kind: "trigger.schedule",
-          position: at(0),
-          cron: "* * * * *",
-          timezone: "Etc/UTC",
-        },
-        inbox(box.mailboxId),
+    const graph = graphOf(
+      [
+        node("minutely", "trigger.schedule", at(0), {
+          cron: lit("* * * * *"),
+          timezone: lit("Etc/UTC"),
+        }),
+        inbox(box.id),
         subjectContains("none", "e2e-subject-that-matches-nothing"),
-        { id: "star", kind: "action.star", position: at(3) },
+        action("star", "mail.star", 3, { starred: lit(true) }),
       ],
-      edges: [edge("minutely", "inbox"), edge("inbox", "none"), edge("none", "star", "matched")],
-    };
+      [edge("minutely", "inbox"), edge("inbox", "none"), edge("none", "star")],
+    );
     await withWorkflow(rpc, account, { name: uniqueName(), enabled: true, graph }, async (wf) => {
       const runs = await until(
         async () =>

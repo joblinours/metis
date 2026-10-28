@@ -78,7 +78,7 @@ export function RunnerView() {
         cards={{
           workflowRunner: {
             description:
-              "The driver is fixed at deploy: it decides which processes exist. The rest sets how much each tick does.",
+              "The driver decides what wakes the runner. Before switching, start the processes the new driver needs: a scheduler for cron, Redis and the worker for BullMQ. The rest sets how much each tick does.",
           },
         }}
       />

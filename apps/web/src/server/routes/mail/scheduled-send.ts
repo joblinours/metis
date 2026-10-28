@@ -108,7 +108,7 @@ export const scheduledSendRouter = {
       const result = await resolveScheduledSend({
         workflowId: input.id,
         mailboxIds: mailboxIds(mail),
-        nodeRunId: input.nodeRunId,
+        stepRunId: input.stepRunId,
         userId: mail.userId,
         decision: input.decision,
       });

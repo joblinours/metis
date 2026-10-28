@@ -465,6 +465,7 @@ export function EmailDetail() {
     const request = orpc.mail.messages.snooze({
       ...scope,
       id,
+      folder: selectedEmail.folder,
       wakeAt: wakeAt.toISOString(),
     });
     removeEmail(id, request);

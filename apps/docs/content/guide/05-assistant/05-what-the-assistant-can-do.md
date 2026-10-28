@@ -57,9 +57,10 @@ When the assistant changes an event or replies to an invitation, the other atten
 ### Workflows
 
 - List workflows and their runs, and open a run to see what happened
+- Read the list of workflow triggers and steps, with their settings
 - Create, change and turn on or off a workflow **(approval)**
 - Delete a workflow **(approval)**. Only workspace owners and admins can delete workflows.
-- Run a workflow now **(approval)**
+- Run a workflow now, filling in the inputs its **Run by hand** trigger asks for **(approval)**
 - Cancel a run or retry its failed steps **(approval)**
 - Try an Ask step on recent mail, to see how it would sort it (when your server offers Ask and Branch steps)
 
@@ -96,4 +97,4 @@ On purpose, no assistant can:
 - Change MCP client settings
 - Change member roles, send workspace invitations or change the workspace logo
 - Do anything that needs your two-factor code
-- Decide what happened to a send whose outcome is unclear. You resolve that yourself in the mailbox. See [Mail](/guide/mail).
+- Decide what happened to a send, or another change, whose outcome is unclear. You resolve that yourself: a scheduled message in the mailbox (see [Mail](/guide/mail)), and a workflow step from the run's details (see [Resolve a step with an unconfirmed outcome](/guide/workflows/cancel-and-retry-runs#resolve-a-step-with-an-unconfirmed-outcome)).

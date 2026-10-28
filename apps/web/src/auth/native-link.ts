@@ -1,6 +1,10 @@
-export const NATIVE_SCHEME = "metis-suite";
-export const NATIVE_USER_AGENT_TOKEN = "MetisSuite";
-export const NATIVE_SETTINGS_PATH = "/native/settings";
+import {
+  SCHEME as NATIVE_SCHEME,
+  SETTINGS_PATH as NATIVE_SETTINGS_PATH,
+  USER_AGENT_TOKEN as NATIVE_USER_AGENT_TOKEN,
+} from "@metis/shell-core/links";
+
+export { NATIVE_SCHEME, NATIVE_SETTINGS_PATH, NATIVE_USER_AGENT_TOKEN };
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
 const CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/;

@@ -1,6 +1,6 @@
 ---
 title: Desktop app
-description: Sign in to your Metis Suite server from the desktop app, and set how the app starts, downloads files and checks spelling.
+description: Sign in to your Metis Suite server from the desktop app, move back and forward, get update notices, and set how the app starts and downloads files.
 ---
 
 The Metis Suite desktop app opens your Metis Suite server in its own window, on macOS, Windows and Linux. Everything you can do in the browser works in the app, with a few extras such as a tray icon and a downloads folder.
@@ -11,14 +11,22 @@ To get the app, see [Download the apps](/guide/apps/download). It has the file f
 
 <Steps>
   <Step title="Enter your server address">
-    The first time you open the app, it shows "Connect to your Metis
-    Mail server". Type the address you use in the browser into **Server
-    address**, for example `https://mail.example.com`, and click
-    **Continue**.
+    The first time you open the app, it shows "Connect to your Metis Suite
+    server". Type the address you use in the browser into **Server
+    address**, for example `mail.example.com`, and click **Continue**.
 
-    The address must start with `https://`. If the app shows "No Metis
-    server answered at" your address, or "Could not reach that server.",
-    check the address with the person who runs your server.
+    You do not need to type `https://`. The app adds it for you. If your
+    server uses a port, keep it, for example `mail.example.com:8443`. The
+    app ignores anything after the address, such as a page path.
+
+    If the app shows "Enter your server's address, for example
+    mail.example.com", the address is not valid. If it
+    shows "No Metis server answered at" followed by your address, or
+    "Could not reach that server.", check the address with the person who
+    runs your server.
+
+    An address that starts with `http://` works only for a server on your
+    own computer (localhost).
 
   </Step>
 
@@ -58,21 +66,65 @@ If the browser says **Set up two-factor first**, your account has no two-factor 
 - **Downloads** ask where to save, or go straight to a folder you choose in the app settings. Google Drive downloads open in your browser.
 - **Printing** and viewing a message's original source stay in the app.
 - **When you go offline,** the window title says so. The app shows **You're offline** and reconnects when your network comes back. If your network works but the server does not answer, it shows **Can't reach the server**. Click **Try again** to check.
+- **When loading is slow:** if Metis Suite has not opened after 15 seconds, the app adds "This is taking longer than usual." Click **Try again**, **Use a different server** or **Settings**.
 - **The app remembers** its window size and position. With **Open where you left off** on, it reopens the last page you had open.
+
+## Go back and forward
+
+You can move back and forward between the Metis Suite pages you visited, as in a browser:
+
+- In the **View** menu, choose **Back** or **Forward**.
+- Press Alt+Left or Alt+Right. On macOS, press Cmd+[ or Cmd+].
+- Press the back or forward button on your mouse.
+- On a Mac trackpad, swipe left or right with three fingers. This works only when the trackpad setting **Swipe between pages** is set to swipe with three fingers, or with two or three fingers.
+
+Back and forward skip the app's own screens, such as the loading, sign-in and offline screens.
 
 ## Menus and shortcuts
 
-| Menu      | Items                                                                                                                     |
-| --------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **File**  | **Home**, **Settings…** (Ctrl+, or Cmd+,), **Sign out**, **Change server…**, **Quit** (Ctrl+Q)                            |
-| **View**  | **Reload**, **Actual Size** (Ctrl+0 or Cmd+0), **Zoom In** (Ctrl+= or Cmd+=), **Zoom Out** (Ctrl+- or Cmd+-), full screen |
-| Tray icon | **Show Metis Suite**, **Settings…**, **Quit**                                                                             |
+| Menu                         | Items                                                                                                                                                                                         |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **File** (Windows and Linux) | **Home**, **Settings…** (Ctrl+,), **Check for updates…**, **Sign out**, **Change server…**, **Quit** (Ctrl+Q)                                                                                 |
+| **Metis Suite** (macOS)      | **About Metis Suite**, **Settings…** (Cmd+,), **Check for updates…**, **Services**, **Hide Metis Suite**, **Hide Others**, **Show All**, **Quit Metis Suite**                                 |
+| **File** (macOS)             | **Home**, **Sign out**, **Change server…**, **Close Window**                                                                                                                                  |
+| **View**                     | **Back**, **Forward**, **Reload**, **Actual Size** (Ctrl+0 or Cmd+0), **Zoom In** (Ctrl+= or Cmd+=), **Zoom Out** (Ctrl+- or Cmd+-), **Toggle Full Screen** (on macOS, **Enter Full Screen**) |
+| Tray icon                    | **Show Metis Suite**, **Settings…**, **Check for updates…**, **Quit**                                                                                                                         |
+
+The tray icon shows only while **Close to tray** is on.
 
 Zoom goes from 50% to 300%, in steps of 10%.
 
+## Update the app
+
+The app tells you when a newer version of Metis Suite is out. It checks when it starts, and then at most once a day.
+
+When a new version is out, your computer shows a notification. Its title names the new version, for example "Metis Suite 0.2.0 is available". Below it, the notification says "Open Settings to download it." Click the notification to open **About** in the app settings. You see each new version's notification only once. If a check fails, the app shows nothing.
+
+You can also check yourself. Choose **Check for updates…** in the **File** menu on Windows and Linux, in the **Metis Suite** menu on macOS, or in the tray menu. The app opens **About** and checks right away.
+
+Under **About**, the **Updates** row shows one of these:
+
+- "You have version" followed by your version number
+- "Checking for updates…"
+- "Up to date."
+- "Version" followed by the new version number and "is available."
+- "Could not check for updates. Try again later."
+
+Click **Check now** to check again. When a new version is out, **Check now** becomes **Download**. **Download** opens the right file for your computer in your browser:
+
+- **macOS:** the `.dmg` file for your Mac's chip.
+- **Windows:** the `.exe` installer.
+- **Linux:** the `.deb` or `.rpm` file, to match how you installed the app.
+
+If the app cannot tell which file you need, it opens the download page instead. The app never installs anything itself. To install the new version, follow [Update the apps](/guide/apps/download#update-the-apps).
+
+To stop the checks, turn off **Check for updates** in **General**.
+
 ## App settings
 
-Open the settings from your initials in the left rail, then **App settings**. You can also use **Settings…** in the **File** menu or the tray menu, or the **Settings** link on the sign-in and offline screens. **App settings** appears in the menu only inside the app.
+Open the settings from your initials in the left rail, then **App settings**. You can also use **Settings…** in the **File** menu on Windows and Linux, in the **Metis Suite** menu on macOS, or in the tray menu. The setup, sign-in, offline and slow-loading screens also have a **Settings** link. **App settings** appears in the menu only inside the app.
+
+The settings have five sections: **General**, **Server**, **Downloads**, **Advanced** and **About**.
 
 ### General
 
@@ -84,8 +136,11 @@ Open the settings from your initials in the left rail, then **App settings**. Yo
 | **Start in the background** | Off     |
 | **Close to tray**           | Off     |
 | **Open where you left off** | On      |
+| **Check for updates**       | On      |
 
 On Linux with GNOME, the tray icon needs the AppIndicator extension. Ubuntu turns it on by default.
+
+**Check for updates** says "Asks downloads.trymetis.email once a day whether a newer version exists. Your server is never contacted." See [Update the app](#update-the-app).
 
 ### Server
 
@@ -96,12 +151,7 @@ Shows the server address. **Change server…** connects the app to a different M
 - **When a download starts:** **Ask where to save** (the default) or **Save to a folder**. Click **Change…** to pick the folder.
 - **Notify when a download finishes:** on by default. The notification says "Download complete".
 
-### Spelling
-
-Not shown on macOS.
-
-- **Check spelling while typing:** on by default.
-- **Languages:** pick up to 10. Type in the filter box to find one.
+If a download stops partway, the app shows a "Download failed" notification with the file name. It does this even when **Notify when a download finishes** is off. If you cancel a download, the app shows nothing.
 
 ### Advanced
 
@@ -111,4 +161,4 @@ Not shown on macOS.
 
 ### About
 
-The app's version, and the Electron and Chromium versions it runs on. **Log file** has a **Show** button that shows you the app's log file, which helps when you report a problem.
+The app's version, and the Electron and Chromium versions it runs on. **Updates** shows whether a newer version is out, with **Check now** or **Download** (see [Update the app](#update-the-app)). **Log file** has a **Show** button that shows you the app's log file, which helps when you report a problem.

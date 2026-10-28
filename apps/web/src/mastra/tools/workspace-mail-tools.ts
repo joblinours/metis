@@ -2,10 +2,11 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import * as labels from "@/ops/labels";
+import * as mail from "@/ops/mail";
+import { analyzePhishing } from "@/ops/phishing";
+
 import { actorHeaders, getWorkspaceCtx } from "../runtime-context";
-import * as labels from "../toolkit/labels";
-import * as mail from "../toolkit/mail";
-import { analyzePhishing } from "../toolkit/phishing";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
   attachmentTarget,

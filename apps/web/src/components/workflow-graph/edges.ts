@@ -1,7 +1,7 @@
 import type { Edge } from "@xyflow/react";
 
-import { edgeLabel, type GraphShape, outputLabel } from "@/workflow/kinds";
-import { DEFAULT_TARGET_HANDLE } from "@/workflow/schema";
+import { DEFAULT_TARGET_HANDLE, type GraphShape } from "@/workflow/schema";
+import { edgeLabel, outputLabel } from "@/workflow/steps";
 
 import type { GraphOverlay } from "./overlay";
 

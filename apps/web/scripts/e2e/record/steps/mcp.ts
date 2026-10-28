@@ -1,10 +1,9 @@
 import { MCP_CALLS } from "@metis/e2e/lib/llm-scenarios";
 
 import { getWorkspaceCtx, workspaceRequestContext } from "../../../../src/mastra/runtime-context";
-import { summarizeThread } from "../../../../src/mastra/toolkit/mail";
-import { previewDecision } from "../../../../src/mastra/toolkit/workflow";
+import { summarizeThread } from "../../../../src/ops/mail";
+import { previewDecision } from "../../../../src/ops/workflow";
 import { listWorkspaceWorkflows } from "../../../../src/workflow";
-import type { WorkflowNode } from "../../../../src/workflow/schema";
 import { workspaceScope } from "../../workspace-scope";
 import { findEmail, loadWorld, type StepContext } from "./context";
 
@@ -46,10 +45,7 @@ export async function run(ctx: StepContext): Promise<void> {
     const workflow = (await listWorkspaceWorkflows(scope)).find(
       (w) => w.name === MCP_CALLS.previewWorkflow,
     );
-    const ask = workflow?.graph.nodes.find(
-      (node): node is Extract<WorkflowNode, { kind: "decision.ask" }> =>
-        node.kind === "decision.ask",
-    );
+    const ask = workflow?.graph.nodes.find((node) => node.step === "ai.ask");
     if (!ask) throw new Error(`"${MCP_CALLS.previewWorkflow}" has no Ask step`);
     failOnToolError(
       await previewDecision({

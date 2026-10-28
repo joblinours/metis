@@ -6,24 +6,27 @@ import type { MailScope } from "@/mail/session";
 import type { SnoozedEmail } from "@/server/schema";
 import type { Email } from "@/types/mail";
 
+import { requestManualRun } from "../discovery";
+import { expr, literal } from "../expr";
 import { newNodeId } from "../graph";
-import type { RunStatus, WorkflowGraph } from "../schema";
+import { GRAPH_VERSION, type RunStatus, type WorkflowGraph } from "../schema";
 import {
   type CancelResult,
   cancelBuiltinWorkflow,
+  cancelRun,
   findLiveTarget,
   hasInFlightRun,
+  latestRun,
   listBuiltins,
-  listNodeRuns,
+  listStepRuns,
   listTriggers,
   loadDefinition,
-  nodeUnresolvedFor,
-  rescheduleOnce,
+  rescheduleWait,
   saveDefinition,
   softDeleteDefinition,
+  stepUnresolvedFor,
 } from "../store";
 import { runNow } from "../tick";
-import { requestManualRun } from "../triggers";
 
 interface SnoozeTarget {
   mailboxId: string;
@@ -31,67 +34,71 @@ interface SnoozeTarget {
   threadId?: string;
 }
 
-function snoozeGraph(target: SnoozeTarget, wakeAt: Date): WorkflowGraph {
-  const manual = newNodeId();
-  const archiveSource = newNodeId();
-  const archive = newNodeId();
-  const wake = newNodeId();
-  const restoreSource = newNodeId();
-  const restore = newNodeId();
+const ARCHIVE = "archive";
+const WAIT = "wait";
+const RETURN = "return";
 
-  const source = (id: string, y: number) =>
-    ({
-      id,
-      kind: "mailbox.source" as const,
-      position: { x: 0, y },
-      mailboxId: target.mailboxId,
-      operation: "message" as const,
-      folder: "inbox" as const,
-      limit: 1,
-      messageId: target.messageId,
-      threadId: target.threadId,
-    }) satisfies WorkflowGraph["nodes"][number];
+export type SnoozeReturn = "inbox" | "archive" | "trash";
 
+export function snoozeReturn(folder: string | undefined): SnoozeReturn {
+  return folder === "archive" || folder === "trash" ? folder : "inbox";
+}
+
+const RETURN_STEPS: Record<SnoozeReturn, string | null> = {
+  inbox: "mail.toInbox",
+  trash: "mail.trash",
+  archive: null,
+};
+
+function snoozeGraph(folder: SnoozeReturn): WorkflowGraph {
+  const trigger = newNodeId();
+  const back = RETURN_STEPS[folder];
   return {
+    version: GRAPH_VERSION,
     nodes: [
-      { id: manual, kind: "trigger.manual", position: { x: 0, y: 0 } },
-      source(archiveSource, 170),
-      { id: archive, kind: "action.archive", position: { x: 0, y: 340 } },
       {
-        id: wake,
-        kind: "trigger.once",
-        position: { x: 320, y: 0 },
-        at: wakeAt.toISOString(),
+        id: trigger,
+        step: "trigger.manual",
+        position: { x: 0, y: 0 },
+        params: {
+          inputs: literal([
+            { name: "message", type: "mail" },
+            { name: "folder", type: "text" },
+            { name: "wakeAt", type: "date" },
+          ]),
+        },
       },
-      { ...source(restoreSource, 170), position: { x: 320, y: 170 } },
-      { id: restore, kind: "action.restore", position: { x: 320, y: 340 } },
+      {
+        id: ARCHIVE,
+        step: "mail.archive",
+        position: { x: 352, y: 0 },
+        params: { message: expr("trigger.inputs.message") },
+      },
+      {
+        id: WAIT,
+        step: "flow.waitUntil",
+        position: { x: 704, y: 0 },
+        params: { at: expr("trigger.inputs.wakeAt") },
+      },
+      ...(back
+        ? [
+            {
+              id: RETURN,
+              step: back,
+              position: { x: 1056, y: 0 },
+              params: { message: expr("item") },
+            },
+          ]
+        : []),
     ],
     edges: [
-      {
-        id: `${manual}:out->${archiveSource}`,
-        source: manual,
-        sourceHandle: "out",
-        target: archiveSource,
-      },
-      {
-        id: `${archiveSource}:out->${archive}`,
-        source: archiveSource,
-        sourceHandle: "out",
-        target: archive,
-      },
-      {
-        id: `${wake}:out->${restoreSource}`,
-        source: wake,
-        sourceHandle: "out",
-        target: restoreSource,
-      },
-      {
-        id: `${restoreSource}:out->${restore}`,
-        source: restoreSource,
-        sourceHandle: "out",
-        target: restore,
-      },
+      { id: `${trigger}:out->${ARCHIVE}`, source: trigger, sourceHandle: "out", target: ARCHIVE },
+      { id: `${ARCHIVE}:out->${WAIT}`, source: ARCHIVE, sourceHandle: "out", target: WAIT },
+      ...(back
+        ? [{ id: `${WAIT}:out->${RETURN}`, source: WAIT, sourceHandle: "out", target: RETURN }]
+        : []),
     ],
+    settings: {},
   };
 }
 
@@ -103,11 +110,19 @@ export interface SnoozeResult {
   invalid?: true;
 }
 
-async function archiveCheckpointed(runId: string, graph: WorkflowGraph): Promise<boolean> {
-  const archive = graph.nodes.find((node) => node.kind === "action.archive");
-  if (!archive) return false;
-  const rows = await listNodeRuns(runId);
-  return rows.some((row) => row.nodeId === archive.id && row.status === "completed");
+function snoozedFrom(event: unknown): SnoozeReturn {
+  if (!event || typeof event !== "object" || !("inputs" in event)) return "inbox";
+  const inputs = event.inputs;
+  if (!inputs || typeof inputs !== "object" || !("folder" in inputs)) return "inbox";
+  return snoozeReturn(typeof inputs.folder === "string" ? inputs.folder : undefined);
+}
+
+async function archivedId(runId: string): Promise<string | null> {
+  const rows = await listStepRuns(runId);
+  const archived = rows.find((row) => row.nodeId === ARCHIVE && row.status === "completed");
+  const value = archived?.output?.emits?.[0]?.value;
+  if (!value || typeof value !== "object" || !("id" in value)) return null;
+  return typeof value.id === "string" ? value.id : null;
 }
 
 export async function snoozeMessage(opts: {
@@ -115,21 +130,14 @@ export async function snoozeMessage(opts: {
   workspaceId: string;
   linkId: string | null;
   target: SnoozeTarget;
+  folder?: string;
   wakeAt: Date;
 }): Promise<SnoozeResult> {
   if (Number.isNaN(opts.wakeAt.getTime())) {
-    return {
-      ok: false,
-      invalid: true,
-      error: "Pick a valid date and time to bring this back.",
-    };
+    return { ok: false, invalid: true, error: "Pick a valid date and time to bring this back." };
   }
   if (opts.wakeAt.getTime() <= Date.now()) {
-    return {
-      ok: false,
-      invalid: true,
-      error: "Pick a time that's still ahead of you.",
-    };
+    return { ok: false, invalid: true, error: "Pick a time that's still ahead of you." };
   }
 
   const existing = await findLiveTarget({
@@ -137,44 +145,20 @@ export async function snoozeMessage(opts: {
     kind: "snooze",
     targetKey: opts.target.messageId,
   });
-
   if (existing) {
-    const loaded = await loadDefinition(existing.id);
-    const graph = loaded?.graph;
-    const archiveNode = graph?.nodes.find((n) => n.kind === "action.archive");
-    const restoreNode = graph?.nodes.find((n) => n.kind === "action.restore");
-    const unresolved =
-      (archiveNode && (await nodeUnresolvedFor(existing.id, archiveNode.id))) ||
-      (restoreNode && (await nodeUnresolvedFor(existing.id, restoreNode.id)));
-    if (unresolved) {
+    if (await stepUnresolvedFor(existing.id, ARCHIVE)) {
       return {
         ok: false,
         error:
           "The previous snooze of this message has an unresolved outcome — check the message, then cancel it and snooze again",
       };
     }
-    if (await hasInFlightRun(existing.id)) {
-      return {
-        ok: false,
-        error: "That message is still being handled — try again in a moment",
-      };
+    const run = await latestRun(existing.id);
+    if (run?.status === "waiting" && (await rescheduleWait({ runId: run.id, at: opts.wakeAt }))) {
+      return { ok: true, id: existing.id, wakeAt: opts.wakeAt.toISOString() };
     }
-    if (existing.enabled) {
-      const moved = await rescheduleOnce({
-        workflowId: existing.id,
-        at: opts.wakeAt,
-      });
-      if (moved.cancelled) {
-        return {
-          ok: true,
-          id: existing.id,
-          wakeAt: opts.wakeAt.toISOString(),
-        };
-      }
-      return {
-        ok: false,
-        error: moved.reason ?? "That snooze could not be rescheduled",
-      };
+    if (await hasInFlightRun(existing.id)) {
+      return { ok: false, error: "That message is still being handled — try again in a moment" };
     }
     await softDeleteDefinition(existing.id);
   }
@@ -187,8 +171,8 @@ export async function snoozeMessage(opts: {
     originLinkId: opts.linkId,
     name: "Snoozed message",
     targetKey: opts.target.messageId,
-    enabled: false,
-    graph: snoozeGraph(opts.target, opts.wakeAt),
+    enabled: true,
+    graph: snoozeGraph(snoozeReturn(opts.folder)),
   });
 
   const triggers = await listTriggers(saved.definition.id);
@@ -202,7 +186,18 @@ export async function snoozeMessage(opts: {
     definition: saved.definition,
     revisionId: saved.revisionId,
     trigger: manual,
+    graph: saved.graph,
     requestedByUserId: opts.userId,
+    requestedBy: { email: "", name: "" },
+    inputs: {
+      message: {
+        id: opts.target.messageId,
+        mailboxId: opts.target.mailboxId,
+        threadId: opts.target.threadId ?? "",
+      },
+      folder: snoozeReturn(opts.folder),
+      wakeAt: opts.wakeAt.toISOString(),
+    },
   });
   if (!runId) {
     await softDeleteDefinition(saved.definition.id);
@@ -210,10 +205,8 @@ export async function snoozeMessage(opts: {
   }
 
   const status = await runNow(runId);
-  const settled = status !== "completed" && status !== "pending";
-  if (settled && !(await archiveCheckpointed(runId, saved.graph))) {
-    const archiveNode = saved.graph.nodes.find((n) => n.kind === "action.archive");
-    if (archiveNode && (await nodeUnresolvedFor(saved.definition.id, archiveNode.id))) {
+  if (status !== "waiting" && status !== "pending" && !(await archivedId(runId))) {
+    if (await stepUnresolvedFor(saved.definition.id, ARCHIVE)) {
       return {
         ok: false,
         error:
@@ -221,17 +214,28 @@ export async function snoozeMessage(opts: {
       };
     }
     await softDeleteDefinition(saved.definition.id);
-    return {
-      ok: false,
-      error: "Could not archive that message, so nothing was snoozed",
-    };
+    return { ok: false, error: "Could not archive that message, so nothing was snoozed" };
   }
 
-  return {
-    ok: true,
-    id: saved.definition.id,
-    wakeAt: opts.wakeAt.toISOString(),
-  };
+  return { ok: true, id: saved.definition.id, wakeAt: opts.wakeAt.toISOString() };
+}
+
+async function cancelSnoozeWorkflow(workflowId: string): Promise<CancelResult> {
+  const run = await latestRun(workflowId);
+  if (run && (run.status === "waiting" || run.status === "pending")) {
+    const cancelled = await cancelRun(run.id);
+    if (cancelled.state === "stopping") {
+      return { cancelled: false, reason: "That is still being handled — try again in a moment" };
+    }
+  }
+  if (await stepUnresolvedFor(workflowId, ARCHIVE)) {
+    return {
+      cancelled: false,
+      reason: "A step of this item has an unresolved outcome — check the message before cancelling",
+    };
+  }
+  const deleted = await softDeleteDefinition(workflowId);
+  return deleted ? { cancelled: true } : cancelBuiltinWorkflow(workflowId);
 }
 
 export async function cancelSnooze(opts: {
@@ -244,12 +248,7 @@ export async function cancelSnooze(opts: {
     targetKey: opts.messageId,
   });
   if (!existing) return { cancelled: true };
-  return cancelBuiltinWorkflow(existing.id);
-}
-
-function snoozedMessageId(graph: WorkflowGraph): string | undefined {
-  const source = graph.nodes.find((node) => node.kind === "mailbox.source");
-  return source?.kind === "mailbox.source" ? source.messageId : undefined;
+  return cancelSnoozeWorkflow(existing.id);
 }
 
 export async function unsnoozeMessage(opts: {
@@ -262,20 +261,22 @@ export async function unsnoozeMessage(opts: {
     kind: "snooze",
     targetKey: opts.target.messageId,
   });
-  const loaded = live ? await loadDefinition(live.id) : null;
-  const current = loaded ? snoozedMessageId(loaded.graph) : undefined;
+  const run = live ? await latestRun(live.id) : null;
+  const current = run ? await archivedId(run.id) : null;
   const restoreId =
     current && current !== opts.target.messageId
       ? opts.id === opts.target.messageId
         ? current
         : compositeId(opts.target.mailboxId, current)
       : opts.id;
-  await opts.adapter.restoreMessage(restoreId);
+  const folder = run ? snoozedFrom(run.input.event) : "inbox";
+  if (folder === "inbox") await opts.adapter.restoreMessage(restoreId);
+  else if (folder === "trash") await opts.adapter.deleteMessage(restoreId);
   const result = await cancelSnooze(opts.target);
   if (result.cancelled) return result;
   return {
     cancelled: false,
-    reason: result.reason ?? "The message is back in your inbox, but its wake-up is still running",
+    reason: result.reason ?? "The message is back, but its wake-up is still running",
   };
 }
 
@@ -294,7 +295,7 @@ export async function cancelSnoozeById(
   ) {
     return gone;
   }
-  return cancelBuiltinWorkflow(workflowId);
+  return cancelSnoozeWorkflow(workflowId);
 }
 
 export interface SnoozedItem {
@@ -311,33 +312,24 @@ export async function listSnoozes(mailboxIds: string[]): Promise<SnoozedItem[]> 
   const rows = await listBuiltins({ kind: "snooze", mailboxIds });
   const items = await Promise.all(
     rows.map(async (row) => {
-      const once = row.graph.nodes.find((n) => n.kind === "trigger.once");
-      const planned = once && once.kind === "trigger.once" ? new Date(once.at) : new Date();
-      const archive = row.graph.nodes.find((n) => n.kind === "action.archive");
-      const unresolved =
-        !row.definition.enabled &&
-        !row.inFlight &&
-        !!archive &&
-        (await nodeUnresolvedFor(row.definition.id, archive.id));
+      const run = row.run;
+      const current = run ? await archivedId(run.id) : null;
+      const status: RunStatus | "pending" = !run
+        ? "pending"
+        : run.status === "waiting"
+          ? "pending"
+          : run.status;
       return {
         id: row.definition.id,
         mailboxId: row.definition.mailboxId ?? "",
         messageId: row.definition.targetKey ?? "",
-        currentMessageId: snoozedMessageId(row.graph) ?? row.definition.targetKey ?? "",
-        wakeAt: row.wakeAt ?? planned,
-        status: !row.definition.enabled
-          ? row.inFlight
-            ? ("running" as const)
-            : ("blocked" as const)
-          : row.armed
-            ? ("pending" as const)
-            : (row.status ?? "pending"),
+        currentMessageId: current ?? row.definition.targetKey ?? "",
+        wakeAt: row.waitAt ?? run?.dueAt ?? new Date(),
+        status,
         error:
-          row.definition.enabled || row.inFlight
-            ? row.error
-            : unresolved
-              ? "The archive did not finish in time and its outcome is unknown — check the message before cancelling"
-              : "The archive never completed — cancel this and snooze again",
+          run?.status === "failed" || run?.status === "blocked" || run?.status === "partial"
+            ? (run.error ?? "The snooze did not finish — cancel it and snooze again")
+            : null,
       };
     }),
   );

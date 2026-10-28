@@ -12,6 +12,14 @@ import {
 } from "@metis/ui/components/alert-dialog";
 import { Button } from "@metis/ui/components/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@metis/ui/components/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -34,6 +42,7 @@ import {
   ChevronUp,
   CircleAlert,
   FlaskConical,
+  History,
   Keyboard,
   Loader2,
   MoreHorizontal,
@@ -62,15 +71,17 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useSavedLayout } from "@/hooks/use-saved-layout";
 import { useWorkspaceScope } from "@/hooks/use-workspace-path";
 import { orpc, rpc } from "@/lib/orpc";
-import type { WorkflowOutput } from "@/server/schema";
-import { type GraphMailbox, type GraphTemplate, templateGraph } from "@/workflow/graph";
+import type { WorkflowDirectory, WorkflowOutput } from "@/server/schema";
+import { type GraphTemplate, templateGraph } from "@/workflow/graph";
 import { edgeSchema, nodeSchema } from "@/workflow/schema";
 
 import {
   DiagnosticsContext,
   diagnose,
+  directoryResources,
   type EditorEnv,
   EditorEnvContext,
+  type EditorWorkflowRef,
   OverlayContext,
   type OverlaySource,
   type OverlayState,
@@ -83,11 +94,13 @@ import {
   useEditorStore,
   useIsDirty,
 } from "./editor-store";
+import { InputsForm, type InputValues, triggerInputs } from "./inputs-form";
 import { Inspector } from "./inspector";
 import { LabelOptionsProvider } from "./label-options";
+import { RevisionsSheet } from "./revisions-sheet";
 import { RunsPanel } from "./runs-panel";
 import { QuickAdd, StepPalette } from "./step-palette";
-import { TestPanel } from "./test-panel";
+import { type ReplayTarget, TestPanel } from "./test-panel";
 import { CanvasElementContext, useTidyLayout, WorkflowCanvas } from "./workflow-canvas";
 
 export const WORKFLOW_CHORD_PREFIX = "w";
@@ -117,6 +130,14 @@ let memoryClipboard: Clipboard | null = null;
 
 type DockTab = "runs" | "test";
 
+function browserTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
+
 function togglePanel(ref: ReturnType<typeof usePanelRef>) {
   const panel = ref.current;
   if (!panel) return;
@@ -125,8 +146,9 @@ function togglePanel(ref: ReturnType<typeof usePanelRef>) {
 }
 
 interface WorkflowEditorProps {
-  mailboxes: GraphMailbox[];
-  allowDecisionNodes: boolean;
+  directory: WorkflowDirectory;
+  allowDecisionSteps: boolean;
+  workflows: readonly EditorWorkflowRef[];
   workflow: WorkflowOutput | null;
   template: GraphTemplate;
   onSaved: (workflow: WorkflowOutput) => void;
@@ -201,8 +223,9 @@ function useClipboard() {
 }
 
 function EditorShell({
-  mailboxes,
-  allowDecisionNodes,
+  directory,
+  allowDecisionSteps,
+  workflows,
   workflow,
   onSaved,
   onDeleted,
@@ -226,11 +249,14 @@ function EditorShell({
   const env = useMemo<EditorEnv>(
     () => ({
       workflowId: workflow?.id ?? null,
-      mailboxes,
-      allowDecisionNodes,
+      workflow,
+      directory,
+      resources: directoryResources(directory, browserTimezone()),
+      allowDecisionSteps,
       sources: new Map((workflow?.sources ?? []).map((s) => [s.triggerNodeId, s])),
+      workflows,
     }),
-    [workflow, mailboxes, allowDecisionNodes],
+    [workflow, directory, allowDecisionSteps, workflows],
   );
   const diagnostics = useMemo(() => diagnose(graph, env), [graph, env]);
 
@@ -256,9 +282,13 @@ function EditorShell({
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [revisionsOpen, setRevisionsOpen] = useState(false);
   const [quickAdd, setQuickAdd] = useState(false);
   const [dockTab, setDockTab] = useState<DockTab>("runs");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [replay, setReplay] = useState<ReplayTarget | null>(null);
+  const [inputsOpen, setInputsOpen] = useState(false);
+  const [runInputs, setRunInputs] = useState<InputValues>({});
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [dockOpen, setDockOpen] = useState(false);
@@ -335,21 +365,39 @@ function EditorShell({
     }
   }, [store, diagnostics, focusFirstProblem, scope, workflow, onSaved]);
 
-  const runNow = useCallback(async () => {
-    if (!workflow) return;
-    setRunning(true);
-    try {
-      const result = await orpc.workflows.run({ ...scope, id: workflow.id });
-      if (dirty) toast.info("Running the saved version. Save to run your latest changes.");
-      setSelectedRunId(result.runId);
-      openDock("runs");
-      await queryClient.invalidateQueries({ queryKey: rpc.workflows.runs.key() });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not queue a run");
-    } finally {
-      setRunning(false);
-    }
-  }, [workflow, scope, dirty, openDock, queryClient]);
+  const manualTrigger = workflow?.graph.nodes.find((n) => n.step === "trigger.manual");
+  const runnable = !!workflow?.graph.nodes.some(
+    (n) => n.step === "trigger.manual" || n.step === "trigger.schedule",
+  );
+  const manualFields = triggerInputs(manualTrigger);
+
+  const queueRun = useCallback(
+    async (inputs?: InputValues) => {
+      if (!workflow) return;
+      setRunning(true);
+      try {
+        const result = await orpc.workflows.run({
+          ...scope,
+          id: workflow.id,
+          ...(inputs ? { inputs } : {}),
+        });
+        if (dirty) toast.info("Running the saved version. Save to run your latest changes.");
+        setSelectedRunId(result.runId);
+        openDock("runs");
+        await queryClient.invalidateQueries({ queryKey: rpc.workflows.runs.key() });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not queue a run");
+      } finally {
+        setRunning(false);
+      }
+    },
+    [workflow, scope, dirty, openDock, queryClient],
+  );
+
+  const runNow = useCallback(() => {
+    if (manualFields.length > 0) setInputsOpen(true);
+    else void queueRun();
+  }, [manualFields.length, queueRun]);
 
   async function doDelete() {
     if (!workflow) return;
@@ -368,7 +416,7 @@ function EditorShell({
       a: { label: "Add step", run: () => setQuickAdd(true) },
       l: { label: "Tidy up the layout", run: tidy },
       t: { label: "Test run", run: () => openDock("test") },
-      r: { label: "Run now", run: () => void runNow() },
+      r: { label: "Run now", run: runNow },
     }),
     [tidy, openDock, runNow],
   );
@@ -490,7 +538,7 @@ function EditorShell({
         <Button variant="outline" size="sm" onClick={() => openDock("test")}>
           <FlaskConical /> Test
         </Button>
-        {workflow && (
+        {workflow && runnable && (
           <Button variant="outline" size="sm" onClick={runNow} disabled={running}>
             {running ? <Loader2 className="animate-spin" /> : <Play />}
             Run now
@@ -511,6 +559,11 @@ function EditorShell({
             <DropdownMenuItem onClick={() => setHelpOpen(true)}>
               <Keyboard /> Keyboard shortcuts
             </DropdownMenuItem>
+            {workflow && (
+              <DropdownMenuItem onClick={() => setRevisionsOpen(true)}>
+                <History /> Revisions
+              </DropdownMenuItem>
+            )}
             {workflow && (
               <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
                 <Trash2 /> Delete workflow
@@ -573,10 +626,14 @@ function EditorShell({
           selectedRunId={selectedRunId}
           onSelectRun={setSelectedRunId}
           revision={workflow?.revision ?? null}
+          onReplay={(runId) => {
+            setReplay({ runId, fromNodeId: null });
+            openDock("test");
+          }}
         />
       </TabsContent>
       <TabsContent value="test" keepMounted className={cn("min-h-0 flex-1", !dockOpen && "hidden")}>
-        <TestPanel />
+        <TestPanel replay={replay} onReplayChange={setReplay} />
       </TabsContent>
     </Tabs>
   );
@@ -674,6 +731,35 @@ function EditorShell({
             )}
 
             <QuickAdd open={quickAdd} onOpenChange={setQuickAdd} />
+            <Dialog open={inputsOpen} onOpenChange={setInputsOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Run {workflow?.name ?? "this workflow"}</DialogTitle>
+                  <DialogDescription>Fill in the inputs this run starts with.</DialogDescription>
+                </DialogHeader>
+                <InputsForm fields={manualFields} value={runInputs} onChange={setRunInputs} />
+                <DialogFooter>
+                  <Button
+                    disabled={running}
+                    onClick={() => {
+                      setInputsOpen(false);
+                      void queueRun(runInputs);
+                    }}
+                  >
+                    {running ? <Loader2 className="animate-spin" /> : <Play />}
+                    Run now
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            {workflow && (
+              <RevisionsSheet
+                workflowId={workflow.id}
+                current={graph}
+                open={revisionsOpen}
+                onOpenChange={setRevisionsOpen}
+              />
+            )}
             <ShortcutsHelp
               open={helpOpen}
               onOpenChange={setHelpOpen}
@@ -694,7 +780,7 @@ function EditorShell({
                   <AlertDialogTitle>Delete this workflow?</AlertDialogTitle>
                   <AlertDialogDescription>
                     {workflow
-                      ? `"${workflow.name}" will stop running. Runs already in flight finish, and its history stays.`
+                      ? `"${workflow.name}" stops running. Its queued and waiting runs are cancelled, and its run history stays but can no longer be retried. A run already in progress finishes its current step.`
                       : ""}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -721,13 +807,15 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
     createEditorStore({
       name: props.workflow?.name ?? "",
       enabled: props.workflow?.enabled ?? true,
-      graph: props.workflow?.graph ?? templateGraph(props.template, props.mailboxes),
+      graph:
+        props.workflow?.graph ??
+        templateGraph(props.template, directoryResources(props.directory, browserTimezone())),
     }),
   );
   return (
     <ReactFlowProvider>
       <EditorStoreContext value={store}>
-        <LabelOptionsProvider mailboxes={props.mailboxes}>
+        <LabelOptionsProvider mailboxes={props.directory.mailboxes}>
           <EditorShell {...props} />
         </LabelOptionsProvider>
       </EditorStoreContext>

@@ -24,6 +24,9 @@ import {
 } from "@/db/schema";
 import { assistantThreadTitle, exportAssistantThreads } from "@/mastra/memory";
 import type { DataExport } from "@/server/schema";
+import type { WorkflowGraph } from "@/workflow/schema";
+import { RESOURCE_KINDS, type ResourceKind } from "@/workflow/steps";
+import { graphResourceIds } from "@/workflow/validation";
 import { workspaceThemeBrand } from "@/workspace";
 
 const NOTICE =
@@ -178,13 +181,14 @@ async function loadLabels(userId: string): Promise<DataExport["labels"]> {
   }));
 }
 
-async function mailboxEmails(ids: string[]): Promise<Map<string, string>> {
+async function resourceEmails(kind: ResourceKind, ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
+  const table = { mailbox, calendar, drive }[kind];
   const rows = await db
-    .select({ id: mailbox.id, email: connection.email })
-    .from(mailbox)
-    .innerJoin(connection, eq(connection.id, mailbox.connectionId))
-    .where(inArray(mailbox.id, ids));
+    .select({ id: table.id, email: connection.email })
+    .from(table)
+    .innerJoin(connection, eq(connection.id, table.connectionId))
+    .where(inArray(table.id, ids));
   return new Map(rows.map((row) => [row.id, row.email]));
 }
 
@@ -216,28 +220,37 @@ async function loadWorkflows(userId: string): Promise<DataExport["workflows"]> {
     )
     .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt));
 
-  const referenced = new Set<string>();
-  for (const row of rows) {
-    for (const node of row.graph.nodes) {
-      if ("mailboxId" in node && node.mailboxId) referenced.add(node.mailboxId);
-    }
-  }
-  const emails = await mailboxEmails([...referenced]);
+  const emails = new Map(
+    await Promise.all(
+      RESOURCE_KINDS.map(
+        async (kind) =>
+          [
+            kind,
+            await resourceEmails(kind, [
+              ...new Set(rows.flatMap((row) => graphResourceIds(row.graph, kind))),
+            ]),
+          ] as const,
+      ),
+    ),
+  );
+  const named = (graph: WorkflowGraph, kind: ResourceKind) =>
+    Object.fromEntries(
+      graphResourceIds(graph, kind).flatMap((id) => {
+        const email = emails.get(kind)?.get(id);
+        return email ? [[id, email]] : [];
+      }),
+    );
 
   return rows.map((row) => {
-    const mailboxes: Record<string, string> = {};
-    for (const node of row.graph.nodes) {
-      if (!("mailboxId" in node) || !node.mailboxId) continue;
-      const email = emails.get(node.mailboxId);
-      if (email) mailboxes[node.mailboxId] = email;
-    }
     return {
       workspace: row.workspace,
       name: row.name,
       enabled: row.enabled,
       createdAt: iso(row.createdAt),
       updatedAt: iso(row.updatedAt),
-      mailboxes,
+      mailboxes: named(row.graph, "mailbox"),
+      calendars: named(row.graph, "calendar"),
+      drives: named(row.graph, "drive"),
       graph: row.graph,
     };
   });

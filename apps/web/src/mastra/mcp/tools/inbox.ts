@@ -1,7 +1,6 @@
 import "server-only";
 import { createTool } from "@mastra/core/tools";
 
-import * as inbox from "@/mastra/toolkit/inbox";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   mailboxTarget,
@@ -13,6 +12,7 @@ import {
   threadTarget,
   unsubscribeFields,
 } from "@/mastra/toolkit/schema";
+import * as inbox from "@/ops/inbox";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace } from "../schema";

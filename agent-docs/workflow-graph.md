@@ -1,127 +1,169 @@
-# Workflow engine — graphs, node kinds and execution semantics
+# Workflow engine — graphs, steps and execution semantics
 
-What a workflow is: its tables, how a node kind is built, the builder, mailbox sources, merges and joins, the decision steps, triggers and occurrences, retry classes, execution modes and the test run, the principal a run acts as, and the built-in workflows.
+What a workflow is: its tables, the graph and its typed values, expressions, the step registry, the builder, items and merges, triggers and their change feeds, inbound endpoints, waits and approvals, the AI steps, the test run, the principal a run acts as, and the built-in workflows.
 Paths are relative to `apps/web/`.
-See also [AGENTS.md](../AGENTS.md), [workflow-runtime.md](workflow-runtime.md), [workflow-runs.md](workflow-runs.md), [ai-agents.md](ai-agents.md).
+See also [AGENTS.md](../AGENTS.md), [workflow-runtime.md](workflow-runtime.md), [workflow-runs.md](workflow-runs.md), [ai-agents.md](ai-agents.md), [database.md](database.md).
 
 ## Code map
 
-| Concern                                      | Where                                                                                                                                                                                                                                                                                                                                                    |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables                                       | `src/db/schema.ts` → `workflow`, `workflowRevision`, `workflowResource`, `workflowTrigger`, `workflowOccurrence`, `workflowRun`, `workflowNodeRun`, `workflowPayload`                                                                                                                                                                                    |
-| Client-safe graph contracts                  | `src/workflow/schema.ts` → `graphSchema`, `MAX_MERGE_INPUTS`, `BARRIER_INPUT_KEY`, `DECISION_QUESTION_TYPES`, `DECISION_BODY_MAX` · shared runtime types `src/workflow/runtime.ts` → `RetryClass`                                                                                                                                                        |
-| Node kind definitions                        | `src/workflow/kinds/<kind>.ts` (kind `a.bC` lives in `a-b-c.ts`, e.g. `trigger.newMail` → `trigger-new-mail.ts`) · `src/workflow/kinds/index.ts` → `NODE_KINDS`, `nodeOutputs`, `outputLabel`, `edgeLabel`, `nodeTitle`, `cardLines` · `src/workflow/kinds/types.ts` → `NodeKindDefinition`, `NODE_CATEGORIES`, `PORT_LABELS`                            |
-| Node handlers                                | `src/workflow/handlers/<kind>.ts` · `src/workflow/handlers/index.ts` → `HANDLERS` · shared runtime `src/workflow/nodes.ts` → `NodeContext`, `moveAction`                                                                                                                                                                                                 |
-| Builder                                      | `src/app/w/[slug]/workflow/_components/` → `workflow-builder.tsx` (workflow list), `workflow-editor.tsx` → `WorkflowEditor` (top bar, panels, dock, keys), `editor-store.ts` → `createEditorStore`, `editor-context.tsx` → `diagnose`, `workflow-canvas.tsx` → `WorkflowCanvas`, `step-palette.tsx`, `inspector.tsx`, `runs-panel.tsx`, `test-panel.tsx` |
-| Inspector forms                              | `src/app/w/[slug]/workflow/_components/forms/index.tsx` → `STEP_FORMS` · one `forms/<name>-form.tsx` per kind that has settings                                                                                                                                                                                                                          |
-| The step card (builder and run history)      | `src/components/workflow-graph/node-card.tsx` → `NodeCard` · `ports.ts` → `nodePorts` · `node-meta.tsx` → `NODE_ICONS`, `CATEGORY_BADGE`, `PORT_HANDLE` · `edges.ts` → `flowEdges` · `overlay.ts` → `runOverlay`, `testOverlay`                                                                                                                          |
-| Layout and templates                         | `src/workflow/graph.ts` → `layoutGraph`, `templateGraph`, `newNode`                                                                                                                                                                                                                                                                                      |
-| Test run                                     | `src/workflow/test-run.ts` → `testRunGraph`, `listTestSamples` · procedures `workflows.test`, `workflows.testSamples` · executor trace `src/workflow/executor.ts` → `TraceStep`                                                                                                                                                                          |
-| Graph-wide validation                        | `src/workflow/validation.ts` → `validateGraph`                                                                                                                                                                                                                                                                                                           |
-| Executor                                     | `src/workflow/executor.ts` → `executeRun`, `receiptFor`                                                                                                                                                                                                                                                                                                  |
-| Domain ops shared by oRPC, MCP and the agent | `src/workflow/index.ts` → `createUserWorkflow`                                                                                                                                                                                                                                                                                                           |
-| Discovery and occurrences                    | `src/workflow/triggers.ts` → `discoverTrigger`, `discoverOnce` · `src/workflow/store.ts` → `openOccurrence`, `retargetSnooze` · `src/workflow/cron.ts` → `nextCronAt`                                                                                                                                                                                    |
-| Decision steps                               | `src/workflow/decision.ts` → `buildDecisionState` · `src/workflow/preview.ts` → `previewDecision` · `src/workflow/handlers/decision-ask.ts`, `decision-branch.ts` · preview UI `decision-preview-sheet.tsx`                                                                                                                                              |
-| Background principal                         | `src/workflow/authorization.ts` → `resolvePrincipal`, `authorizeMailboxAi`                                                                                                                                                                                                                                                                               |
-| Built-ins                                    | `src/workflow/builtins/scheduled-send.ts` → `scheduleSend` · `snooze.ts` → `snoozeMessage` · `before-send.ts` → `prepareOutgoing` · `system.ts` → `ensureSystemWorkflows`, `CIMD_PRUNE_ID`                                                                                                                                                               |
-| Procedures                                   | `src/server/routes/workflows.ts` · `src/server/routes/mail/scheduled-send.ts` · snooze in `src/server/routes/mail/messages.ts`                                                                                                                                                                                                                           |
+| Concern                          | Where                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables                           | `src/db/schema.ts` → `workflow`, `workflowRevision`, `workflowResource`, `workflowTrigger`, `workflowCursor`, `workflowEvent`, `workflowRun`, `workflowStepRun`, `workflowWait`, `workflowBlob`, `workflowEndpoint`                                                                                                                                                                             |
+| Graph contracts (client-safe)    | `src/workflow/schema.ts` → `graphSchema`, `nodeSchema`, `edgeSchema`, `graphSettingsSchema`, `GRAPH_VERSION`, `MAX_MERGE_INPUTS`, `BARRIER_ITEM_KEY`                                                                                                                                                                                                                                            |
+| Typed values                     | `src/workflow/values.ts` → `ValueType`, `RECORD_FIELDS`, `isAssignable`, `identityOf` · declared fields `src/workflow/fields.ts` → `FieldDecl`, `parseFieldDecls`, `parseAssignments`, `parseCases`                                                                                                                                                                                             |
+| Expressions                      | `src/workflow/expr.ts` → `bindingSchema`, `checkBinding`, `inferType`, `evaluateBinding` (`@marcbachmann/cel-js`)                                                                                                                                                                                                                                                                               |
+| Step registry                    | `src/workflow/steps/` → `triggers.ts`, `mail.ts`, `logic.ts`, `ai.ts`, `resources.ts` · `steps/index.ts` → `stepDef`, `StepKey`, `nodeOutputs`, `emitsFor`, `cardLines` · `steps/define.ts` → `p`, `step` · `steps/types.ts` → `StepDef`                                                                                                                                                        |
+| Step runners (server)            | `src/workflow/run/` → `mail.ts`, `logic.ts`, `ai.ts`, `resources.ts` · `run/index.ts` → `runnerFor` · `run/types.ts` → `Runner`, `StepCtx`, `StepResult`                                                                                                                                                                                                                                        |
+| Validation                       | `src/workflow/validation.ts` → `analyzeGraph`, `validateGraph`, `pairLoops`, `hiddenParam`, `graphResources`                                                                                                                                                                                                                                                                                    |
+| Executor                         | `src/workflow/executor.ts` → `executeRun`, `TraceStep`                                                                                                                                                                                                                                                                                                                                          |
+| Discovery and change feeds       | `src/workflow/discovery.ts` → `discoverTrigger`, `fireEvent`, `requestManualRun` · `src/workflow/feeds/` → `pollMail`, `pollCalendar`, `pollDrive` · provider cursors `changes` on `MailAdapter`, `CalendarAdapter`, `DriveAdapter` ([mail.md](mail.md), [calendar.md](calendar.md), [drive.md](drive.md)) · app events `src/workflow/app-events.ts` → `emitAppEvent` · `src/workflow/hooks.ts` |
+| Inbound HTTP                     | route `src/app/api/inbound/[endpoint]/route.ts` → `src/workflow/inbound/handle.ts` → `handleInbound` · `inbound/endpoints.ts` → `ensureWebhookEndpoints`, `endpointUrl` · push `inbound/subscriptions.ts` → `renewEndpoints`                                                                                                                                                                    |
+| Decisions                        | `src/workflow/decision.ts` → `decisionState`, `routeAnswer`, `branchQuestion` · `src/workflow/preview.ts` → `previewDecision`                                                                                                                                                                                                                                                                   |
+| Background agents                | `src/mastra/agents/workflow-agents.ts` → `WORKFLOW_AGENTS`, `workflowWriterAgent` · `src/mastra/runtime-context.ts` → `principalRequestContext` ([ai-agents.md](ai-agents.md))                                                                                                                                                                                                                  |
+| Layout and templates             | `src/workflow/graph.ts` → `layoutGraph`, `newNode`, `templateGraph`, `GRAPH_TEMPLATES`                                                                                                                                                                                                                                                                                                          |
+| Test run                         | `src/workflow/test-run.ts` → `testRunGraph`, `listTestSamples` · procedures `workflows.test`, `workflows.testSamples`, `workflows.samples`, `workflows.pinSample`                                                                                                                                                                                                                               |
+| Domain ops                       | `src/workflow/index.ts` → `createUserWorkflow`, `requestWorkflowRun`, `getWorkspaceRun`, `decideApproval` · `src/workflow/scope.ts` → `workflowScopeFor` · agent and MCP bodies `src/ops/workflow.ts`                                                                                                                                                                                           |
+| Background principal             | `src/workflow/authorization.ts` → `resolvePrincipal`, `authorizeMailbox`, `authorizeCalendar`, `authorizeDrive`, `resourceAuth`                                                                                                                                                                                                                                                                 |
+| Built-ins                        | `src/workflow/builtins/` → `scheduled-send.ts` → `scheduleSend` · `snooze.ts` → `snoozeMessage` · `before-send.ts` → `collectSendPolicyBccs` · `system.ts` → `ensureSystemWorkflows`, `WORKFLOW_PRUNE_ID`                                                                                                                                                                                       |
+| Builder                          | `src/app/w/[slug]/workflow/_components/` → `workflow-editor.tsx`, `editor-store.ts`, `editor-context.tsx` → `diagnose`, `workflow-canvas.tsx`, `step-palette.tsx`, `inspector.tsx`, `test-panel.tsx`, `runs-panel.tsx`, `approvals-sheet.tsx`, `revisions-sheet.tsx` · revision diff `src/workflow/revision-diff.ts` → `diffGraphs`                                                             |
+| Parameter editors                | `_components/forms/param-field.tsx` → `ParamField` · `forms/binding-editor.tsx` → `ExpressionInput`, `TemplateInput`, `PathPicker` · `forms/condition-builder.tsx` → `ConditionBuilder` over `src/workflow/conditions.ts` → `groupCel`, `parseCondition` · `forms/list-editors.tsx` · `forms/scope-paths.ts` → `scopeGroups`                                                                    |
+| The step card (builder, history) | `src/components/workflow-graph/node-card.tsx` → `NodeCard` · `ports.ts` → `nodePorts` · `node-meta.tsx` → `STEP_ICONS`, `portTone` · `edges.ts` → `flowEdges` · `overlay.ts` → `runOverlay`, `testOverlay`                                                                                                                                                                                      |
+| Procedures                       | `src/server/routes/workflows.ts` · `src/server/routes/mail/scheduled-send.ts` · snooze in `src/server/routes/mail/messages.ts`                                                                                                                                                                                                                                                                  |
+| Upgrade conversion               | `migrations/0001_workflow_engine.ts` → `convertGraph` ([database.md](database.md))                                                                                                                                                                                                                                                                                                              |
 
 ## Rules
 
 ### Storage
 
-- **A workflow is a node graph with immutable revisions.** Its tables reference mailboxes through real FKs (`workflow_resource`), and their unique keys make every step idempotent.
-  - One occurrence per trigger and key, one run per occurrence, one node run per run, node and input key.
-  - So a retried run redoes only the node runs that did not complete: a successful send followed by a failed tag retries the tag only.
-- **Kind-specific ownership is enforced by CHECK constraints** in `src/db/schema.ts`.
-- **Scheduled-mail bytes live in `workflow_payload`, apart from execution metadata.** The payload is dropped once the send completes or the item is cancelled, and kept on a failed, blocked or `unknown` outcome so the send can still be reconciled.
-- **Every node run, the barrier included, is created by one `INSERT … SELECT … FROM workflow_run WHERE id = ? AND lease_token = ?`**, so a stale lease inserts nothing. One statement makes the lease fence and the insert one atomic step that takes the write lock once.
+- **A workflow is a graph with immutable revisions.** Saving writes a new `workflow_revision`; a run carries its `revision_id` and executes that revision to the end.
+- **`workflow_resource` ties a revision to every mailbox, calendar and drive it names through real FKs**, with a CHECK that exactly one of the three is set per row.
+- **Unique keys make every step idempotent.** One event per trigger and event key, one run per event, one step run per run, node and item key; a retried run redoes only the step runs that did not complete.
+- **Every step run, the barrier included, is created by one `INSERT … SELECT … FROM workflow_run WHERE id = ? AND lease_token = ?`** (`beginStepRun`), so a stale lease inserts nothing and the fence and insert take the write lock once.
+- **Large values live in `workflow_blob`, apart from step data.** A scheduled send's draft is a `draft` blob of its workflow; downloaded file contents are `bytes` blobs of their run, referenced from a value as `{ blobId }`.
 
-### Node kinds
+### Graph and values
 
-- **Every kind is a definition, every step kind also a handler, and the build breaks until each kind has an icon and an inspector entry.** `NODE_KINDS`, `NODE_ICONS` and `STEP_FORMS` are typed over every kind, `HANDLERS` over every kind except `trigger.*`, which discovery fires.
-  - The definition (`kinds/<kind>.ts`, client-safe) holds the label, `category`, `description`, its `retry` class (`dispatch` is what makes a step a send), its own `check(node, ctx)` and its `card(node, ctx)` summary.
-  - For a step kind, the server handler (`handlers/<kind>.ts`), over the shared runtime in `nodes.ts`.
-  - The inspector form in `STEP_FORMS`, or `null` for a kind with nothing to set.
-- **A card is a summary; settings live in the inspector.** One `NodeCard` draws every kind from its definition: category badge, labelled ports colored by data type, the `card` lines, the first problem, and a run's status. The builder and run history share it.
-- **A step's `title` names it everywhere** (`nodeTitle`): cards, edge labels, run history. Without one, the kind's label stands in.
-- **Only an action step can be skipped (`skip`).** The executor passes its mail straight to `out` and records the step `skipped`, so the rest of the branch still runs.
-- **`validation.ts` holds only whole-graph rules, then runs each kind's `check`.** An edge from an output a node does not declare fails with that kind's `outputError`.
-- **Outputs and their labels are read only through `nodeOutputs` / `outputLabel`**: by the builder canvas, `toFlow`, edge labels and run history alike.
-- **Edges are named by their steps** (`edgeLabel`: "If (Yes) to Apply label"), in the builder and in run history.
-- **Validation is a real port-type pass over the DAG.** Dangling edges, wrong data kinds, unreachable steps, cycles, out-of-scope mailboxes, bad cron and unknown time zones all fail with the offending node id.
-  - The builder runs the same `validateGraph` on every edit (`diagnose`) and shows each problem on its card and in the inspector; Save refuses while any remain.
+- **A node is `{ id, step, title?, skip?, position, params, onError? }` and every param is a binding**: a `literal` JSON value, a `template` text with `{{ cel }}` parts, or an `expr` CEL expression.
+- **Node ids are expression names** (`NODE_ID_PATTERN`), because a later step reads an earlier one as `steps.<id>`; `newNodeId()` mints `s` plus eight characters, and pasting copies renames `steps.<id>` references to the new ids.
+- **Every value has a `ValueType`.** Records (`mail`, `event`, `file`, …) have the fields `RECORD_FIELDS` lists; a declared field list (`FieldDecl[]`) is an object type; `json` is assignable both ways.
+- **An expression sees `trigger`, `item`, `steps.<id>` for the steps every path to it passed through, `run` and `now`.** `analyzeGraph` derives each node's scope in topological order; a step after an Aggregate sees only the Aggregate, not what fed it, and a step after an End loop sees what its Loop saw plus the End loop, not the loop body.
+- **Expressions are type-checked, not only parsed.** `checkBinding` infers a binding's type against the node's scope and the param's declared type; the builder runs it as the user types and validation refuses a mismatch with the param's label.
+- **CEL types are registered as classes, dates are `google.protobuf.Timestamp` and integers are BigInt.** `toCel` / `fromCel` convert at the boundary; `registerType` with field schemas fails on Timestamp fields, which is why each type gets its own class (`classFor`).
+- **Graph settings carry `concurrency`, a rate `limit` and a `timezone`.** The limit's key is an expression over the trigger event; `debounce` replaces a queued run of the same key and delays it, `throttle` records the event without a run (`openEvent`).
+- **A run has one time zone** (`graphTimezone`): the settings' `timezone`, else its trigger's, else UTC. `date()` and `time()` in expressions read it when given no zone, and so do Create an event, Find free time and the Agent step.
+
+### The step registry
+
+- **Every step and trigger is one `StepDef` in `src/workflow/steps/`, and `StepKey` is the union of their keys.** `STEP_ICONS` is typed over `StepKey`, so a step without an icon fails the build, and so does a runner map that misses a key.
+- **A definition is client-safe and holds everything but the side effect**: label, category, description, params (`p.*` builders with kind, type, default, `visibleWhen`, `bindable`, `target`), output type, outputs, `emits`, effect, `ai`, `check` and `card`.
+- **A step factory takes its key as a `const` type parameter**, so its key stays a literal and `StepKey` stays a union.
+- **The effect decides retries and test runs.** `read` steps run in a test; `write` and `dispatch` steps only preview; a `dispatch` step (a send, an event created, a file written) is never re-sent ([workflow-runs.md](workflow-runs.md)).
+- **`emits` decides what an output carries**: the step's result (`result`), or the item it received (`input`), as If, Filter, Ask and Branch do. The executor and `nodePorts` both read it through `emitsFor`.
+- **A step's `title` names it everywhere** (`nodeTitle`): cards, edge labels (`edgeLabel`: "Filter to Label"), run history.
+- **Only a `write` or `dispatch` step can be skipped (`skip`).** The executor passes each item straight to `out` and records the step `skipped`.
+- **`onError` routes a failing item.** `fail` fails it; `continue` passes the input on; `branch` adds an `error` output (`nodeOutputs`) that carries the input with the error in `error`.
+- **A step whose target params (`target: true`: recipients, a drive folder) read from an AI step must have an approval between them**: validation refuses a dispatch whose target comes from an AI step without a `flow.approval` downstream of that AI step.
+
+### Validation
+
+- **`validateGraph` is the only gate**, run on save, by the test run, on resume and by the builder on every edit (`diagnose`).
+  - Whole-graph rules: a trigger exists, no cycles, every step reachable, one incoming connection except Merge and Wait for all (one per `in:<n>` input), a before-send trigger alone in its graph.
+  - Per step: required params, bindable params, binding types, resources in the workspace (`allowedResources`), AI on for every resource an AI step or its ancestors read (`aiResources`), and the step's own `check`.
+- **The scope of a step decides where it may appear.** `scope: "builtin"` steps (`trigger.once`, `mail.sendScheduled`) save only on built-in workflows, `scope: "system"` steps only on system ones.
+
+### Items, merges and aggregates
+
+- **A run moves items, not messages.** An item is `{ key, value, trail }`; `trail[nodeId]` holds each step's result, which is what `steps.<id>` reads.
+- **A step that emits several items keys each one**: `<node>:<entry key>` when the runner names the entry (a listed message; Split and Loop use `<item key>/<index>`, so entries of different items never share a key), otherwise `<item>#<n>`, so the step runs below it are keyed per entry and survive a retry.
+- **Merge and Wait for all fold repeats by identity** (`identityOf`: mailbox and message id, calendar and event id, drive and file id), so an action after them runs once even when an item arrives by two paths.
+- **Wait for all releases only when every input reachable from this run's trigger has settled.** An input that found nothing counts as settled; one that failed, blocked, waits or ran out of budget holds the join and everything below it.
+- **A released join never re-evaluates.** The barrier is a step run with item key `barrier` (`BARRIER_ITEM_KEY`) holding each input's state and count, kept when a run settles, and a resumed run trusts a `completed` barrier.
+- **Aggregate waits for every item and passes on one list, or one list per key**, as a single item keyed by the group.
+- **Loop and End loop bracket a sub-graph that runs once per entry of a list.** Loop splits each item's list into entries and pushes a frame (`LoopFrame`: the Loop and the item's key) onto every entry; the steps between run per entry as usual.
+  - End loop is a barrier like Aggregate; it groups what reaches it by the top frame and passes on one item per looped item, under that item's key and trail, with `{ results, count }`. An item whose list was empty, or whose entries were all filtered out, still comes out with no results.
+  - Each End loop must close exactly one Loop (`pairLoops`: the Loop above it with as many Loops as End loops between them); loops nest.
+
+### Triggers and events
+
+- **A trigger is a node; `workflow_trigger` is its schedule.** Saving an enabled revision arms one row per trigger node; discovery claims due rows, and a fired trigger opens a `workflow_event` and a run in one transaction (`openEvent`).
+- **The event key is the deduplication.** A schedule's key is its fired instant, a feed's the change it saw (`star:<mailbox>:<message>:<scan>`, `added:<file>`, …), a webhook's its `Idempotency-Key` header or a fresh id, so overlapping ticks and several workers cannot double-run.
+- **A trigger's `filter` expression runs before the run exists.** An event it rejects is stored with `skipped_reason` and no run, so the key is not seen again.
+- **A feed trigger baselines when it is armed.** Its first scan records what is already there as events with no run (`already there when the trigger was turned on`); only later changes start runs.
+- **Feeds read provider change cursors where a provider has one, and listings otherwise.** Each cursor lives in `workflow_cursor` under its scope, with the provider's token in `token`.
+  - Mail: an adapter's `changes` returns the ids added to a folder since a token (Gmail history, a Graph delta from now on, an IMAP `uidvalidity:uidnext` pair); the feed reads each new id. Without one, it keeps a seen-set of listed ids with a periodic deeper sweep.
+  - An expired token takes a fresh one and falls back to the listing for that scan; the listing baselines again only when the seen-set is empty, so an expiry never floods runs.
+  - Calendars and drives keep a snapshot (each event's fields and answers, each file's modified time and size). A provider token (Google sync tokens and changes, Graph deltas, CalDAV sync tokens or ctags) only says whether anything changed, so an unchanged scan skips the listing, and every `RESCAN_EVERY` scan lists anyway.
+- **App events start runs without polling.** `emitAppEvent` fires every armed trigger of that kind in the workspace whose params match: a run failed, phishing found, a label applied by a person or by AI, a member joined (`hooks.ts`).
+- **A run-failed trigger never fires for its own workflow** (`exceptWorkflowId`), so an error handler cannot loop on itself.
+- **A manual trigger declares typed inputs; a call trigger declares the inputs other workflows pass.** `requestWorkflowRun` fires a workflow's Run by hand trigger, or its schedule trigger when it has none.
+
+### Inbound HTTP
+
+- **One listener, `/api/inbound/<endpoint>`, serves webhooks and provider push.** `workflow_endpoint` holds each endpoint's kind (`webhook`, `graph`, `google-channel`), sealed secret, provider subscription id and expiry; `src/proxy.ts` exempts the route from sessions.
+- **A webhook checks, in order, the allowed IPs, the required headers, then the secret header or the HMAC signature**, compares in constant time, caps the body at 256 KB, rate-limits per endpoint and fires its trigger with `{ body, headers, receivedAt }`.
+- **The client address is the last `X-Forwarded-For` hop that is not a trusted proxy** (`clientAddress`, `trustedProxies` in the instance config); without trusted proxies only the nearest hop counts, else `X-Real-IP`.
+- **Push only wakes a trigger; the feed still reads the changes.** A Graph notification or a Google channel ping sets the trigger due now (`wakeTrigger`), so a forged or replayed push costs at most one early scan.
+- **Push is opt-in.** `renewEndpoints` subscribes armed Microsoft feed triggers and Google Calendar and Drive triggers only while a public URL is configured; everything else polls ([configuration.md](configuration.md)). Only a trigger that reached a provider counts against the per-tick renewal budget.
+- **A push subscription outlives its trigger only until the next renewal pass.** Disabling or deleting a workflow drops its webhook endpoints at once; `renewEndpoints` stops the provider subscriptions of disarmed, disabled or deleted triggers first (`strandedEndpoints`), and all of them when the public URL is removed.
+- **Gmail mailboxes always poll.** Gmail push needs a Pub/Sub push subscription the operator would create by hand, so it is left out.
+- **The webhook secret is shown only to the workflow's owner and workspace admins** (`workflows.webhookSecret`), who may also rotate it.
+
+### Waits, approvals and calls
+
+- **A wait suspends the run, not the worker.** A Delay, Wait until, Wait for, Approval or Call step returns a wait; the executor records the step run `waiting` with its wake time and the run settles `waiting` with `due_at` at the earliest wake.
+- **`workflow_wait` holds what can end a wait from outside**: an approval's approvers and request, a called run's id, a deadline. Deciding, a child settling, or the deadline sets the run due; the step run reads the outcome on its next pass.
+- **An approval is decided once, by one of its approvers** (`decideWait` checks the approver list and `status = open` in one `UPDATE`), and routes the item to `approved`, `denied` or, at the deadline, `timeout`.
+- **Wait for event polls while it waits.** A reply on a thread, an RSVP change or a file in a folder is checked every `EVENT_POLL_MS`, until it is seen (`matched`) or the deadline passes (`timeout`).
+- **Call starts a child run with a parent link**; settling the child sets its waiting parent due, and the parent reads the child's `flow.return` output.
+
+### AI steps
+
+- **AI is gated twice.** Validation refuses an AI step when a resource it or its ancestors read has AI off; at run time `requireAiFor` / `authorizeResourceAi` blocks it when that changed since.
+- **Ask and Branch are reads with stored answers.** A completed Ask replays its answers on resume, so a resumed run never asks again; Ask and Branch are refused while `decisionEnabled("workflowNode")` is false.
+- **The Agent step gets read tools only.** `WORKFLOW_AGENTS` filters each roster through `isReadTool`, so no write tool reaches it ([ai-agents.md](ai-agents.md)).
+- **An Agent step checkpoints each model round in the step run's state**, and suspends as a short time wait when the tick budget nears its end, so a long agent continues on the next tick instead of being cut off.
+- **Typed AI output comes from a second structuring pass** (`structured`, Mastra `structuredOutput` with `errorStrategy: "fallback"`); a failure yields empty fields and `complete: false` instead of failing the run.
+- **Every AI call records usage with the run id**: `workflow-decision` for Ask, `workflow-agent` for each Agent round, `workflow-ai` for the other AI steps and the structuring pass.
 
 ### Builder
 
-- **The editor's store owns the graph; React Flow is controlled from it.** `createEditorStore` holds name, enabled, graph, selection and the undo history; positions commit on drag stop, so one drag is one undo step.
-- **Typing is one undo step.** Focusing a field or slider in the inspector or the name opens a gesture that closes on blur (`beginGesture` / `endGesture`).
-- **Unsaved changes are tracked against the last save**, and leaving or switching workflows asks first.
-- **Ports run left to right**: inputs on a card's left edge, outputs on its right. `layoutGraph` lays a graph out in columns by depth; templates use it and so does Tidy.
+- **The editor's store owns the graph; React Flow is controlled from it.** `createEditorStore` holds name, enabled, graph, selection and the undo history; a drag, and typing in one field, is one undo step (`beginGesture` / `endGesture`).
+- **The inspector is generic.** `ParamField` picks an editor from the param's kind; bindable params get an expression toggle, text params become templates when they contain `{{`, and `PathPicker` inserts a path from the node's scope (`scopeGroups`).
+- **A condition param is edited as rows when its CEL is one the builder writes.** `parseCondition` reads back only what `groupCel` produces (groups of all or any, two levels deep, one comparison per field kind); anything else stays an expression, and either view can switch to the other when the CEL allows it.
+- **The Revisions sheet diffs each saved revision against the one before**, and unsaved edits against the latest save (`diffGraphs`): steps added and removed, changed fields with the before and after binding, connections and settings.
+- **A param change that removes outputs asks before dropping their connections** (`staleEdges`).
+- **Ports are colored by the type they carry** (`portTone`), and the canvas refuses a connection into a trigger, a cycle, a second connection into a single input, or an Ask question into anything but a Branch.
+- **Unsaved changes are tracked against the last save**, and leaving or switching workflows asks first. The phone layout keeps the editor's panels in sheets (`ResponsiveAside`, `MobileAsideTrigger`).
 
-### Mailboxes and merges
+### Principal and built-ins
 
-- **A mailbox is an ordinary node.** `mailbox.source` carries its own `mailboxId` and an operation; conditions expose `matched` and `unmatched` outputs; actions consume typed envelopes.
-- **`incoming` only runs under `trigger.newMail`, and a `trigger.newMail` feeds exactly one mailbox.** Several sources are several triggers, each with its own baseline, cursor and occurrences, and a run executes only its own trigger's branch.
-- **Mailbox identity rides the envelope and its checkpoint key (`<nodeId>:<mailboxId>:<itemId>`)**, so the same provider message id in two mailboxes never collides.
-- **Each ordinary step takes one incoming edge; only the merge steps take several.** Each edge into a merge names its typed mail input in `targetHandle` (`in:<n>`, up to `MAX_MERGE_INPUTS`); every input must carry mail.
-- **`merge.append` acts on a message once even when it arrives by two paths.** It appends inputs in input-number order, re-keys each item to `<mergeId>:<mailboxId>:<messageId>` and drops repeats; its per-input node runs let a retried or crashed run add only what a failed input missed.
-- **`merge.join` ("Wait for all") releases only when every input reachable from this run's trigger has settled**, and emits the same deduplicated, input-ordered stream as append.
-  - An input that found nothing, or whose condition filtered everything, counts as settled.
-  - An input whose branch failed, was blocked or was cut by the tick budget holds the join and everything below it.
-  - Inputs belonging to another trigger are never awaited.
-- **A failure upstream holds the barrier even through a condition or an append.** The executor carries a per-node branch state (settled / pending / blocked / failed, worst-of along each path); `merge.append` carries on past a failed input, but its branch state stays failed.
-- **A released join never re-evaluates.** The barrier is a node run with input key `barrier` (`BARRIER_INPUT_KEY`) holding each input's state and item count; it carries no message data, so it is kept when a run settles, and a resumed run trusts a `completed` barrier.
-
-### Decisions
-
-- **Ask and Branch are reads.** They are not `action.*`, so they take no budget reserve and an abort is `failed` + retryable. A completed Ask replays its stored answers, so a resumed run never asks again.
-- **Validation refuses Ask and Branch when `decisionEnabled("workflowNode")` is false, under `trigger.beforeSend`, and when any mailbox feeding an Ask has AI off (`aiMailboxIds`).**
-- **At run time a decision problem blocks the run**, so it resumes once fixed: the switch off, a `DecisionConfigError`, or AI off for the mailbox (`authorizeMailboxAi`) all throw `BlockedError`.
-- **"Try on recent mail" is a non-modal sheet without an overlay that opens on the left** (`forms/decision-preview-sheet.tsx`), because it tells the user to move a Branch step's thresholds in the inspector on the right.
-
-### Triggers and sends
-
-- **Occurrence identity is the deduplication.** A new-mail scan opens one occurrence per provider message id, a schedule one per fired instant, a one-shot one per its instant, all behind a unique index, so overlapping ticks and several workers cannot double-run.
-- **A send never resends automatically.** It persists `dispatching` before it leaves and records the provider receipt; an attempt that ends without a conclusive result settles as `unknown`, for a person to reconcile ([workflow-runs.md](workflow-runs.md)).
-- **A blocked step keeps its reason.** A `BlockedError` message is written for the user (for example "AI is turned off for this mailbox"), so the executor stores it as-is.
-- **Background access carries its own principal.** `authorization.ts` re-checks membership, mailbox visibility and connection health before every side effect, so a detached mailbox or a departed member blocks pending actions with a visible reason.
-
-### Built-ins
-
-- **Built-ins (send later, snooze, CIMD prune, auto-BCC) are ordinary workflows** with the graphs below.
-- **`ensureSystemWorkflows` upserts the system workflows one at a time**, because the `local` driver fails two overlapping writes in one process and then keeps the write lock, so every later write of that process fails ([database.md](database.md)).
-- **A snooze restore follows only a checkpointed archive.** The snooze definition is saved disabled and the tick enables it only when the archive node checkpoints, and `discoverOnce` refuses to fire a snooze wake without that checkpoint.
-- **A snooze follows its message when archiving gives it a new id.**
-  - The archive and restore steps run through `moveAction`, which passes the moved id downstream ([mail.md](mail.md)).
-  - For a snooze, the archive step then calls `retargetSnooze`, which writes a revision whose mailbox sources point at the archived message and re-points the triggers to it.
-  - `targetKey` keeps the original id as the snooze's handle; `unsnoozeMessage` restores whatever the definition currently points at.
-- **Cancelling a built-in is atomic against dispatch**, and reports the real outcome when dispatch has already started ([workflow-runs.md](workflow-runs.md)).
-- **Auto-BCC runs the interpreter pure on a `trigger.beforeSend` graph**: it may amend the draft, but it may not schedule work or touch a provider.
+- **Background access carries its own principal.** `authorization.ts` re-checks membership, resource visibility, connection health and AI policy before every side effect, so a detached resource or a departed member blocks the run with a visible reason.
+- **Built-ins are ordinary workflows with the graphs below**, and `ensureSystemWorkflows` upserts the system ones one at a time, because the `local` driver fails two overlapping writes in one process ([database.md](database.md)).
+- **Before-send runs the executor in `policy` mode on every enabled `trigger.mail.beforeSend` graph**: such a graph holds only steps marked `beforeSend` (logic and `mail.addBcc`), touches no provider and schedules nothing; the Bcc addresses it emits are added to the draft.
 
 ## How it works
 
-- **Revision snapshots.** Saving a workflow writes a new immutable `workflow_revision`; a run carries its `revision_id` and executes that revision.
-- **Fan-out.** A schedule or manual trigger fans out to one `mailbox.source` (operation `list`) per mailbox, each driving its own branch of conditions and actions. `WorkflowSummary.sources` reports each new-mail source's baseline, last scan and error.
-- **Schedules.** Recurring schedules coalesce a backlog into one overdue occurrence (`coalesceMissed`; `cron-parser`, five fields, explicit IANA zone, UTC instants stored). One-shots always run once when service resumes.
-- **New mail.** A new-mail trigger takes a baseline when enabled: existing messages get occurrence rows with no run, so the unique index, not the rolling seen-cache, excludes them. A periodic sweep re-reads the folder (`src/workflow/triggers.ts`), so an arrival a provider lists out of order is still caught.
-- **Enable / disable.** Disabling stops discovery; re-enabling resets the next recurring instant and the baseline.
-- **Retry classes.** `dispatch` marks a send (`action.send`) and follows the send rules above; every other kind is `safe` (reads and idempotent state changes), retried with exponential backoff and jitter.
-- **Execution modes** (`ExecutionMode` in `nodes.ts`). `live` persists node runs under the lease; `policy` is the pure send-policy pass, where actions do nothing; `test` persists nothing, and every action passes its mail on with "not applied in a test run" instead of acting.
-- **The test run** (`workflows.test`) runs the editor's current graph, saved or not, through the executor in `test` mode under a draft definition whose principal is the caller.
-  - It validates like a save and is rate-limited per user (`workflow-test-run`).
-  - A new-mail trigger runs on one sample from the newest inbox messages of its mailbox (`workflows.testSamples`); schedule and manual triggers read their sources for real; a before-send trigger cannot be tested.
-  - Reads are real and an Ask step still calls the decision model; the executor's `trace` returns each item with the outputs it took, which the editor draws on the canvas (`testOverlay`).
-- **Late provider results.** An `unknown` mutation blocks cancellation of its item. If the abandoned provider call later settles in a still-running process, the node run is reconciled to its real outcome; a late-completed snooze archive arms its wake.
-- **Ask (`decision.ask`).** One decision call per message sends the fields picked in `state.fields` and every question in `questions`.
-  - The body is capped (`DECISION_BODY_MAX`), and the full message is loaded only when `body` or `hasAttachment` is picked.
-  - It emits the message on one output per question with that question and its answer attached to the envelope; a question with nothing connected is still asked.
-  - Usage is one `workflow-decision` row per call with the run id.
-- **Branch (`decision.branch`).** It takes exactly one question output, makes no call, and routes on the attached answer with its own thresholds to the answer's outputs, or `unsure` otherwise (including a refusal). Each item's receipt is `operation: "decide"`, which run history shows per item.
-- **"Try on recent mail"** (`workflows.previewDecision`) asks the same questions about the latest inbox messages and acts on nothing. The `previewDecision` agent and MCP tool call the same `src/workflow/preview.ts` → `previewDecision`, which owns the per-user rate limit.
+- **Execution.** `executeRun` walks the graph in topological order, evaluates each node's bindings per item, runs its runner and files each emitted item under its output; step runs are begun, reclaimed and finished under the run's lease token.
+- **Modes** (`ExecutionMode`). `live` persists step runs under the lease; `test` persists nothing, runs reads for real and previews writes ("would change this message"); `policy` is the before-send pass.
+- **The test run** (`workflows.test`) runs the editor's graph, saved or not, under a draft definition whose principal is the caller; it validates like a save and is rate-limited per user (`workflow-test-run`).
+  - Its event is a sample from the trigger's feed (`workflows.testSamples`), the pinned sample, a pasted event, typed inputs, or nothing for a schedule.
+  - Replay (`replayRunId`) reruns a past run's stored event; with `fromNodeId` it reuses the past run's completed step results everywhere except that step and the steps after it.
+  - A before-send or app trigger tests only with a pinned or pasted event.
+- **Pinned samples** live on the workflow (`workflow.samples`, by trigger node id, at most 64 KB each).
+- **Schedules.** A recurring schedule coalesces a backlog into one overdue event (`coalesceMissed`; five-field cron, explicit IANA zone, UTC instants stored); a one-shot runs once when service resumes.
+- **Enable and disable.** Disabling a user workflow cancels its open runs; re-enabling resets each schedule's next instant and each feed trigger's cursor and baseline (`rearmTriggers`). `disabled_reason` holds why the upgrade turned a workflow off, and the editor shows it; saving clears it.
 - **The built-in graphs.**
-  - Send later: `at-time → sender mailbox → send → scheduled label`.
-  - Snooze: one definition holding a manual `mailbox → archive` branch and a durable `at-time → mailbox → restore` branch.
-  - `system:cimd-prune` (`CIMD_PRUNE_ID`): an hourly schedule around `pruneAbandonedCimdClients()` ([mcp.md](mcp.md)).
-  - `system:audit-prune` (`AUDIT_PRUNE_ID`): a daily schedule around `pruneAuditEvents()` ([audit.md](audit.md)).
-  - Auto-BCC: a `trigger.beforeSend` graph run by `prepareOutgoing`.
+  - Send later: `trigger.once → mail.sendScheduled → Filter(item.id != "") → Label "scheduled"`, sending the workflow's draft blob.
+  - Snooze: `trigger.manual(message, folder, wakeAt) → Archive → Wait until → Move to Inbox`, built per the folder the message was snoozed from (`snoozeGraph`): Trash for a trashed message, no return step for an archived one; rescheduling moves the open time wait (`rescheduleWait`).
+  - `system:cimd-prune` hourly ([mcp.md](mcp.md)), `system:audit-prune` daily ([audit.md](audit.md)) and `system:workflow-prune` daily ([workflow-runs.md](workflow-runs.md)), each a schedule around one system step.
+- **Upgrade.** `0001_workflow_engine` converts every graph of the old shape (kinds, predicates, mailbox sources) into steps and CEL, and every run into history ([workflow-runs.md](workflow-runs.md)), except the built-in work still owed:
+  - A pending or running scheduled send stays live: a running one is queued again, and its step runs are re-keyed to the converted graph's item key (`trigger`), so a send already `dispatching` settles `unknown` instead of going out twice.
+  - A snooze whose wake is armed, or whose wake already fired into a pending or running run, becomes a waiting run of the converted graph, due at that wake; the old run is kept as cancelled history.
+  - Pending or running user and system runs become history; their triggers fire again.
+
+## Deliberate limits
+
+- **No outbound HTTP step.** A workflow receives webhooks but does not call arbitrary URLs.
+- **Calendar and drive feeds still diff snapshots**, bounded per scan (`SNAPSHOT_LIMIT` in each feed), so a folder or calendar larger than the bound is only watched over its newest part; provider tokens only decide whether to list. A mail change cursor reads at most `DELTA_LIMIT` new messages per scan and reports the rest as skipped.
+- **An IP pin is only as good as the proxy in front.** Next gives route handlers no socket address, and `next start` fills `X-Forwarded-For` from the socket only when a request has none, so a client that reaches the app directly can name its own address. The compose stack's Caddy replaces any incoming `X-Forwarded-For`.
+- **A test run of a before-send or app trigger needs an event**, since there is nothing to sample.

@@ -3,7 +3,7 @@ title: Snooze and read later
 description: Hide a message until a better time, bring it back early, and save messages to read later.
 ---
 
-Two tools help you deal with mail at the right time. **Snooze** hides a message and brings it back to your Inbox when you choose. **Read later** keeps a list of messages you want to come back to, without moving them.
+Two tools help you deal with mail at the right time. **Snooze** hides a message and brings it back when you choose. **Read later** keeps a list of messages you want to come back to, without moving them.
 
 ## Snooze a message
 
@@ -22,13 +22,19 @@ Two tools help you deal with mail at the right time. **Snooze** hides a message 
   class="hidden dark:block"
 />
 
-The message is archived and leaves the list. At the time you picked, it comes back to your **Inbox**.
+The message is archived and leaves the list. At the time you picked, it comes back to the folder it was in when you snoozed it:
+
+- From **Archive**, it stays in **Archive**.
+- From **Trash**, it goes back to **Trash**.
+- From any other folder, it comes back to your **Inbox**.
+
+On Cloudflare Email and Resend mailboxes, a message snoozed from **Sent** or **Spam** comes back to that folder. In Gmail, a message snoozed from **Sent**, **Spam** or **Trash** stays visible there while it is snoozed.
 
 :::note
-A snoozed message always comes back to the Inbox, even if you snoozed it from another folder.
+Messages snoozed by the AI assistant or by a connected AI client (an MCP client) always come back to the Inbox.
 :::
 
-**Snooze** is not offered for messages in **Trash**.
+The **Snooze** button is not shown for messages in **Trash**. The snooze actions in the search dialog are offered for any mail result, Trash included. See [Results and actions](/guide/search/results-and-actions).
 
 Some summary cards have a **Remind me** button, for example on a bill or a package. It snoozes the message too, and a notice tells you when it comes back. See [AI help in mail](/guide/mail/ai-help).
 
@@ -36,12 +42,12 @@ Some summary cards have a **Remind me** button, for example on a bill or a packa
 
 Open **Snoozed** in the sidebar. The heading shows how many messages are pending. Each row shows the sender, the subject and when the message returns, for example "Returns Tomorrow at 9:00 AM".
 
-- **Wake now** brings the message back to your Inbox right away.
-- **Cancel** cancels the snooze.
+- **Wake now** brings the message back right away, to the same folder it would return to at the time you picked.
+- **Cancel** cancels the snooze and leaves the message where it is, usually **Archive**. In Gmail, a message snoozed from **Trash** or **Spam** stays there.
 
-If nothing is snoozed, the page says "Nothing snoozed." and reminds you how to use **Snooze**.
+If nothing is snoozed, the page says "Nothing snoozed." and reminds you how to use **Snooze**: the message comes back to the folder it was in, at the time you pick.
 
-If something went wrong when a message was due back, the row shows the problem in place of the return time.
+If something went wrong when a message was due back, the row shows "Wake-up failed" (or another status) in place of the return time, with the problem below it.
 
 If a snooze fails, the message comes back to the list the next time it refreshes.
 

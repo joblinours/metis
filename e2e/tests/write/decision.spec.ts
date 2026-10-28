@@ -67,9 +67,9 @@ export default function decisionSpecs() {
           expect(item.decision?.handle, `${branch} ${item.id}`).toBeTruthy();
         }
       }
-      const todo = new Set(nodeOf(run, "todo").items.map((i) => i.id));
+      const todo = new Set(nodeOf(run, "todo").items.map((i) => i.itemKey));
       for (const item of nodeOf(run, "act").items) {
-        expect(todo.has(item.id)).toBe(item.decision?.handle === "yes");
+        expect(todo.has(item.itemKey), item.itemKey).toBe(item.decision?.handle === "yes");
       }
       await page.goto(workspacePath(account, `/workflow/history/${run.id}`));
       await expect(page.getByText("Path taken")).toBeVisible();

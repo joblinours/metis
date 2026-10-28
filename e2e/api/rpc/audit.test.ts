@@ -2,8 +2,9 @@ import { expect, test } from "vitest";
 
 import { harness } from "../../clients/harness";
 import { type Rpc, RpcError, rpcWithCookie } from "../../clients/rpc";
+import { signIn } from "../../clients/sign-in";
 import { uniqueName } from "../support/poll";
-import { ana, signIn, totpCode } from "../support/session";
+import { ana, totpCode } from "../support/session";
 
 const OUTSIDE_DOMAIN = "discard.harness.test";
 

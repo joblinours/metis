@@ -7,14 +7,78 @@ import { mailboxScope, scope } from "./session";
 
 export const SETTLED = ["completed", "failed", "partial", "blocked", "cancelled"];
 
+export type Binding = { kind: "literal"; value: unknown } | { kind: "expr"; cel: string };
+
+export interface GraphNode {
+  id: string;
+  step: string;
+  title?: string;
+  skip?: boolean;
+  onError?: string;
+  position: { x: number; y: number };
+  params: Record<string, Binding>;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle: string;
+  targetHandle?: string;
+}
+
+export interface Graph {
+  version: 2;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  settings: Record<string, unknown>;
+}
+
 export interface Workflow {
   id: string;
   name: string;
   enabled: boolean;
-  graph: {
-    nodes: { id: string; kind: string; label?: string; position?: unknown }[];
-    edges: { id: string; source: string; target: string }[];
+  revision: number;
+  graph: Graph;
+  endpoints: { triggerNodeId: string; endpointId: string; url: string | null }[];
+}
+
+export const lit = (value: unknown): Binding => ({ kind: "literal", value });
+export const cel = (text: string): Binding => ({ kind: "expr", cel: text });
+
+export const at = (step: number, lane = 0) => ({ x: step * 352, y: lane * 200 });
+
+export function node(
+  id: string,
+  step: string,
+  position: { x: number; y: number },
+  params: Record<string, Binding> = {},
+  extra: Partial<GraphNode> = {},
+): GraphNode {
+  return { id, step, position, params, ...extra };
+}
+
+export function edge(
+  source: string,
+  target: string,
+  sourceHandle = "out",
+  targetHandle?: string,
+): GraphEdge {
+  return {
+    id: `${source}:${sourceHandle}->${target}${targetHandle ? `:${targetHandle}` : ""}`,
+    source,
+    target,
+    sourceHandle,
+    ...(targetHandle ? { targetHandle } : {}),
   };
+}
+
+export function graphOf(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  settings: Record<string, unknown> = {},
+): Graph {
+  return { version: 2, nodes, edges, settings };
 }
 
 export interface RunItem {
@@ -24,7 +88,7 @@ export interface RunItem {
 
 export interface RunNode {
   nodeId: string;
-  kind: string;
+  step: string;
   reached: boolean;
   items: RunItem[];
 }
@@ -101,9 +165,9 @@ export async function runWorkflow(
 }
 
 export function nodeOf(run: RunDetail, nodeId: string): RunNode {
-  const node = run.nodes.find((n) => n.nodeId === nodeId);
-  if (!node) throw new Error(`run ${run.id} has no step ${nodeId}`);
-  return node;
+  const found = run.nodes.find((n) => n.nodeId === nodeId);
+  if (!found) throw new Error(`run ${run.id} has no step ${nodeId}`);
+  return found;
 }
 
 export type LabelMap = Record<string, { label: string }>;

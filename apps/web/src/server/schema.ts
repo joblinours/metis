@@ -48,16 +48,16 @@ import {
   WORKSPACE_PLANS,
   WORKSPACE_ROLES,
 } from "@/types/workspace";
+import { RUN_SOURCES } from "@/workflow/runtime";
 import {
-  askNodeSchema,
   edgeSchema,
   graphSchema,
-  NODE_STATUSES,
+  nodeSchema,
   RUN_STATUSES,
   SEND_CLOSE_REASONS,
   SEND_RESOLUTION_OUTCOMES,
+  STEP_STATUSES,
   WORKFLOW_KINDS,
-  WORKFLOW_NODE_KINDS,
   type WorkflowGraph,
   workflowDefinitionInputSchema,
   workflowSourceStateSchema,
@@ -505,6 +505,8 @@ export const dataExportSchema = z.object({
       createdAt: z.string(),
       updatedAt: z.string(),
       mailboxes: z.record(z.string(), z.string()),
+      calendars: z.record(z.string(), z.string()),
+      drives: z.record(z.string(), z.string()),
       graph: z.custom<WorkflowGraph>(),
     }),
   ),
@@ -2323,16 +2325,30 @@ export const unmuteThreadsOutputSchema = successSchema;
 export const workflowGraphSchema = graphSchema;
 export const workflowKindSchema = z.enum(WORKFLOW_KINDS);
 export const runStatusSchema = z.enum(RUN_STATUSES);
+const stepStatusSchema = z.enum(STEP_STATUSES);
+
+export const workflowEndpointSchema = z.object({
+  triggerNodeId: z.string(),
+  endpointId: z.string(),
+  url: z.string().nullable(),
+  lastSeenAt: z.string().nullable(),
+  lastError: z.string().nullable(),
+});
 
 export const workflowSchema = z.object({
   id: z.string(),
   name: z.string(),
   kind: workflowKindSchema,
   enabled: z.boolean(),
+  disabledReason: z.string().nullable(),
   revision: z.number(),
   graph: workflowGraphSchema,
   mailboxIds: z.array(z.string()),
+  calendarIds: z.array(z.string()),
+  driveIds: z.array(z.string()),
+  callable: z.boolean(),
   sources: z.array(workflowSourceStateSchema),
+  endpoints: z.array(workflowEndpointSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -2357,17 +2373,26 @@ export const deleteWorkflowInputSchema = workspaceScopeSchema.extend({
 
 export const runWorkflowInputSchema = workspaceScopeSchema.extend({
   id: z.string().min(1),
+  inputs: z.record(z.string(), z.json()).optional(),
+});
+
+const workflowDirectoryEntrySchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  email: z.string(),
+  aiEnabled: z.boolean(),
+});
+
+export const workflowDirectorySchema = z.object({
+  mailboxes: z.array(workflowDirectoryEntrySchema),
+  calendars: z.array(workflowDirectoryEntrySchema),
+  drives: z.array(workflowDirectoryEntrySchema),
+  members: z.array(z.object({ userId: z.string(), name: z.string(), email: z.string() })),
 });
 
 export const listWorkflowsOutputSchema = z.object({
   workflows: z.array(workflowSchema),
-  mailboxes: z.array(
-    z.object({
-      mailboxId: z.string(),
-      slug: z.string(),
-      email: z.string(),
-    }),
-  ),
+  directory: workflowDirectorySchema,
 });
 
 export const workflowOutputSchema = z.object({
@@ -2384,8 +2409,8 @@ export const runWorkflowOutputSchema = z.object({
 
 export const workflowRunStepSchema = z.object({
   nodeId: z.string(),
-  kind: z.string(),
-  status: z.string(),
+  step: z.string(),
+  status: stepStatusSchema,
   count: z.number(),
   detail: z.string().optional(),
 });
@@ -2400,6 +2425,7 @@ export const workflowRunSchema = z.object({
   finishedAt: z.string().nullable(),
   attempts: z.number(),
   error: z.string().nullable(),
+  upgraded: z.boolean(),
   steps: z.array(workflowRunStepSchema),
 });
 
@@ -2412,7 +2438,7 @@ export const listWorkflowRunsOutputSchema = z.object({
   runs: z.array(workflowRunSchema),
 });
 
-const nodeStatusSchema = z.enum(NODE_STATUSES);
+export const sendCloseReasonSchema = z.enum(SEND_CLOSE_REASONS);
 
 const workflowRunPersonSchema = z.object({ name: z.string(), email: z.string() }).nullable();
 
@@ -2423,49 +2449,39 @@ export const workflowRunDetailSchema = workflowRunSchema.extend({
   principal: workflowRunPersonSchema,
   trigger: z.object({
     nodeId: z.string(),
-    kind: z.enum(WORKFLOW_NODE_KINDS).nullable(),
-    source: z.enum(["newMail", "schedule", "once", "manual"]),
+    step: z.string().nullable(),
+    source: z.enum(RUN_SOURCES),
     scheduledFor: z.string(),
     firedFor: z.string().nullable(),
     missed: z.number(),
-    messageCount: z.number().nullable(),
     requestedBy: workflowRunPersonSchema,
+    event: z.unknown(),
   }),
-  mailboxes: z.array(z.object({ mailboxId: z.string(), email: z.string().nullable() })),
+  output: z.unknown(),
   graph: workflowGraphSchema,
   nodes: z.array(
     z.object({
       nodeId: z.string(),
-      kind: z.enum(WORKFLOW_NODE_KINDS),
-      mailboxId: z.string().nullable(),
+      step: z.string(),
       reached: z.boolean(),
       lines: z.array(
-        z.object({
-          status: nodeStatusSchema,
-          count: z.number(),
-          detail: z.string().nullable(),
-        }),
+        z.object({ status: stepStatusSchema, count: z.number(), detail: z.string().nullable() }),
       ),
       items: z.array(
         z.object({
           id: z.string(),
-          mailboxId: z.string().nullable(),
-          status: nodeStatusSchema,
+          itemKey: z.string(),
+          status: stepStatusSchema,
           attempts: z.number(),
           startedAt: z.string().nullable(),
           finishedAt: z.string().nullable(),
           detail: z.string().nullable(),
           error: z.string().nullable(),
           operation: z.string().nullable(),
-          message: z.object({ subject: z.string(), from: z.string() }).nullable(),
+          title: z.string().nullable(),
+          subtitle: z.string().nullable(),
           inputs: z
-            .array(
-              z.object({
-                port: z.number(),
-                state: z.string(),
-                count: z.number(),
-              }),
-            )
+            .array(z.object({ port: z.number(), state: z.string(), count: z.number() }))
             .nullable(),
           decision: z
             .object({
@@ -2476,14 +2492,39 @@ export const workflowRunDetailSchema = workflowRunSchema.extend({
             })
             .nullable(),
           outputs: z.array(z.string()).nullable(),
+          input: z.unknown(),
+          output: z.unknown(),
+          wakeAt: z.string().nullable(),
+          resolvable: z.boolean(),
+          resolution: z
+            .object({
+              outcome: z.enum(SEND_RESOLUTION_OUTCOMES),
+              reason: sendCloseReasonSchema.nullable(),
+              note: z.string().nullable(),
+              resolvedAt: z.string(),
+              resolvedBy: workflowRunPersonSchema,
+            })
+            .nullable(),
         }),
       ),
       outputs: z.array(
-        z.object({
-          handle: edgeSchema.shape.sourceHandle,
-          carried: z.boolean().nullable(),
-        }),
+        z.object({ handle: edgeSchema.shape.sourceHandle, carried: z.boolean().nullable() }),
       ),
+    }),
+  ),
+  waits: z.array(
+    z.object({
+      id: z.string(),
+      nodeId: z.string(),
+      kind: z.string(),
+      status: z.string(),
+      wakeAt: z.string().nullable(),
+      deadlineAt: z.string().nullable(),
+      request: z.string().nullable(),
+      approvers: z.array(z.object({ name: z.string(), email: z.string() })),
+      decision: z.string().nullable(),
+      decidedBy: workflowRunPersonSchema,
+      canDecide: z.boolean(),
     }),
   ),
 });
@@ -2499,21 +2540,9 @@ export const getWorkflowRunOutputSchema = z.object({
 export const cancelWorkflowRunInputSchema = getWorkflowRunInputSchema;
 
 export const cancelWorkflowRunOutputSchema = z.discriminatedUnion("state", [
-  z.object({
-    state: z.literal("cancelled"),
-    unresolved: z.number(),
-    message: z.string(),
-  }),
-  z.object({
-    state: z.literal("stopping"),
-    inFlight: z.number(),
-    message: z.string(),
-  }),
-  z.object({
-    state: z.literal("finished"),
-    status: runStatusSchema,
-    message: z.string(),
-  }),
+  z.object({ state: z.literal("cancelled"), unresolved: z.number(), message: z.string() }),
+  z.object({ state: z.literal("stopping"), inFlight: z.number(), message: z.string() }),
+  z.object({ state: z.literal("finished"), status: runStatusSchema, message: z.string() }),
 ]);
 
 export const resumeWorkflowRunInputSchema = getWorkflowRunInputSchema;
@@ -2525,25 +2554,60 @@ export const resumeWorkflowRunOutputSchema = z.discriminatedUnion("state", [
     kept: z.number(),
     message: z.string(),
   }),
+  z.object({ state: z.literal("refused"), status: runStatusSchema, message: z.string() }),
+]);
+
+export const dispatchStepInputSchema = getWorkflowRunInputSchema.extend({
+  stepRunId: z.string().min(1),
+});
+
+export const dispatchCandidateSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  subtitle: z.string(),
+  at: z.string().nullable(),
+});
+
+export const inspectDispatchOutputSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("none") }),
   z.object({
-    state: z.literal("refused"),
-    status: runStatusSchema,
-    message: z.string(),
+    state: z.literal("unconfirmed"),
+    stepRunId: z.string(),
+    step: z.string(),
+    settled: z.boolean(),
+    reconcilable: z.boolean(),
+    dispatchedAt: z.date().nullable(),
+    error: z.string().nullable(),
+    candidates: z.array(dispatchCandidateSchema),
+    lookupError: z.string().nullable(),
+    notice: z.string().nullable(),
   }),
 ]);
 
+export type InspectDispatchOutput = z.infer<typeof inspectDispatchOutputSchema>;
+
+export const resolveDispatchInputSchema = dispatchStepInputSchema.extend({
+  decision: z.discriminatedUnion("outcome", [
+    z.object({ outcome: z.literal("verified"), candidateId: z.string().min(1).max(512) }),
+    z.object({
+      outcome: z.literal("closed"),
+      reason: sendCloseReasonSchema,
+      note: z.string().trim().max(500).nullable(),
+    }),
+  ]),
+});
+
+export const resolveDispatchOutputSchema = z.object({ message: z.string() });
+
 export const previewDecisionInputSchema = workspaceScopeSchema.extend({
   mailboxId: z.string().min(1),
-  node: askNodeSchema,
+  node: z.object({ params: nodeSchema.shape.params }),
   limit: z.number().int().min(1).max(20).default(10),
 });
 
 const decisionAnswerSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("boolean"), probability: z.number() }),
-  z.object({
-    type: z.literal("choice"),
-    probabilities: z.record(z.string(), z.number()),
-  }),
+  z.object({ type: z.literal("choice"), probabilities: z.record(z.string(), z.number()) }),
   z.object({
     type: z.literal("score"),
     score: z.number(),
@@ -2568,17 +2632,21 @@ export type PreviewDecisionOutput = z.infer<typeof previewDecisionOutputSchema>;
 export const testWorkflowInputSchema = workspaceScopeSchema.extend({
   graph: workflowGraphSchema,
   triggerNodeId: z.string().min(1),
-  messageId: z.string().min(1).max(400).optional(),
+  sampleId: z.string().min(1).max(800).optional(),
+  event: z.json().optional(),
+  inputs: z.record(z.string(), z.json()).optional(),
+  replayRunId: z.string().min(1).optional(),
+  fromNodeId: z.string().min(1).optional(),
 });
 
 export const testWorkflowOutputSchema = z.object({
   status: runStatusSchema,
   error: z.string().nullable(),
-  sample: z.object({ subject: z.string(), from: z.string() }).nullable(),
+  event: z.unknown(),
   steps: z.array(
     z.object({
       nodeId: z.string(),
-      status: nodeStatusSchema,
+      status: stepStatusSchema,
       count: z.number(),
       detail: z.string().nullable(),
     }),
@@ -2586,12 +2654,15 @@ export const testWorkflowOutputSchema = z.object({
   items: z.array(
     z.object({
       nodeId: z.string(),
-      status: nodeStatusSchema,
-      subject: z.string().nullable(),
-      from: z.string().nullable(),
+      itemKey: z.string(),
+      status: stepStatusSchema,
+      title: z.string().nullable(),
+      subtitle: z.string().nullable(),
       outputs: z.array(z.string()),
       detail: z.string().nullable(),
       error: z.string().nullable(),
+      input: z.unknown(),
+      result: z.unknown(),
     }),
   ),
 });
@@ -2599,23 +2670,79 @@ export const testWorkflowOutputSchema = z.object({
 export type TestWorkflowOutput = z.infer<typeof testWorkflowOutputSchema>;
 
 export const testSamplesInputSchema = workspaceScopeSchema.extend({
-  mailboxId: z.string().min(1),
+  graph: workflowGraphSchema,
+  triggerNodeId: z.string().min(1),
 });
 
 export const testSamplesOutputSchema = z.object({
-  messages: z.array(
+  samples: z.array(
     z.object({
-      messageId: z.string(),
-      subject: z.string(),
-      from: z.string(),
-      date: z.string().nullable(),
+      id: z.string(),
+      title: z.string(),
+      subtitle: z.string(),
+      at: z.string().nullable(),
     }),
   ),
 });
 
-export const scheduledSendStatusSchema = runStatusSchema;
+export const pinSampleInputSchema = workspaceScopeSchema.extend({
+  id: z.string().min(1),
+  triggerNodeId: z.string().min(1),
+  event: z.json().nullable(),
+});
 
-export const sendCloseReasonSchema = z.enum(SEND_CLOSE_REASONS);
+export const workflowSamplesInputSchema = workspaceScopeSchema.extend({ id: z.string().min(1) });
+
+export const workflowSamplesOutputSchema = z.object({
+  samples: z.record(z.string(), z.unknown()),
+});
+
+export const workflowRevisionsInputSchema = workspaceScopeSchema.extend({
+  id: z.string().min(1),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+
+export const workflowRevisionsOutputSchema = z.object({
+  revisions: z.array(
+    z.object({ revision: z.number(), createdAt: z.string(), graph: workflowGraphSchema }),
+  ),
+});
+
+export const workflowApprovalSchema = z.object({
+  id: z.string(),
+  runId: z.string(),
+  workflowId: z.string(),
+  workflowName: z.string(),
+  request: z.string(),
+  createdAt: z.string(),
+  deadlineAt: z.string().nullable(),
+});
+
+export const listApprovalsOutputSchema = z.object({
+  approvals: z.array(workflowApprovalSchema),
+});
+
+export const decideApprovalInputSchema = workspaceScopeSchema.extend({
+  waitId: z.string().min(1),
+  decision: z.enum(["approved", "denied"]),
+  note: z.string().trim().max(500).nullable().default(null),
+});
+
+export const webhookSecretInputSchema = workspaceScopeSchema.extend({
+  id: z.string().min(1),
+  endpointId: z.string().min(1),
+  rotate: z.boolean().default(false),
+});
+
+export const webhookSecretOutputSchema = z.object({
+  url: z.string(),
+  secret: z.string(),
+});
+
+export type WorkflowApproval = z.infer<typeof workflowApprovalSchema>;
+export type WorkflowDirectory = z.infer<typeof workflowDirectorySchema>;
+
+export const scheduledSendStatusSchema = runStatusSchema;
 
 export const scheduledSendResolutionSchema = z.object({
   outcome: z.enum(SEND_RESOLUTION_OUTCOMES),
@@ -2680,7 +2807,7 @@ export const inspectUnconfirmedSendOutputSchema = z.discriminatedUnion("state", 
   z.object({ state: z.literal("none") }),
   z.object({
     state: z.literal("unconfirmed"),
-    nodeRunId: z.string(),
+    stepRunId: z.string(),
     settled: z.boolean(),
     dispatchedAt: z.date().nullable(),
     error: z.string().nullable(),
@@ -2692,7 +2819,7 @@ export const inspectUnconfirmedSendOutputSchema = z.discriminatedUnion("state", 
 
 export const resolveUnconfirmedSendInputSchema = mailboxScopeSchema.extend({
   id: z.string().min(1),
-  nodeRunId: z.string().min(1),
+  stepRunId: z.string().min(1),
   decision: z.discriminatedUnion("outcome", [
     z.object({
       outcome: z.literal("verified"),
@@ -2796,6 +2923,7 @@ export const getRawOutputSchema = z.object({
 export const snoozeMessageInputSchema = mailboxScopeSchema.extend({
   id: z.string().min(1),
   wakeAt: z.string().min(1),
+  folder: mailFolderSchema.optional(),
 });
 
 export const snoozeMessageOutputSchema = z.object({

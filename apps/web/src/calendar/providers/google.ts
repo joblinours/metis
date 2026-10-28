@@ -3,6 +3,7 @@ import { auth, calendar, type calendar_v3 } from "@googleapis/calendar";
 import type { ProviderCalendar } from "@/connections";
 import { bind } from "@/lib/bind";
 import { BadRequestError } from "@/lib/errors/bad-request";
+import { errorStatus, readTokenMap } from "@/lib/token-map";
 import type {
   AttendeeResponse,
   CalendarEvent,
@@ -14,7 +15,7 @@ import type {
   ListEventsOptions,
 } from "@/types/calendar";
 
-import type { CalendarAdapter } from "../adapter";
+import type { CalendarAdapter, CalendarChangeSignal } from "../adapter";
 import { compactConference, conferenceName } from "../conference";
 import { textEventSearch } from "../text-search";
 
@@ -29,9 +30,62 @@ export function googleCalendar(accessToken: string, selfEmail: string): Calendar
       deleteEvent,
       respondToEvent: (token, c, e, r) => respondToEvent(token, c, e, r, selfEmail),
       searchAst: (token, search) => textEventSearch((opts) => listEvents(token, opts), search),
+      changes,
     },
     accessToken,
   );
+}
+
+const SYNC_PAGES = 20;
+
+async function syncCalendar(
+  client: calendar_v3.Calendar,
+  calendarId: string,
+  syncToken: string | undefined,
+): Promise<{ token: string; changed: boolean } | null> {
+  let pageToken: string | undefined;
+  let changed = false;
+  for (let page = 0; page < SYNC_PAGES; page += 1) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each page needs the previous page's token
+    const res = await client.events.list({
+      calendarId,
+      showDeleted: true,
+      maxResults: 2500,
+      fields: "items(id),nextPageToken,nextSyncToken",
+      ...(syncToken ? { syncToken } : {}),
+      ...(pageToken ? { pageToken } : {}),
+    });
+    if ((res.data.items ?? []).length > 0) changed = true;
+    if (res.data.nextSyncToken)
+      return { token: res.data.nextSyncToken, changed: !!syncToken && changed };
+    pageToken = res.data.nextPageToken ?? undefined;
+    if (!pageToken) return null;
+  }
+  return null;
+}
+
+async function changes(
+  accessToken: string,
+  calendarIds: string[],
+  cursor: string | null,
+): Promise<CalendarChangeSignal | null> {
+  const client = getCalendarClient(accessToken);
+  const known = readTokenMap(cursor);
+  const next: Record<string, string> = {};
+  let changed = false;
+  try {
+    for (const calendarId of calendarIds) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one calendar at a time stays inside Google's per-user quota
+      const synced = await syncCalendar(client, calendarId, known[calendarId]);
+      if (!synced) return null;
+      next[calendarId] = synced.token;
+      if (synced.changed || (cursor && !known[calendarId])) changed = true;
+    }
+  } catch (err) {
+    if (errorStatus(err) === 410) return { cursor: "", changed: true, expired: true };
+    throw err;
+  }
+  return { cursor: JSON.stringify(next), changed };
 }
 
 function getCalendarClient(accessToken: string): calendar_v3.Calendar {

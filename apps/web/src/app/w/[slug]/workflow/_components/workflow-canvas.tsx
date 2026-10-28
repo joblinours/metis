@@ -34,17 +34,8 @@ import { graphFitOptions } from "@/components/workflow-graph/fit";
 import { CATEGORY_COLOR } from "@/components/workflow-graph/node-meta";
 import { isMobileViewport, useIsMobile } from "@/hooks/use-is-mobile";
 import { CARD_WIDTH, flowHandle, layoutGraph } from "@/workflow/graph";
-import { kindCategory, nodeTitle } from "@/workflow/kinds";
-import {
-  edgeId,
-  isMergeKind,
-  MERGE_INPUT_PORT,
-  mergeInputIndex,
-  type WorkflowGraph,
-  type WorkflowNodeKind,
-  WORKFLOW_NODE_KINDS,
-} from "@/workflow/schema";
-import { outputPortOf } from "@/workflow/validation";
+import { edgeId, mergeInputIndex, type WorkflowGraph } from "@/workflow/schema";
+import { isStepKey, nodeTitle, stepCategory, stepDef } from "@/workflow/steps";
 
 import { useEditorEnv, useOverlay } from "./editor-context";
 import { useEditor, useEditorStore } from "./editor-store";
@@ -72,8 +63,17 @@ function withLive(base: StepFlowNode[], live: ReadonlyMap<string, LiveFields>): 
   });
 }
 
-function isStepKind(value: string): value is WorkflowNodeKind {
-  return (WORKFLOW_NODE_KINDS as readonly string[]).includes(value);
+function reaches(graph: WorkflowGraph, from: string, to: string): boolean {
+  const seen = new Set<string>();
+  const stack = [from];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (id === undefined || seen.has(id)) continue;
+    if (id === to) return true;
+    seen.add(id);
+    for (const edge of graph.edges) if (edge.source === id) stack.push(edge.target);
+  }
+  return false;
 }
 
 export function connectionProblem(graph: WorkflowGraph, connection: Connection | Edge): boolean {
@@ -82,13 +82,14 @@ export function connectionProblem(graph: WorkflowGraph, connection: Connection |
   const source = graph.nodes.find((n) => n.id === connection.source);
   const target = graph.nodes.find((n) => n.id === connection.target);
   if (!source || !target) return true;
-  const fromAsk = source.kind === "decision.ask";
-  const toBranch = target.kind === "decision.branch";
-  if (fromAsk !== toBranch) return true;
-  if (isMergeKind(target.kind)) {
+  const targetDef = stepDef(target.step);
+  if (!targetDef || targetDef.trigger) return true;
+  const fromQuestion =
+    source.step === "ai.ask" && flowHandle(connection.sourceHandle).startsWith("q:");
+  if (fromQuestion !== (target.step === "ai.branch")) return true;
+  if (reaches(graph, target.id, source.id)) return true;
+  if (targetDef.merge === "append" || targetDef.merge === "join") {
     if (mergeInputIndex(connection.targetHandle) < 0) return true;
-    const port = outputPortOf(graph, source.id);
-    if (port && port !== MERGE_INPUT_PORT) return true;
     return graph.edges.some(
       (e) =>
         e.target === target.id &&
@@ -103,8 +104,8 @@ export function useAddStep() {
   const rf = useReactFlow();
   const canvas = useContext(CanvasElementContext);
   const store = useEditorStore();
-  const { mailboxes } = useEditorEnv();
-  return (kind: WorkflowNodeKind, at?: { x: number; y: number }) => {
+  const { resources } = useEditorEnv();
+  return (step: string, at?: { x: number; y: number }) => {
     const rect = canvas?.current?.getBoundingClientRect();
     const screen = at ?? {
       x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
@@ -115,7 +116,7 @@ export function useAddStep() {
       x: Math.round((point.x - CARD_WIDTH / 2) / SNAP) * SNAP,
       y: Math.round((point.y - 40) / SNAP) * SNAP,
     };
-    return store.getState().addNode(kind, position, mailboxes);
+    return store.getState().addNode(step, position, resources);
   };
 }
 
@@ -227,10 +228,10 @@ export function WorkflowCanvas() {
 
   const onDrop = useCallback(
     (event: DragEvent) => {
-      const kind = event.dataTransfer.getData(STEP_DRAG_TYPE);
-      if (!isStepKind(kind)) return;
+      const step = event.dataTransfer.getData(STEP_DRAG_TYPE);
+      if (!isStepKey(step)) return;
       event.preventDefault();
-      addStep(kind, { x: event.clientX, y: event.clientY });
+      addStep(step, { x: event.clientX, y: event.clientY });
     },
     [addStep],
   );
@@ -297,7 +298,7 @@ export function WorkflowCanvas() {
             pannable
             zoomable
             className="!border-border !bg-surface max-md:hidden"
-            nodeColor={(node) => CATEGORY_COLOR[kindCategory(node.data.node.kind)]}
+            nodeColor={(node) => CATEGORY_COLOR[stepCategory(node.data.node.step)]}
             maskColor="rgba(0,0,0,0.35)"
           />
         )}

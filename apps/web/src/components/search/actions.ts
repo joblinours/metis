@@ -305,7 +305,8 @@ function mailActions(ctx: ActionContext, hit: MailSearchHitDto): SearchAction[] 
       () =>
         attempt(
           ctx,
-          () => orpc.mail.messages.snooze({ ...scope, id, wakeAt: nextMorning(1) }),
+          () =>
+            orpc.mail.messages.snooze({ ...scope, id, folder: hit.folder, wakeAt: nextMorning(1) }),
           "Snoozed until tomorrow",
         ),
       { keepOpen: true },
@@ -317,7 +318,8 @@ function mailActions(ctx: ActionContext, hit: MailSearchHitDto): SearchAction[] 
       () =>
         attempt(
           ctx,
-          () => orpc.mail.messages.snooze({ ...scope, id, wakeAt: nextMonday() }),
+          () =>
+            orpc.mail.messages.snooze({ ...scope, id, folder: hit.folder, wakeAt: nextMonday() }),
           "Snoozed until next week",
         ),
       { keepOpen: true },

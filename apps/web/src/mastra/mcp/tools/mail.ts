@@ -1,7 +1,6 @@
 import "server-only";
 import { createTool } from "@mastra/core/tools";
 
-import * as mail from "@/mastra/toolkit/mail";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   attachmentTarget,
@@ -9,6 +8,7 @@ import {
   messageTarget,
   summarizeThreadFields,
 } from "@/mastra/toolkit/schema";
+import * as mail from "@/ops/mail";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace } from "../schema";

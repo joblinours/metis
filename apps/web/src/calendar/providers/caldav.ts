@@ -6,6 +6,7 @@ import { Agent } from "undici";
 import type { CaldavCredentials, ProviderCalendar } from "@/connections";
 import { bind } from "@/lib/bind";
 import { BadRequestError } from "@/lib/errors/bad-request";
+import { readTokenMap } from "@/lib/token-map";
 import type {
   AttendeeResponse,
   CalendarEvent,
@@ -17,7 +18,7 @@ import type {
   ListEventsOptions,
 } from "@/types/calendar";
 
-import type { CalendarAdapter } from "../adapter";
+import type { CalendarAdapter, CalendarChangeSignal } from "../adapter";
 import { compactConference, conferenceName } from "../conference";
 import { textEventSearch } from "../text-search";
 
@@ -32,6 +33,7 @@ export function caldavCalendar(credentials: CaldavCredentials, selfEmail: string
       deleteEvent,
       respondToEvent: (c, cal, e, r) => respondToEvent(c, cal, e, r, selfEmail),
       searchAst: (c, search) => textEventSearch((opts) => listEvents(c, opts, selfEmail), search),
+      changes,
     },
     credentials,
   );
@@ -120,6 +122,29 @@ async function davCalendars(credentials: CaldavCredentials): Promise<DAVCalendar
 
   if (cached) cached.calendars = calendars;
   return calendars;
+}
+
+async function changes(
+  credentials: CaldavCredentials,
+  calendarIds: string[],
+  cursor: string | null,
+): Promise<CalendarChangeSignal | null> {
+  const client = await getClient(credentials);
+  const fresh = await client.fetchCalendars({
+    props: CALENDAR_PROPS,
+    projectedProps: CALENDAR_PROJECTED_PROPS,
+    fetchOptions: fetchOptions(credentials),
+  });
+  const known = readTokenMap(cursor);
+  const next: Record<string, string> = {};
+  for (const calendarId of calendarIds) {
+    const calendar = fresh.find((entry) => entry.url === calendarId);
+    const state = calendar?.syncToken ?? calendar?.ctag;
+    if (!calendar || typeof state !== "string" || !state) return null;
+    next[calendarId] = state;
+  }
+  const changed = !!cursor && calendarIds.some((id) => known[id] !== next[id]);
+  return { cursor: JSON.stringify(next), changed };
 }
 
 function displayName(calendar: DAVCalendar): string {

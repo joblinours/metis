@@ -67,7 +67,7 @@
 - **A security-relevant change writes an audit event with `recordAuditEvent` in the function every caller shares; no copy calls the log tamper-proof** ([audit.md](agent-docs/audit.md)).
 - **There is one background runtime, `runWorkflowTick()`**; web requests only queue work, and the database owns all workflow state ([workflow-runtime.md](agent-docs/workflow-runtime.md)).
 - **AI is one concept behind one switch:** LLM and decision-model calls are both gated by the workspace and per-resource AI switches ([ai-agents.md](agent-docs/ai-agents.md)).
-- **Every agent and MCP operation lives once in `src/mastra/toolkit/`; tool parity is compile-checked, and a tool key is never renamed** ([ai-agents.md](agent-docs/ai-agents.md)).
+- **Every agent, MCP and workflow operation lives once in `src/ops/`; tool parity and the read/write partition are compile-checked, and a tool key is never renamed** ([ai-agents.md](agent-docs/ai-agents.md)).
 
 ## 6. Tests
 
@@ -76,42 +76,42 @@
 
 ## 7. Domain docs
 
-| Doc                                                   | Domain                                                                                                            |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| [configuration.md](agent-docs/configuration.md)       | boot config, the stored instance config and its snapshot, environment variables, the config file, driver notes    |
-| [orpc.md](agent-docs/orpc.md)                         | where oRPC procedures live, guards, errors, per-namespace rules                                                   |
-| [auth.md](agent-docs/auth.md)                         | account creation, sign-in, 2FA, invite tokens, rate limiting, regenerating the Better Auth schema                 |
-| [audit.md](agent-docs/audit.md)                       | the audit log: recorded events, who reads which slice, retention, what it may be claimed to prove                 |
-| [connections.md](agent-docs/connections.md)           | the grant, encryption at rest, connecting, scopes, `connectServers`, quarantine, token refresh, revoke            |
-| [workspaces.md](agent-docs/workspaces.md)             | workspaces, resource links, membership, data scopes, user prefs, AI and phishing policy, the data export          |
-| [servers.md](agent-docs/servers.md)                   | operator-defined servers and credential drivers                                                                   |
-| [mail.md](agent-docs/mail.md)                         | `MailSession`, `MailAdapter`, providers, the `all` mailbox, moves, the mail list, IMAP                            |
-| [gateways.md](agent-docs/gateways.md)                 | the `/v1` gateway contract, Cloudflare Email, Resend                                                              |
-| [mail-ai.md](agent-docs/mail-ai.md)                   | phishing detection, labels, thread-summary cards                                                                  |
-| [mail-rendering.md](agent-docs/mail-rendering.md)     | the sandboxed email frame and its CSP, remote-content blocking, tracker stripping, link cleaning, the image proxy |
-| [calendar.md](agent-docs/calendar.md)                 | calendars, visibility, `CalendarAdapter`, CalDAV                                                                  |
-| [drive.md](agent-docs/drive.md)                       | drive model, direct vs relay transfers, `DriveSurface`, root visibility, icons                                    |
-| [drive-providers.md](agent-docs/drive-providers.md)   | S3, WebDAV, FTP/FTPS, SFTP                                                                                        |
-| [drive-preview.md](agent-docs/drive-preview.md)       | browser-only file preview and its cache                                                                           |
-| [search.md](agent-docs/search.md)                     | the workspace search dialog, its query language, provider pushdown, result actions, saved searches, members pages |
-| [shortcuts.md](agent-docs/shortcuts.md)               | keyboard chords, app-wide keys, search dialog keys                                                                |
-| [ai-agents.md](agent-docs/ai-agents.md)               | Mastra agents, toolkit, tool parity, workspace scope, references, approvals                                       |
-| [mcp.md](agent-docs/mcp.md)                           | the MCP server, client registration, auth, consent, call scoping                                                  |
-| [workflow-runtime.md](agent-docs/workflow-runtime.md) | `runWorkflowTick()`, the three transports, claims, draining, tick budget, what each driver needs                  |
-| [workflow-graph.md](agent-docs/workflow-graph.md)     | workflow tables, node kinds, merges, Ask/Branch, triggers and occurrences, retries, the run principal, built-ins  |
-| [workflow-runs.md](agent-docs/workflow-runs.md)       | cancel, resume, unconfirmed-send reconciliation, run visibility and history                                       |
-| [dashboard.md](agent-docs/dashboard.md)               | the owner dashboard, config editing, deploy checks                                                                |
-| [ui.md](agent-docs/ui.md)                             | `@metis/ui`, shadcn rules, theme and brands, the mail shell, the source link, brand marks                         |
-| [desktop.md](agent-docs/desktop.md)                   | the Electron shell and the `native` sign-in protocol                                                              |
-| [mobile.md](agent-docs/mobile.md)                     | the Expo shell                                                                                                    |
-| [downloads.md](agent-docs/downloads.md)               | where the desktop and Android apps are published, and the URL of every file                                       |
-| [database.md](agent-docs/database.md)                 | schema, migrations and the drift check, `METIS_DB_DRIVER`, sqld, Drizzle naming                                   |
-| [deployment.md](agent-docs/deployment.md)             | compose, bootstrap, preflight, Docker images, release tags, health endpoints, build traps                         |
-| [self-host.md](agent-docs/self-host.md)               | where `bootstrap.sh` and `compose.yml` are published (`sh.trymetis.email`)                                        |
-| [updater.md](agent-docs/updater.md)                   | the updater protocol, the Go updater, dashboard updates                                                           |
-| [lint.md](agent-docs/lint.md)                         | the oxlint rule set, rules turned off or tuned and why, workspace settings, suppression format                    |
-| [e2e.md](agent-docs/e2e.md)                           | the e2e black-box rule, the two suites, the fakes, the harness and the model-call recorder                        |
-| [www.md](agent-docs/www.md)                           | the marketing site's metadata, structured data, sitemap, social images and comparison pages                       |
+| Doc                                                   | Domain                                                                                                              |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [configuration.md](agent-docs/configuration.md)       | boot config, the stored instance config and its snapshot, environment variables, the config file, driver notes      |
+| [orpc.md](agent-docs/orpc.md)                         | where oRPC procedures live, guards, errors, per-namespace rules                                                     |
+| [auth.md](agent-docs/auth.md)                         | account creation, sign-in, 2FA, invite tokens, rate limiting, regenerating the Better Auth schema                   |
+| [audit.md](agent-docs/audit.md)                       | the audit log: recorded events, who reads which slice, retention, what it may be claimed to prove                   |
+| [connections.md](agent-docs/connections.md)           | the grant, encryption at rest, connecting, scopes, `connectServers`, quarantine, token refresh, revoke              |
+| [workspaces.md](agent-docs/workspaces.md)             | workspaces, resource links, membership, data scopes, user prefs, AI and phishing policy, the data export            |
+| [servers.md](agent-docs/servers.md)                   | operator-defined servers and credential drivers                                                                     |
+| [mail.md](agent-docs/mail.md)                         | `MailSession`, `MailAdapter`, providers, the `all` mailbox, moves, the mail list, IMAP                              |
+| [gateways.md](agent-docs/gateways.md)                 | the `/v1` gateway contract, Cloudflare Email, Resend                                                                |
+| [mail-ai.md](agent-docs/mail-ai.md)                   | phishing detection, labels, thread-summary cards                                                                    |
+| [mail-rendering.md](agent-docs/mail-rendering.md)     | the sandboxed email frame and its CSP, remote-content blocking, tracker stripping, link cleaning, the image proxy   |
+| [calendar.md](agent-docs/calendar.md)                 | calendars, visibility, `CalendarAdapter`, CalDAV                                                                    |
+| [drive.md](agent-docs/drive.md)                       | drive model, direct vs relay transfers, `DriveSurface`, root visibility, icons                                      |
+| [drive-providers.md](agent-docs/drive-providers.md)   | S3, WebDAV, FTP/FTPS, SFTP                                                                                          |
+| [drive-preview.md](agent-docs/drive-preview.md)       | browser-only file preview and its cache                                                                             |
+| [search.md](agent-docs/search.md)                     | the workspace search dialog, its query language, provider pushdown, result actions, saved searches, members pages   |
+| [shortcuts.md](agent-docs/shortcuts.md)               | keyboard chords, app-wide keys, search dialog keys                                                                  |
+| [ai-agents.md](agent-docs/ai-agents.md)               | Mastra agents, toolkit, tool parity, workspace scope, references, approvals                                         |
+| [mcp.md](agent-docs/mcp.md)                           | the MCP server, client registration, auth, consent, call scoping                                                    |
+| [workflow-runtime.md](agent-docs/workflow-runtime.md) | `runWorkflowTick()`, the three transports, claims, draining, tick budget, what each driver needs                    |
+| [workflow-graph.md](agent-docs/workflow-graph.md)     | workflow tables, graphs and expressions, the step registry, triggers and feeds, inbound, waits, AI steps, built-ins |
+| [workflow-runs.md](agent-docs/workflow-runs.md)       | cancel, resume, approvals, unconfirmed-send reconciliation, retention, run visibility and history                   |
+| [dashboard.md](agent-docs/dashboard.md)               | the owner dashboard, config editing, deploy checks                                                                  |
+| [ui.md](agent-docs/ui.md)                             | `@metis/ui`, shadcn rules, theme and brands, the mail shell, the source link, brand marks                           |
+| [desktop.md](agent-docs/desktop.md)                   | the Electron shell and the `native` sign-in protocol                                                                |
+| [mobile.md](agent-docs/mobile.md)                     | the Expo shell                                                                                                      |
+| [downloads.md](agent-docs/downloads.md)               | where the desktop and Android apps are published, and the URL of every file                                         |
+| [database.md](agent-docs/database.md)                 | schema, migrations and the drift check, `METIS_DB_DRIVER`, sqld, Drizzle naming                                     |
+| [deployment.md](agent-docs/deployment.md)             | compose, bootstrap, preflight, Docker images, release tags, health endpoints, build traps                           |
+| [self-host.md](agent-docs/self-host.md)               | where `bootstrap.sh` and `compose.yml` are published (`sh.trymetis.email`)                                          |
+| [updater.md](agent-docs/updater.md)                   | the updater protocol, the Go updater, dashboard updates                                                             |
+| [lint.md](agent-docs/lint.md)                         | the oxlint rule set, rules turned off or tuned and why, workspace settings, suppression format                      |
+| [e2e.md](agent-docs/e2e.md)                           | the e2e black-box rule, the two suites, the fakes, the harness and the model-call recorder                          |
+| [www.md](agent-docs/www.md)                           | the marketing site's metadata, structured data, sitemap, social images and comparison pages                         |
 
 ### Writing AGENTS.md and agent-docs
 

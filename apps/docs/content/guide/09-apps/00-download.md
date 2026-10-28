@@ -126,7 +126,9 @@ To check the Android app, download it on a computer and check it there.
 
 ## Update the apps
 
-The apps do not update themselves. To update, download the newest file from this page and install it over the old version, the same way you installed it the first time.
+The desktop app and the Android app tell you when a newer version is out. The [desktop app](/guide/apps/desktop-app#update-the-app) shows a notification, and the [Android app](/guide/apps/mobile-app#update-the-app) shows an alert. In the app, open **App settings**, then **About**. Next to **Updates**, click or tap **Download**. Your browser downloads the right file for your computer or phone. If the desktop app cannot tell which file you need, it opens this page instead.
+
+The apps never install anything themselves. You install the new file over the old version, the same way you installed it the first time. You can also download the newest file from this page.
 
 - **macOS:** when you drag the app into **Applications**, your Mac asks about the app that is already there. Choose **Replace**.
 - **Windows:** run the new installer.

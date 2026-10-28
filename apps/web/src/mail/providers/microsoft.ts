@@ -6,6 +6,7 @@ import type {
 } from "@microsoft/microsoft-graph-types";
 
 import { bind } from "@/lib/bind";
+import { errorStatus } from "@/lib/token-map";
 import { isPlainTerm, type TagToken, tagKey, tagText } from "@/search/ast";
 import {
   compileWith,
@@ -25,7 +26,7 @@ import {
   type UnsubscribeInfo,
 } from "@/types/mail";
 
-import type { MailAdapter } from "../adapter";
+import type { MailAdapter, MailChanges } from "../adapter";
 import { type MessageHeaders, pickHeaders } from "../headers";
 
 export function microsoftMail(accessToken: string): MailAdapter {
@@ -56,6 +57,7 @@ export function microsoftMail(accessToken: string): MailAdapter {
       getHeaders,
       listAttachments,
       downloadAttachment,
+      changes,
     },
     accessToken,
   );
@@ -70,6 +72,43 @@ const FOLDER_MAP: Record<MailFolder, string> = {
   archive: "archive",
   spam: "junkemail",
 };
+
+const DELTA_PAGES = 20;
+
+interface DeltaPage {
+  value?: { id?: string; "@removed"?: unknown }[];
+  "@odata.nextLink"?: string;
+  "@odata.deltaLink"?: string;
+}
+
+async function changes(
+  accessToken: string,
+  folder: MailFolder,
+  cursor: string | null,
+): Promise<MailChanges | null> {
+  if (folder === "starred") return null;
+  const client = getGraphClient(accessToken);
+  let url =
+    cursor ??
+    `/me/mailFolders/${FOLDER_MAP[folder]}/messages/delta?$select=id&$filter=receivedDateTime ge ${new Date().toISOString()}`;
+  const ids: string[] = [];
+  try {
+    for (let page = 0; page < DELTA_PAGES; page += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each delta page needs the previous page's link
+      const res: DeltaPage = await client.api(url).get();
+      if (cursor) {
+        for (const item of res.value ?? []) if (item.id && !item["@removed"]) ids.push(item.id);
+      }
+      const next = res["@odata.nextLink"];
+      if (!next) return { cursor: res["@odata.deltaLink"] ?? url, ids };
+      url = next;
+    }
+  } catch (err) {
+    if (errorStatus(err) === 410) return { cursor: "", ids: [], expired: true };
+    throw err;
+  }
+  return { cursor: url, ids };
+}
 
 interface MessagePage {
   value?: Message[];

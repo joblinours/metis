@@ -2,9 +2,9 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import * as member from "@/mastra/toolkit/member";
 import { requireMember, withToolErrors } from "@/mastra/toolkit/resolve";
 import { memberEventFields, memberFileFields, memberMailFields } from "@/mastra/toolkit/schema";
+import * as member from "@/ops/member";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace, workspaceTarget } from "../schema";

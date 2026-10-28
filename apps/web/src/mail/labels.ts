@@ -15,6 +15,7 @@ import {
   topChoice,
 } from "@/services/decision";
 import type { Email, MessagesResponse } from "@/types/mail";
+import { labelsApplied } from "@/workflow/hooks";
 
 import { compositeId } from "./aggregate";
 import { type CustomLabel, LABEL_DESCRIPTIONS, resolveLabelName } from "./label-meta";
@@ -167,6 +168,7 @@ export async function setUserLabel(params: {
         classifiedAt: now,
       },
     });
+  labelsApplied([{ mailboxId, messageId }], label, "person");
 }
 
 export function labelTargets(mail: Pick<MailScope, "mailboxes" | "isAggregate">, ids: string[]) {

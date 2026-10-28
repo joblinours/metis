@@ -56,7 +56,7 @@ The Workspace Assistant asks before every action in this table. The side panels 
 | Workflows | Create or change a workflow  | "Approve creating the workflow "Name"" or "Approve changing the workflow "Name""                    |
 | Workflows | Turn a workflow on or off    | "Approve turning this workflow on" or "Approve turning this workflow off"                           |
 | Workflows | Delete a workflow            | Asks to delete the workflow, and warns that it can't be undone                                      |
-| Workflows | Run a workflow now           | Asks to run the workflow now, and warns that it can archive, delete, star or label matching emails  |
+| Workflows | Run a workflow now           | Asks to run the workflow now, and warns that its steps may change or send mail, events or files     |
 | Workflows | Cancel a run                 | Asks to cancel the run, and warns that a step already in progress can't be called back              |
 | Workflows | Retry a run                  | Asks to retry the failed steps, and notes that completed steps won't run again                      |
 | Workspace | Remove a member              | Asks to remove the member, and warns that their mailboxes, calendars and drives leave the workspace |

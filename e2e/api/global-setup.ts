@@ -1,8 +1,9 @@
 import { harness } from "../clients/harness";
 import { assertNoLlmMisses } from "../clients/llm-misses";
 import { rpcWithCookie } from "../clients/rpc";
+import { signIn } from "../clients/sign-in";
 import { INBOX_PAGE_SIZE } from "../lib/llm-scenarios";
-import { mailboxScope, saveSession, signIn } from "./support/session";
+import { mailboxScope, saveSession } from "./support/session";
 
 export async function setup() {
   const account = await harness.account();

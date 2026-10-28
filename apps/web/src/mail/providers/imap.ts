@@ -28,7 +28,7 @@ import {
   type UnsubscribeInfo,
 } from "@/types/mail";
 
-import type { MailAdapter } from "../adapter";
+import type { MailAdapter, MailChanges } from "../adapter";
 import type { MessageHeaders } from "../headers";
 import { decodeMimeHeader } from "../recipients";
 import {
@@ -65,6 +65,7 @@ export function imapMail(credentials: ImapCredentials, from: string): MailAdapte
       getHeaders,
       listAttachments,
       downloadAttachment,
+      changes,
     },
     credentials,
   );
@@ -222,6 +223,34 @@ async function fetchByUids(
 async function searchUids(ctx: ImapContext, query: Record<string, unknown>): Promise<number[]> {
   const found = await ctx.client.search(query, { uid: true });
   return Array.isArray(found) ? found : [];
+}
+
+async function changes(
+  credentials: ImapCredentials,
+  folder: MailFolder,
+  cursor: string | null,
+): Promise<MailChanges | null> {
+  if (folder === "starred") return null;
+  return withImapMailbox(credentials, folder, async (ctx, path) => {
+    const open = ctx.client.mailbox;
+    if (!open) throw new Error("No IMAP mailbox is open");
+    const validity = String(open.uidValidity);
+    if (!cursor) {
+      const highest = Math.max(0, ...(await searchUids(ctx, { uid: "*" })));
+      return { cursor: `${validity}:${Math.max(open.uidNext, highest + 1)}`, ids: [] };
+    }
+    const [was, from] = cursor.split(":");
+    const start = Number(from);
+    if (was !== validity || !Number.isInteger(start)) {
+      return { cursor: "", ids: [], expired: true };
+    }
+    const uids = (await searchUids(ctx, { uid: `${start}:*` })).filter((uid) => uid >= start);
+    const next = uids.length > 0 ? Math.max(start, ...uids.map((uid) => uid + 1)) : start;
+    return {
+      cursor: `${validity}:${next}`,
+      ids: uids.map((uid) => encodeMessageId({ path, uidValidity: validity, uid })),
+    };
+  });
 }
 
 async function listMessages(

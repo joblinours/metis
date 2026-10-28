@@ -168,6 +168,10 @@ export function workflowRunnerConfigFromEnv(e: Env): Record<string, unknown> {
     redisUrl: e.METIS_WORKFLOW_REDIS_URL,
     queuePrefix: e.METIS_WORKFLOW_QUEUE_PREFIX,
     secret: e.CRON_SECRET,
+    stepDataDays: e.METIS_WORKFLOW_STEP_DATA_DAYS,
+    historyDays: e.METIS_WORKFLOW_HISTORY_DAYS,
+    publicUrl: e.METIS_WORKFLOW_PUBLIC_URL,
+    trustedProxies: e.METIS_WORKFLOW_TRUSTED_PROXIES,
   };
 }
 

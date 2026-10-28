@@ -17,7 +17,8 @@ See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [wor
 | BullMQ worker process        | `scripts/workflow-worker.ts` (bundled to `workflow-worker.mjs` in the `worker` image)                                                                                                       |
 | Failure reporting            | `src/workflow/diagnostics.ts` → `tickFailure`, `formatTickFailure`, `errorCode` · type `TickFailure` in `src/workflow/runtime.ts`                                                           |
 | Tick bookkeeping and claims  | `src/workflow/store.ts` → `recordTick`, `claimDiscovery`, `claimRuns`, `CLAIM_SLICES` · table `workflowTick`                                                                                |
-| Discovery                    | `src/workflow/triggers.ts` → `discoverTrigger` ([workflow-graph.md](workflow-graph.md))                                                                                                     |
+| Discovery                    | `src/workflow/discovery.ts` → `discoverTrigger` · change feeds `src/workflow/feeds/` ([workflow-graph.md](workflow-graph.md))                                                               |
+| Push subscriptions           | `src/workflow/inbound/subscriptions.ts` → `renewEndpoints` (called from the tick's maintenance stage)                                                                                       |
 | System workflows             | `src/workflow/builtins/system.ts` → `ensureSystemWorkflows` (called at the start of every tick)                                                                                             |
 
 ## Rules
@@ -29,8 +30,8 @@ See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [wor
 - **The driver, its tuning, the Redis URL and the cron secret come from the config snapshot**, so switching drivers needs no redeploy as long as the processes the target needs exist ([configuration.md](configuration.md)).
   - Batch size, concurrency, budget and cadence are read per tick (`runTick` reads `getInstanceConfig()`).
   - The cron route checks the driver and secret per request.
-- **Two transports ticking at once during a switch is safe**: claims are leased and occurrences are unique, so overlap only costs a redundant tick.
-- **Redis only wakes the tick.** Definitions, schedules, occurrences, run ownership, retries and history live in the app database in every mode, so a cron or internal deployment needs no Redis and a Redis outage loses no work. Due times are persisted, never enqueued.
+- **Two transports ticking at once during a switch is safe**: claims are leased and trigger events are unique, so overlap only costs a redundant tick.
+- **Redis only wakes the tick.** Definitions, schedules, events, waits, run ownership, retries and history live in the app database in every mode, so a cron or internal deployment needs no Redis and a Redis outage loses no work. Due times are persisted, never enqueued.
 
 ### Transports
 
@@ -47,7 +48,9 @@ See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [wor
 
 - **Cadence gates discovery, not recovery.** `workflow_tick` holds the cadence claim (`claimDiscovery`), so an early tick still drains ready runs without rescanning every trigger.
 - **Every claim mints a new fencing token that every completion, retry and release must match.** Runs are claimed with a bounded `UPDATE … WHERE id IN (SELECT … LIMIT n) RETURNING`, because SQLite has no `SKIP LOCKED`; the sub-select runs under the statement's own write lock.
-- **Claims are fair across categories** (`CLAIM_SLICES`: one-shots, user, system). Each gets a share of the batch, and the slice order rotates every claim so a batch of one still serves every category; leftover capacity goes by due time.
+- **A claim takes pending runs and waiting runs whose due time has passed**, plus running runs whose lease expired; a waiting run's due time is its earliest wake, so a timer or a decided approval resumes it on the next tick.
+- **Claims are fair across categories** (`CLAIM_SLICES`: built-ins, user, system). Each gets a share of the batch, and the slice order rotates every claim so a batch of one still serves every category; leftover capacity goes by due time.
+- **A workflow's `settings.concurrency` caps its running runs at claim time.** The claim skips runs of a workflow at its cap, and `enforceCaps` releases any a single batch claimed past it.
 - **A tick finishes every claimed run before it surfaces a failure.**
   - `drain()` runs the batch across `concurrency` workers; a worker whose run throws stops taking new work.
   - The tick awaits every other worker and only then rethrows the first error, so the caller (cron's response, the BullMQ job) never reports failure while sibling runs still execute untracked.
@@ -65,7 +68,7 @@ See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [wor
 - **A tick.** `runTick` stamps an invocation id and logs one logfmt `[workflow-runner] tick` line, then `runWorkflowTick`:
   - ensures the system workflows;
   - takes the cadence claim and, when it wins, discovers due triggers;
-  - closes stranded cancels, expires retained outputs and finishes pending send resolutions ([workflow-runs.md](workflow-runs.md));
+  - closes stranded cancels and finishes pending send resolutions ([workflow-runs.md](workflow-runs.md)), and renews or stops provider push subscriptions (`renewEndpoints`, at most ten per tick, only while a public URL is configured);
   - claims and drains ready runs within the tick budget;
   - stamps `workflow_tick` (`recordTick`), which the dashboard's runner health reads ([dashboard.md](dashboard.md)).
 - **`bullmq`.** The worker process runs the Job Scheduler and consumes its tick jobs; web and worker share the same database and encryption key.
@@ -79,7 +82,8 @@ See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [wor
 - **What each driver needs to run.** The root stack runs the app only ([deployment.md](deployment.md)); the operator procedure is the docs site's Background work page (`apps/docs/content/self-hosting/02-configure/07-background-work.mdx`).
   - `internal` (the default) needs the app process to run continuously (`next start` / the runner image); on known serverless hosts a save refuses it and seeding stores it with a warning (`validateInstanceConfig` in `src/config/sections.ts`).
   - `bullmq` needs the published worker image and a Redis with `noeviction`, which the operator runs wherever they like and points at through the stored Redis URL. The worker needs only the minimal boot variables ([configuration.md](configuration.md)).
-  - `cron` needs an external scheduler (cron-job.org, Vercel cron, …) calling the tick route with the stored secret.
+  - `cron` needs an external scheduler (cron-job.org, a GitHub Actions schedule, a crontab) that POSTs the tick route with the stored secret in `X-Metis-Secret`.
+  - Vercel Cron cannot drive it: it sends a GET with `Authorization: Bearer`, and the route answers only POST and reads only `X-Metis-Secret`.
   - Selecting `bullmq` without a running worker means nothing ticks: work queues in the database, nothing fails, and the runner shows `never` or `delayed`.
 
 ### Operating the runner
@@ -87,7 +91,7 @@ See also [AGENTS.md](../AGENTS.md), [workflow-graph.md](workflow-graph.md), [wor
 - **Every tick logs one `[workflow-runner] tick` line** with `driver`, `outcome`, `invocation`, timing and counts (`discovered`, `discoveryErrors`, `claimed`, `completed`, `failed`, `blocked`, `remaining`); `internal` lines add `trigger=start|interval`.
   - `outcome` is `worked` when the tick discovered or claimed anything, `idle` otherwise, and `failed` on an infrastructure error, which names only `stage` (`setup`, `discovery`, `maintenance`, `execution`) and `code`.
   - A failing workflow is not a tick failure: it shows in `failed` / `blocked` and in that workflow's history.
-  - `discoveryErrors` counts new-mail triggers that could not be checked (owner left, mailbox no longer visible or attached, provider scan failed); it recurs once per cadence until fixed, and the trigger node shows "Last check failed".
+  - `discoveryErrors` counts feed triggers that could not be checked (owner left, mailbox, calendar or drive no longer visible or attached, provider scan failed); it recurs once per cadence until fixed, and the trigger's inspector shows the error.
 - **The cron endpoint answers `200` or `500` (with `failure`) with a JSON summary, `401` for a wrong or missing secret, `404` when the driver is not `cron`.**
   - Rejections log `tick rejected` at most once a minute per reason, with the count since the last line.
   - The scheduler's timeout must exceed the tick budget, and calling more often than the cadence only drains ready work sooner.

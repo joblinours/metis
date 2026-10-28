@@ -1,30 +1,28 @@
 {
   "name": "metis-suite-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Metis Suite desktop app for a self-hosted Metis instance",
   "homepage": "https://github.com/trymetis/metis",
   "author": "Metis Suite",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p . && vite build",
+    "build": "bun build src/main.ts src/preload.ts --outdir dist --target node --format cjs --external electron && vite build",
     "start": "bun run build && electron .",
     "typecheck": "tsc -p . --noEmit && tsc -p renderer --noEmit",
     "dist": "bun run build && electron-builder"
   },
-  "dependencies": {
-    "zod": "catalog:"
-  },
   "devDependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
     "@fontsource/dm-mono": "^5.3.0",
+    "@metis/shell-core": "workspace:*",
     "@metis/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "^6.1.2",
-    "electron": "^45.0.0",
+    "electron": "catalog:",
     "electron-builder": "^26.18.0",
     "lucide-react": "catalog:",
     "oxfmt": "catalog:",
@@ -33,7 +31,8 @@
     "react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "zod": "catalog:"
   },
   "build": {
     "appId": "email.trymetis.suite",
@@ -48,6 +47,7 @@
     "files": [
       "dist/**",
       "static/icon.png",
+      "static/trayTemplate*.png",
       "package.json"
     ],
     "directories": {
@@ -77,7 +77,11 @@
       "icon": "icons",
       "category": "Network;Email",
       "maintainer": "Metis Suite",
-      "syncDesktopName": true
+      "syncDesktopName": true,
+      "publish": {
+        "provider": "generic",
+        "url": "https://downloads.trymetis.email/desktop/latest/"
+      }
     }
   },
   "desktopName": "metis-suite-desktop.desktop"

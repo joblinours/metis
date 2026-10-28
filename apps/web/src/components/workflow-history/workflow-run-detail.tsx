@@ -21,24 +21,41 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import type { CardDirectory } from "@/components/workflow-graph/card-context";
 import { usePollingRefresh } from "@/hooks/use-polling-refresh";
 import { useWorkspaceScope } from "@/hooks/use-workspace-path";
 import { orpc, rpc } from "@/lib/orpc";
 import { refreshQuery } from "@/lib/query-client";
 import type { WorkflowRunDetail } from "@/server/schema";
-import { type KindOutput, kindLabel, nodeOutputs } from "@/workflow/kinds";
+import { nodeOutputs, nodeTitle, type StepOutput, stepLabel } from "@/workflow/steps";
 import { workflowPath } from "@/workspace/path";
 
+import { JsonBlock } from "./json-block";
+import { ResolveDispatchDialog, resolveCopyFor } from "./resolve-dispatch-dialog";
 import { type RunNode, StatusIcon, statusLabel, stepState } from "./run-status";
+import { RunWaits } from "./run-waits";
 import { WorkflowRunGraph } from "./workflow-run-graph";
 
 type RunItem = RunNode["items"][number];
 
+const INPUT_STATES: Record<string, string> = {
+  settled: "finished",
+  waiting: "waiting",
+  pending: "not finished",
+  blocked: "blocked",
+  failed: "failed",
+};
+
+const NEEDS_ATTENTION = new Set(["failed", "blocked", "unknown"]);
+
 const SOURCE_LABELS: Record<WorkflowRunDetail["trigger"]["source"], string> = {
-  newMail: "New mail arrived",
+  manual: "Run manually",
   schedule: "Schedule fired",
   once: "One-time trigger fired",
-  manual: "Run manually",
+  feed: "Something changed",
+  app: "App event",
+  inbound: "Inbound request",
+  call: "Called by another workflow",
 };
 
 function when(iso: string | null): string {
@@ -59,16 +76,46 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function ResolveItem({
+  runId,
+  step,
+  item,
+  onDone,
+}: {
+  runId: string;
+  step: string;
+  item: RunItem;
+  onDone: () => Promise<void>;
+}) {
+  const scope = useWorkspaceScope();
+  return (
+    <ResolveDispatchDialog
+      copy={resolveCopyFor(step)}
+      load={() => orpc.workflows.unconfirmedStep({ ...scope, runId, stepRunId: item.id })}
+      submit={(stepRunId, decision) =>
+        orpc.workflows.resolveStep({ ...scope, runId, stepRunId, decision })
+      }
+      onDone={() => void onDone()}
+    />
+  );
+}
+
 function ItemRow({
   item,
-  mailboxLabel,
   outputs,
+  detailed,
+  runId,
+  step,
+  onResolved,
 }: {
   item: RunItem;
-  mailboxLabel: (id: string | null) => string | null;
-  outputs: KindOutput[];
+  outputs: StepOutput[];
+  detailed: boolean;
+  runId: string;
+  step: string;
+  onResolved: () => Promise<void>;
 }) {
-  const mailbox = mailboxLabel(item.mailboxId);
+  const copy = resolveCopyFor(step);
   const duration = took(item.startedAt, item.finishedAt);
   const routed = (item.outputs ?? []).flatMap((handle) => {
     const label = outputs.find((output) => output.id === handle)?.label;
@@ -79,16 +126,20 @@ function ItemRow({
       <StatusIcon status={item.status} className="mt-0.5 size-3.5" />
       <div className="min-w-48 flex-1">
         <p className="text-[12px] text-muted-foreground">
-          {item.inputs ? "Barrier" : statusLabel(item.status)}
-          {mailbox && ` · ${mailbox}`}
+          {item.inputs && item.status === "pending"
+            ? "Waiting for inputs"
+            : statusLabel(item.status)}
           {item.attempts > 1 && ` · ${item.attempts} attempts`}
           {item.operation && ` · ${item.operation}`}
         </p>
-        {item.message && (
+        {item.title && (
           <p className="truncate text-[12px] text-foreground">
-            {item.message.subject}
-            {item.message.from && <span className="text-faint"> · {item.message.from}</span>}
+            {item.title}
+            {item.subtitle && <span className="text-faint"> · {item.subtitle}</span>}
           </p>
+        )}
+        {item.wakeAt && item.status === "waiting" && (
+          <p className="text-[12px] text-faint">wakes {when(item.wakeAt)}</p>
         )}
         {routed.length > 0 ? (
           <p className="truncate text-[12px] text-faint">
@@ -99,16 +150,37 @@ function ItemRow({
         ) : (
           item.detail && <p className="truncate text-[12px] text-faint">{item.detail}</p>
         )}
-        {item.error && (
-          <p className="break-words font-mono text-[11px] text-destructive-text">{item.error}</p>
+        {item.error &&
+          (item.inputs && item.status === "pending" ? (
+            <p className="text-[12px] text-faint">{item.error}</p>
+          ) : (
+            <p className="break-words font-mono text-[11px] text-destructive-text">{item.error}</p>
+          ))}
+        {item.resolution && (
+          <p className="text-[12px] text-faint">
+            {item.resolution.outcome === "verified" ? "Confirmed" : "Closed"} by{" "}
+            {item.resolution.resolvedBy?.name ?? "a former member"}
+            {item.resolution.outcome === "closed" &&
+              item.resolution.reason &&
+              ` — ${copy.reasons[item.resolution.reason]}`}
+            {item.resolution.note && `: ${item.resolution.note}`} ·{" "}
+            {when(item.resolution.resolvedAt)}
+          </p>
         )}
         {item.inputs && (
           <div className="mt-1 flex flex-wrap gap-1.5">
             {item.inputs.map((input) => (
               <Badge key={input.port} variant="outline">
-                Input {input.port + 1}: {input.state} · {input.count}
+                Input {input.port + 1}: {INPUT_STATES[input.state] ?? input.state} · {input.count}{" "}
+                {input.count === 1 ? "item" : "items"}
               </Badge>
             ))}
+          </div>
+        )}
+        {detailed && (
+          <div className="mt-1 flex flex-col gap-1">
+            <JsonBlock label="Input" value={item.input} />
+            <JsonBlock label="Output" value={item.output} />
           </div>
         )}
       </div>
@@ -116,6 +188,7 @@ function ItemRow({
         {when(item.startedAt)}
         {duration && ` · ${duration}`}
       </span>
+      {item.resolvable && <ResolveItem runId={runId} step={step} item={item} onDone={onResolved} />}
     </li>
   );
 }
@@ -123,20 +196,21 @@ function ItemRow({
 function NodeCard({
   node,
   graph,
-  mailboxLabel,
+  runId,
+  onResolved,
   selected = false,
   onClose,
 }: {
   node: RunNode;
   graph: WorkflowRunDetail["graph"];
-  mailboxLabel: (id: string | null) => string | null;
+  runId: string;
+  onResolved: () => Promise<void>;
   selected?: boolean;
   onClose?: () => void;
 }) {
   const { status, label } = stepState(node);
   const graphNode = graph.nodes.find((entry) => entry.id === node.nodeId);
   const outputs = graphNode ? nodeOutputs(graphNode, graph) : [];
-  const mailbox = mailboxLabel(node.mailboxId);
   const Root = onClose ? "div" : "li";
   return (
     <Root
@@ -148,11 +222,11 @@ function NodeCard({
     >
       <div className="flex items-center gap-2">
         <StatusIcon status={status} />
-        <span className="text-[13px] font-medium text-foreground">{kindLabel(node.kind)}</span>
-        {mailbox && (
-          <span className="min-w-0 truncate font-mono text-[12px] text-muted-foreground">
-            {mailbox}
-          </span>
+        <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
+          {graphNode ? nodeTitle(graphNode) : stepLabel(node.step)}
+        </span>
+        {graphNode?.title && (
+          <span className="shrink-0 text-[12px] text-muted-foreground">{stepLabel(node.step)}</span>
         )}
         <span className="ml-auto shrink-0 text-[11px] text-faint">{label}</span>
         {onClose && (
@@ -167,9 +241,7 @@ function NodeCard({
             <Badge
               // oxlint-disable-next-line react/no-array-index-key --lines are positional per node
               key={i}
-              variant={
-                line.status === "completed" || line.status === "skipped" ? "outline" : "destructive"
-              }
+              variant={NEEDS_ATTENTION.has(line.status) ? "destructive" : "outline"}
             >
               {statusLabel(line.status)}
               {line.count > 1 && ` ×${line.count}`}
@@ -181,7 +253,15 @@ function NodeCard({
       {node.items.length > 0 && (
         <ul className="mt-2 divide-y divide-border-soft border-border-soft border-t">
           {node.items.map((item) => (
-            <ItemRow key={item.id} item={item} mailboxLabel={mailboxLabel} outputs={outputs} />
+            <ItemRow
+              key={item.id}
+              item={item}
+              outputs={outputs}
+              detailed={selected}
+              runId={runId}
+              step={node.step}
+              onResolved={onResolved}
+            />
           ))}
         </ul>
       )}
@@ -246,6 +326,7 @@ function CancelRunButton({ run, onDone }: { run: WorkflowRunDetail; onDone: () =
 }
 
 const RESUMABLE = new Set<WorkflowRunDetail["status"]>(["failed", "partial", "blocked"]);
+const ACTIVE = new Set<WorkflowRunDetail["status"]>(["pending", "running", "waiting"]);
 
 function RetryRunButton({ run, onDone }: { run: WorkflowRunDetail; onDone: () => Promise<void> }) {
   const scope = useWorkspaceScope();
@@ -313,7 +394,7 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
   }, [scope, runId]);
 
   const stopping = run?.status === "cancelled" && !run.finishedAt;
-  const cancellable = run?.status === "pending" || run?.status === "running";
+  const cancellable = !!run && ACTIVE.has(run.status);
 
   usePollingRefresh(async () => {
     if (cancellable || stopping) {
@@ -321,13 +402,11 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
     }
   }, 15_000);
 
-  const mailboxLabel = useMemo(() => {
-    const byId = new Map((run?.mailboxes ?? []).map((m) => [m.mailboxId, m.email]));
-    return (id: string | null) => {
-      if (!id) return null;
-      return byId.get(id) ?? "Unavailable mailbox";
-    };
-  }, [run]);
+  const list = useQuery(rpc.workflows.list.queryOptions({ input: scope }));
+  const directory = useMemo<CardDirectory>(
+    () => ({ directory: list.data?.directory ?? null, workflows: list.data?.workflows ?? [] }),
+    [list.data],
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = run?.nodes.find((node) => node.nodeId === selectedId);
@@ -359,12 +438,20 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
           )}
         </div>
         {run && cancellable && <CancelRunButton run={run} onDone={load} />}
-        {run && RESUMABLE.has(run.status) && <RetryRunButton run={run} onDone={load} />}
+        {run && RESUMABLE.has(run.status) && !run.upgraded && (
+          <RetryRunButton run={run} onDone={load} />
+        )}
       </header>
       {stopping && (
         <p className="shrink-0 border-border-soft border-b bg-panel px-6 py-2 text-[12px] text-muted-foreground">
           Cancelled while running — it stops before its next step. A step that was already in
           progress may still finish; its outcome appears below once the worker lets go.
+        </p>
+      )}
+      {run?.upgraded && (
+        <p className="shrink-0 border-border-soft border-b bg-panel px-6 py-2 text-[12px] text-muted-foreground">
+          This run happened before the workflow engine was upgraded. It is kept as history and
+          cannot be retried.
         </p>
       )}
 
@@ -383,15 +470,14 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
               <dl className="grid grid-cols-1 gap-4 rounded-xl border border-border bg-surface px-4 py-4 sm:grid-cols-2">
                 <Field label="Trigger">
                   {SOURCE_LABELS[trigger.source]}
-                  {trigger.kind && trigger.kind !== "trigger.manual" && (
-                    <span className="text-muted-foreground"> · {kindLabel(trigger.kind)}</span>
+                  {trigger.step && trigger.step !== "trigger.manual" && (
+                    <span className="text-muted-foreground"> · {stepLabel(trigger.step)}</span>
                   )}
                   <p className="text-[12px] text-faint">
                     {trigger.firedFor
                       ? `for ${when(trigger.firedFor)}`
                       : `queued for ${when(trigger.scheduledFor)}`}
                     {trigger.missed > 0 && ` · ${trigger.missed} missed instant(s) coalesced`}
-                    {trigger.messageCount !== null && ` · ${trigger.messageCount} message(s)`}
                   </p>
                   {trigger.source === "manual" && (
                     <p className="text-[12px] text-faint">
@@ -432,21 +518,6 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
                     {run.attempts > 1 && ` · attempt ${run.attempts}`}
                   </p>
                 </Field>
-                {run.mailboxes.length > 0 && (
-                  <Field label="Mailboxes">
-                    <div className="mt-0.5 flex flex-wrap gap-1.5">
-                      {run.mailboxes.map((m) => (
-                        <Badge
-                          key={m.mailboxId}
-                          variant={m.email ? "outline" : "ghost"}
-                          className="font-mono"
-                        >
-                          {m.email ?? "Unavailable mailbox"}
-                        </Badge>
-                      ))}
-                    </div>
-                  </Field>
-                )}
                 {run.error && (
                   <Field label="Error">
                     <span className="break-words font-mono text-[12px] text-destructive-text">
@@ -455,6 +526,22 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
                   </Field>
                 )}
               </dl>
+
+              {run.waits.length > 0 && (
+                <section className="flex flex-col gap-2">
+                  <h2 className="font-medium text-[13px] text-muted-foreground">Waits</h2>
+                  <div className="rounded-xl border border-border bg-surface px-4 py-1">
+                    <RunWaits run={run} />
+                  </div>
+                </section>
+              )}
+
+              {(trigger.event !== undefined || run.output !== undefined) && (
+                <section className="flex flex-col gap-2">
+                  <JsonBlock label="Trigger event" value={trigger.event} />
+                  <JsonBlock label="Run output" value={run.output} />
+                </section>
+              )}
 
               <section className="flex flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-3">
@@ -465,7 +552,7 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
                 </div>
                 <WorkflowRunGraph
                   run={run}
-                  mailboxLabel={mailboxLabel}
+                  directory={directory}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                 />
@@ -474,7 +561,8 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
                     <NodeCard
                       node={selected}
                       graph={run.graph}
-                      mailboxLabel={mailboxLabel}
+                      runId={run.id}
+                      onResolved={load}
                       selected
                       onClose={() => setSelectedId(null)}
                     />
@@ -490,7 +578,8 @@ export function WorkflowRunDetailView({ runId }: { runId: string }) {
                       key={node.nodeId}
                       node={node}
                       graph={run.graph}
-                      mailboxLabel={mailboxLabel}
+                      runId={run.id}
+                      onResolved={load}
                     />
                   ))}
                 </ol>

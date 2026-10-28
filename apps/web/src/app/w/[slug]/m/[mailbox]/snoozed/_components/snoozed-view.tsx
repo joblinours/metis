@@ -121,7 +121,7 @@ export function SnoozedView() {
               <Moon className="mx-auto mb-3 h-8 w-8 opacity-30" strokeWidth={1.5} />
               <p className="text-[14px] text-faint">
                 Nothing snoozed. Use the Snooze button on any email to hide it until later — it'll
-                come back to your Inbox at the time you pick.
+                come back to the folder it was in at the time you pick.
               </p>
             </div>
           ) : (

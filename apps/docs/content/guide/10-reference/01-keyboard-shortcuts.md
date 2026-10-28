@@ -128,12 +128,12 @@ These work in the workflow editor. See [Workflows](/guide/workflows).
 
 Press **w**, then:
 
-| Keys             | Action                                                                    |
-| ---------------- | ------------------------------------------------------------------------- |
-| **w** then **a** | Open the **Add step** window                                              |
-| **w** then **l** | Tidy up the layout                                                        |
-| **w** then **t** | Open the **Test run** tab                                                 |
-| **w** then **r** | Run the saved workflow now. It does nothing for a workflow not yet saved. |
+| Keys             | Action                                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **w** then **a** | Open the **Add step** window                                                                                                                                  |
+| **w** then **l** | Tidy up the layout                                                                                                                                            |
+| **w** then **t** | Open the **Test run** tab                                                                                                                                     |
+| **w** then **r** | Run the saved workflow now. If its **Run by hand** trigger asks for inputs, this opens the inputs dialog first. It does nothing for a workflow not yet saved. |
 
 Without a prefix:
 

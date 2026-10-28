@@ -1,5 +1,7 @@
 export type Ops<A, H> = {
-  [K in keyof A]: A[K] extends (...args: infer P) => infer R ? (handle: H, ...args: P) => R : never;
+  [K in keyof A]: NonNullable<A[K]> extends (...args: infer P) => infer R
+    ? (handle: H, ...args: P) => R
+    : never;
 };
 
 export function bind<A extends object, H>(ops: Ops<A, H>, handle: H): A {

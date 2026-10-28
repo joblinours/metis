@@ -19,36 +19,46 @@ import {
 } from "@metis/ui/components/dropdown-menu";
 import { cn } from "@metis/ui/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, History, Loader2, Plus, WorkflowIcon } from "lucide-react";
+import { ArrowLeft, History, ListChecks, Loader2, Plus, WorkflowIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ResponsiveAside } from "@/components/mobile-aside";
 import { useWorkspacePath, useWorkspaceScope } from "@/hooks/use-workspace-path";
 import { rpc } from "@/lib/orpc";
-import type { WorkflowOutput } from "@/server/schema";
-import type { GraphMailbox, GraphTemplate } from "@/workflow/graph";
+import type { WorkflowDirectory, WorkflowOutput } from "@/server/schema";
+import type { GraphTemplate } from "@/workflow/graph";
 import { GRAPH_TEMPLATES, TEMPLATE_LABELS } from "@/workflow/graph";
 import { workflowPath, workspacePath, workspaceRootPath } from "@/workspace/path";
 
+import { ApprovalsSheet } from "./approvals-sheet";
+import type { EditorWorkflowRef } from "./editor-context";
+import { triggerInputs } from "./inputs-form";
 import { WorkflowEditor } from "./workflow-editor";
 
 type Selection = { mode: "new"; template: GraphTemplate } | { mode: "workflow"; id: string } | null;
 
 const NO_WORKFLOWS: WorkflowOutput[] = [];
+const NO_DIRECTORY: WorkflowDirectory = { mailboxes: [], calendars: [], drives: [], members: [] };
 
 interface WorkflowBuilderProps {
-  mailboxes: GraphMailbox[];
-  allowDecisionNodes: boolean;
+  allowDecisionSteps: boolean;
   initialWorkflowId: string | null;
 }
 
-export function WorkflowBuilder({
-  mailboxes,
-  allowDecisionNodes,
-  initialWorkflowId,
-}: WorkflowBuilderProps) {
+function workflowRefs(workflows: readonly WorkflowOutput[]): EditorWorkflowRef[] {
+  return workflows.map((w) => ({
+    id: w.id,
+    name: w.name,
+    callable: w.callable,
+    inputs: triggerInputs(w.graph.nodes.find((n) => n.step === "trigger.call")).map(
+      (field) => field.name,
+    ),
+  }));
+}
+
+export function WorkflowBuilder({ allowDecisionSteps, initialWorkflowId }: WorkflowBuilderProps) {
   const { workspaceSlug } = useWorkspacePath();
   const scope = useWorkspaceScope();
   const inboxHref = workspaceSlug ? workspacePath(workspaceSlug) : workspaceRootPath();
@@ -56,6 +66,11 @@ export function WorkflowBuilder({
   const listOptions = rpc.workflows.list.queryOptions({ input: scope });
   const query = useQuery(listOptions);
   const workflows: WorkflowOutput[] = query.data?.workflows ?? NO_WORKFLOWS;
+  const directory = query.data?.directory ?? NO_DIRECTORY;
+  const refs = useMemo(() => workflowRefs(workflows), [workflows]);
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
+  const approvals = useQuery(rpc.workflows.approvals.queryOptions({ input: scope }));
+  const pendingApprovals = approvals.data?.approvals.length ?? 0;
   const loading = query.isPending && !query.isError;
   const loadError = query.error ? query.error.message || "Could not load your workflows" : null;
   const [chosen, setSelection] = useState<Selection>(() =>
@@ -67,7 +82,7 @@ export function WorkflowBuilder({
     (query.data
       ? firstWorkflow
         ? { mode: "workflow", id: firstWorkflow.id }
-        : { mode: "new", template: "single" }
+        : { mode: "new", template: "blank" }
       : null);
   const router = useRouter();
   const [dirty, setDirty] = useState(false);
@@ -100,11 +115,11 @@ export function WorkflowBuilder({
     const next = workflows.filter((w) => w.id !== id);
     setWorkflows(() => next);
     const first = next[0];
-    setSelection(first ? { mode: "workflow", id: first.id } : { mode: "new", template: "single" });
+    setSelection(first ? { mode: "workflow", id: first.id } : { mode: "new", template: "blank" });
   }
 
   const canvasKey =
-    selection?.mode === "workflow" ? selection.id : `new:${selection?.template ?? "single"}`;
+    selection?.mode === "workflow" ? selection.id : `new:${selection?.template ?? "blank"}`;
 
   return (
     <div className="flex h-full w-full">
@@ -166,7 +181,7 @@ export function WorkflowBuilder({
               <p className="px-2 py-3 text-[12px] text-destructive-text">{loadError}</p>
             ) : workflows.length === 0 ? (
               <p className="px-2 py-3 text-[12px] text-faint">
-                No workflows yet. Build one on the canvas to auto-triage your inbox.
+                No workflows yet. Build one on the canvas, or start from a template.
               </p>
             ) : (
               <ul className="flex flex-col gap-0.5">
@@ -200,7 +215,19 @@ export function WorkflowBuilder({
             )}
           </div>
 
-          <div className="shrink-0 border-border-soft border-t p-2">
+          <div className="flex shrink-0 flex-col gap-1.5 border-border-soft border-t p-2">
+            <button
+              type="button"
+              onClick={() => setApprovalsOpen(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[12px] text-muted-foreground transition-colors hover:bg-hover"
+            >
+              <ListChecks className="size-3.5" /> Approvals
+              {pendingApprovals > 0 && (
+                <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+                  {pendingApprovals}
+                </span>
+              )}
+            </button>
             <Link
               href={workspaceSlug ? workflowPath(workspaceSlug, "history") : workspaceRootPath()}
               className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[12px] text-muted-foreground transition-colors hover:bg-hover"
@@ -219,16 +246,19 @@ export function WorkflowBuilder({
         ) : (
           <WorkflowEditor
             key={canvasKey}
-            mailboxes={mailboxes}
-            allowDecisionNodes={allowDecisionNodes}
+            directory={directory}
+            allowDecisionSteps={allowDecisionSteps}
+            workflows={refs}
             workflow={selectedWorkflow}
-            template={selection?.mode === "new" ? selection.template : "single"}
+            template={selection?.mode === "new" ? selection.template : "blank"}
             onSaved={handleSaved}
             onDeleted={handleDeleted}
             onDirtyChange={onDirtyChange}
           />
         )}
       </div>
+
+      <ApprovalsSheet open={approvalsOpen} onOpenChange={setApprovalsOpen} />
 
       <AlertDialog
         open={pending !== null}

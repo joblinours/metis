@@ -111,10 +111,28 @@ function naturalKeys(path: string): Map<string, string> {
     }
   }
   for (const r of rows(
-    { id: text, workflow_id: text },
-    `SELECT id, workflow_id FROM "workflow_payload"`,
+    { id: text, trigger_id: text, scope: text },
+    `SELECT id, trigger_id, scope FROM "workflow_cursor"`,
   )) {
-    keys.set(r.id, `workflow_payload:${keyOf(r.workflow_id)}`);
+    keys.set(r.id, `workflow_cursor:${keyOf(r.trigger_id)}:${r.scope}`);
+  }
+  for (const r of rows(
+    { id: text, trigger_id: text, kind: text },
+    `SELECT id, trigger_id, kind FROM "workflow_endpoint"`,
+  )) {
+    keys.set(r.id, `workflow_endpoint:${keyOf(r.trigger_id)}:${r.kind}`);
+  }
+  for (const r of rows(
+    { id: text, trigger_id: text, key: text },
+    `SELECT id, trigger_id, key FROM "workflow_event"`,
+  )) {
+    keys.set(r.id, `workflow_event:${keyOf(r.trigger_id)}:${r.key}`);
+  }
+  for (const r of rows(
+    { id: text, workflow_id: text, kind: text, name: text.nullable() },
+    `SELECT id, workflow_id, kind, name FROM "workflow_blob" WHERE run_id IS NULL`,
+  )) {
+    keys.set(r.id, `workflow_blob:${keyOf(r.workflow_id)}:${r.kind}:${r.name ?? ""}`);
   }
   db.close();
   return keys;

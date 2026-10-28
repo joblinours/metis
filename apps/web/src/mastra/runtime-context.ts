@@ -11,7 +11,12 @@ import {
   type WorkspaceMailboxRow,
 } from "@/connections";
 import type { MailProvider } from "@/connections/types";
-import { aggregateDriveSurface, type DriveSurface, type ResolvedDrive } from "@/drive/aggregate";
+import {
+  aggregateDriveSurface,
+  type DriveSurface,
+  driveSurfaceFor,
+  type ResolvedDrive,
+} from "@/drive/aggregate";
 import { type DriveSession, workspaceDrives } from "@/drive/session";
 import { getMailAdapter, type MailAdapter } from "@/mail/adapter";
 import {
@@ -21,7 +26,15 @@ import {
   type ScopedMessage,
   scopedForMailbox,
 } from "@/mail/aggregate";
-import type { MailScope, MailSession } from "@/mail/session";
+import type { MailSession } from "@/mail/session";
+import {
+  type AgentActor,
+  type AgentMailbox,
+  actorHeaders,
+  mailScopeFor,
+  type WorkspaceCtx,
+  type WorkspaceMember,
+} from "@/ops/scope";
 import type { WorkspaceRole } from "@/types/workspace";
 import { getWorkspacePolicy, listWorkspaceMembers } from "@/workspace";
 import { aiEnabled, workspaceAllowsAi } from "@/workspace/policy";
@@ -71,17 +84,6 @@ export interface MailboxCtx {
   mailboxes: ResolvedMailbox[];
   isAggregate: boolean;
   headers: Headers;
-}
-
-export interface AgentMailbox {
-  mailboxId: string;
-  linkId: string;
-  provider: MailProvider;
-  email: string;
-  adapter: MailAdapter;
-  scope: (id: string) => ScopedMessage;
-  mailboxes: ResolvedMailbox[];
-  isAggregate: boolean;
 }
 
 export interface CalendarCtx {
@@ -174,42 +176,12 @@ export function getDriveCtx(rc: RequestContext | undefined): DriveCtx {
   return slot.ctx;
 }
 
-export type WorkspaceMember = Awaited<ReturnType<typeof listWorkspaceMembers>>[number];
-
 function workspaceMembersLoader(workspaceId: string): () => Promise<WorkspaceMember[]> {
   let rows: Promise<WorkspaceMember[]> | null = null;
   return () => {
     rows ??= listWorkspaceMembers(workspaceId);
     return rows;
   };
-}
-
-export type AgentActor = { kind: "session"; headers: Headers } | { kind: "mcp"; clientId: string };
-
-export interface WorkspaceCtx {
-  userId: string;
-  workspaceId: string;
-  workspaceRole: WorkspaceRole;
-  mailboxes: AgentMailbox[];
-  calendars: ResolvedCalendar[];
-  drives: ResolvedDrive[];
-  members: () => Promise<WorkspaceMember[]>;
-  actor: AgentActor;
-}
-
-export function mailScopeFor(ctx: WorkspaceCtx, mailbox: AgentMailbox): MailScope {
-  return {
-    userId: ctx.userId,
-    workspaceId: ctx.workspaceId,
-    workspaceRole: ctx.workspaceRole,
-    adapter: mailbox.adapter,
-    mailboxes: mailbox.mailboxes,
-    isAggregate: mailbox.isAggregate,
-  };
-}
-
-export function actorHeaders(ctx: WorkspaceCtx): Headers | undefined {
-  return ctx.actor.kind === "session" ? ctx.actor.headers : undefined;
 }
 
 function buildMailboxCtx(session: MailSession, headers: Headers): MailboxCtx | null {
@@ -364,4 +336,87 @@ export function calendarById(ctx: WorkspaceCtx, accountId: string) {
 
 export function driveById(ctx: WorkspaceCtx, driveId: string) {
   return ctx.drives.find((d) => d.driveId === driveId) ?? null;
+}
+
+export { actorHeaders, mailScopeFor };
+export type { AgentActor, AgentMailbox, WorkspaceCtx, WorkspaceMember };
+
+export type BackgroundAgent = "mailbox" | "calendar" | "drive" | "workspace";
+
+export interface BackgroundScope {
+  userId: string;
+  workspaceId: string;
+  workspaceRole: WorkspaceRole;
+  runId: string | null;
+}
+
+export async function principalRequestContext(
+  agent: BackgroundAgent,
+  scope: BackgroundScope,
+  resource: { mailboxId?: string; calendar?: ResolvedCalendar; drive?: ResolvedDrive },
+): Promise<RequestContext | null> {
+  const rc = new RequestContext();
+  const headers = new Headers();
+  if (agent === "workspace") {
+    const ctx = await resolveWorkspaceScope(scope, { kind: "workflow", runId: scope.runId });
+    if (!ctx) return null;
+    rc.set(WORKSPACE_CTX, new WorkspaceCtxSlot(ctx));
+    return rc;
+  }
+  if (agent === "calendar") {
+    if (!resource.calendar?.policy.ai) return null;
+    rc.set(
+      CALENDAR_CTX,
+      new CalendarCtxSlot({
+        userId: scope.userId,
+        workspaceId: scope.workspaceId,
+        workspaceRole: scope.workspaceRole,
+        calendarSlug: resource.calendar.accountSlug,
+        isAggregate: false,
+        accounts: [resource.calendar],
+        headers,
+      }),
+    );
+    return rc;
+  }
+  if (agent === "drive") {
+    if (!resource.drive?.policy.ai) return null;
+    rc.set(
+      DRIVE_CTX,
+      new DriveCtxSlot({
+        userId: scope.userId,
+        workspaceId: scope.workspaceId,
+        workspaceRole: scope.workspaceRole,
+        driveSlug: resource.drive.driveSlug,
+        isAggregate: false,
+        drives: [resource.drive],
+        surface: driveSurfaceFor(resource.drive),
+        headers,
+      }),
+    );
+    return rc;
+  }
+  const stored = (await listWorkspaceMailboxes(scope.workspaceId)).find(
+    (row) => row.id === resource.mailboxId,
+  );
+  if (!stored || !aiEnabled(stored)) return null;
+  const mailbox = await toAgentMailbox(stored);
+  if (!mailbox) return null;
+  rc.set(
+    MAILBOX_CTX,
+    new MailboxCtxSlot({
+      userId: scope.userId,
+      workspaceId: scope.workspaceId,
+      mailboxId: mailbox.mailboxId,
+      linkId: mailbox.linkId,
+      provider: mailbox.provider,
+      email: mailbox.email,
+      adapter: mailbox.adapter,
+      scope: mailbox.scope,
+      mailboxes: mailbox.mailboxes,
+      isAggregate: false,
+      headers,
+    }),
+  );
+  return rc;
 }

@@ -5,6 +5,7 @@ import {
   nodeOf,
   restoreLabels,
   runWorkflow,
+  waitForRun,
   workflowNamed,
   workspace,
 } from "../workflow";
@@ -22,12 +23,17 @@ export default function workflowSpecs() {
     await list.getByRole("button", { name: "New workflow", exact: true }).click();
     await page
       .getByRole("menu", { name: "New workflow" })
-      .getByRole("menuitem", { name: "One mailbox, on arrival", exact: true })
+      .getByRole("menuitem", { name: "Label mail from a sender", exact: true })
       .click();
     try {
       await workflowName.fill(name);
       await canvas.getByRole("group", { name: "If", exact: true }).click();
-      await inspector.getByRole("textbox", { name: "Value" }).fill("nobody@discard.harness.test");
+      await inspector
+        .getByRole("textbox", { name: "Condition" })
+        .fill('item.from == "nobody@discard.harness.test"');
+      await canvas.getByRole("group", { name: "Label", exact: true }).click();
+      await inspector.getByRole("combobox", { name: "Label" }).click();
+      await page.getByRole("option", { name: "Work", exact: true }).click();
       await page.getByRole("button", { name: "Create workflow", exact: true }).click();
       await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
       await expect(workflowName).toHaveValue(name);
@@ -74,13 +80,13 @@ export default function workflowSpecs() {
     account,
   }, testInfo) => {
     const name = uniqueName(testInfo);
-    const { mailboxes } = await rpc<{ mailboxes: { mailboxId: string; slug: string }[] }>(
+    const { directory } = await rpc<{ directory: { mailboxes: { id: string; slug: string }[] } }>(
       "workflows.list",
       workspace(account),
     );
     const mailboxId =
-      mailboxes.find((m) => m.slug === account.mailboxSlug)?.mailboxId ??
-      mailboxes[0]?.mailboxId ??
+      directory.mailboxes.find((m) => m.slug === account.mailboxSlug)?.id ??
+      directory.mailboxes[0]?.id ??
       "";
     const { workflow } = await rpc<{ workflow: { id: string } }>("workflows.create", {
       ...workspace(account),
@@ -88,35 +94,46 @@ export default function workflowSpecs() {
         name,
         enabled: true,
         graph: {
+          version: 2,
           nodes: [
-            { id: "manual", kind: "trigger.manual", position: { x: 0, y: 0 } },
+            { id: "manual", step: "trigger.manual", position: { x: 0, y: 0 }, params: {} },
             {
               id: "inbox",
-              kind: "mailbox.source",
+              step: "mail.list",
               position: { x: 352, y: 0 },
-              mailboxId,
-              operation: "list",
-              folder: "inbox",
-              limit: 10,
+              params: {
+                mailbox: { kind: "literal", value: mailboxId },
+                folder: { kind: "literal", value: "inbox" },
+                limit: { kind: "literal", value: 10 },
+              },
             },
             {
               id: "none",
-              kind: "condition",
+              step: "logic.filter",
               position: { x: 704, y: 0 },
-              predicate: {
-                kind: "predicate",
-                field: "subject",
-                op: "contains",
-                value: "e2e-subject-that-matches-nothing",
+              params: {
+                condition: {
+                  kind: "expr",
+                  cel: 'item.subject.contains("e2e-subject-that-matches-nothing")',
+                },
               },
             },
-            { id: "star", kind: "action.star", position: { x: 1056, y: 0 } },
+            {
+              id: "star",
+              step: "mail.star",
+              position: { x: 1056, y: 0 },
+              params: {
+                message: { kind: "expr", cel: "item" },
+                starred: { kind: "literal", value: true },
+              },
+            },
           ],
           edges: [
             { id: "e1", source: "manual", sourceHandle: "out", target: "inbox" },
             { id: "e2", source: "inbox", sourceHandle: "out", target: "none" },
-            { id: "e3", source: "none", sourceHandle: "matched", target: "star" },
+            { id: "e3", source: "none", sourceHandle: "out", target: "star" },
           ],
+          settings: {},
         },
       },
     });
@@ -190,12 +207,80 @@ export default function workflowSpecs() {
           name: "Collect rebrand and GitHub mail",
         }),
       ).toBeVisible();
-      await page.getByRole("group", { name: /^Combine: / }).click();
+      await page.getByRole("group", { name: /^Merge: / }).click();
       const step = page.getByRole("region", { name: "Selected step" });
       await expect(step).toBeVisible();
-      await expect(step.getByText("Combine", { exact: true })).toBeVisible();
+      await expect(step.getByText("Merge", { exact: true })).toBeVisible();
     } finally {
       await restoreLabels(rpc, account, before);
+    }
+  });
+
+  test("resolve an unconfirmed upload from the run detail", async ({
+    page,
+    rpc,
+    account,
+  }, testInfo) => {
+    const driveSlug = account.driveSlugs.webdav;
+    const { directory } = await rpc<{ directory: { drives: { id: string; slug: string }[] } }>(
+      "workflows.list",
+      workspace(account),
+    );
+    const driveId = directory.drives.find((d) => d.slug === driveSlug)?.id;
+    if (!driveId) throw new Error("the webdav drive is not in the workflow directory");
+    const { workflow } = await rpc<{ workflow: { id: string } }>("workflows.create", {
+      ...workspace(account),
+      workflow: {
+        name: uniqueName(testInfo),
+        enabled: true,
+        graph: {
+          version: 2,
+          nodes: [
+            { id: "manual", step: "trigger.manual", position: { x: 0, y: 0 }, params: {} },
+            {
+              id: "write",
+              step: "drive.write",
+              position: { x: 352, y: 0 },
+              params: {
+                drive: { kind: "literal", value: driveId },
+                folder: { kind: "literal", value: "" },
+                name: { kind: "literal", value: `${uniqueName(testInfo)}.txt` },
+                contents: {
+                  kind: "expr",
+                  cel: 'dyn({"id": "gone", "name": "gone.txt", "mimeType": "text/plain", "size": 1})',
+                },
+              },
+            },
+          ],
+          edges: [
+            { id: "manual:out->write", source: "manual", target: "write", sourceHandle: "out" },
+          ],
+          settings: {},
+        },
+      },
+    });
+    try {
+      const { runId } = await rpc<{ runId: string }>("workflows.run", {
+        ...workspace(account),
+        id: workflow.id,
+      });
+      await waitForRun(rpc, account, runId);
+      await page.goto(workspacePath(account, `/workflow/history/${runId}`));
+      const steps = page.getByRole("list").filter({ has: page.getByText("Create a file") });
+      await steps.getByRole("button", { name: "Resolve", exact: true }).first().click();
+      const dialog = page.getByRole("dialog", { name: "Resolve an unconfirmed upload" });
+      await expect(dialog.getByText("Found in the drive", { exact: true })).toBeVisible();
+      await dialog.getByRole("button", { name: "Close without retrying", exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByText(/^Closed by /).first()).toBeVisible();
+      const write = (
+        await rpc<{
+          run: { nodes: { nodeId: string; items: { resolvable: boolean }[] }[] };
+        }>("workflows.getRun", { ...workspace(account), runId })
+      ).run.nodes.find((n) => n.nodeId === "write");
+      expect(write?.items[0]?.resolvable).toBe(false);
+    } finally {
+      await rpc("workflows.delete", { ...workspace(account), id: workflow.id });
     }
   });
 }

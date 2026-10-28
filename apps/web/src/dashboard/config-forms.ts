@@ -192,6 +192,21 @@ const SCALAR_FIELDS: Partial<Record<InstanceSection, DashboardConfigField[]>> = 
     field("redisUrl", "Redis URL", "secret", when("driver", "bullmq")),
     field("queuePrefix", "Queue prefix", "text", when("driver", "bullmq")),
     field("secret", "Cron secret", "secret", when("driver", "cron")),
+    field("stepDataDays", "Keep step data (days)", "number", {
+      description:
+        "How long a finished run keeps each step's input and output. 0 clears them when the run ends.",
+    }),
+    field("historyDays", "Keep run history (days)", "number"),
+    field("publicUrl", "Public URL for webhooks and push", "url", {
+      optional: true,
+      description:
+        "The HTTPS address providers and webhooks reach this instance at. Without it, triggers poll.",
+    }),
+    field("trustedProxies", "Trusted proxies", "text", {
+      optional: true,
+      description:
+        "IP addresses or CIDR ranges, comma separated, whose X-Forwarded-For is believed.",
+    }),
   ],
   google: [
     field("clientId", "Client ID", "text", { optional: true }),
@@ -320,6 +335,9 @@ export function secretSummary(value: unknown): DashboardSecret {
 function formValue(value: unknown): DashboardConfigValue {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return value;
+  }
+  if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+    return value.join(", ");
   }
   return null;
 }

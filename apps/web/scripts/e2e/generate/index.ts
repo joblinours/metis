@@ -16,7 +16,7 @@ const account = await createAccount();
 const member = await createMember(account);
 const resources = await connectResources(account);
 await seedWorkspaceState(account, resources);
-await seedWorkflows(account);
+await seedWorkflows(account, resources);
 const mcp = await seedMcpClients(account, member);
 await writeSeed(scratch.app, account, resources, member, mcp);
 process.exit(0);

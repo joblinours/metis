@@ -4,12 +4,13 @@ import { Button } from "@metis/ui/components/button";
 import { cn } from "@metis/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink, FlaskConical, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 
 import { runOverlay } from "@/components/workflow-graph/overlay";
-import { StatusIcon } from "@/components/workflow-history/run-status";
+import { StatusIcon, statusLabel } from "@/components/workflow-history/run-status";
+import { RunWaits } from "@/components/workflow-history/run-waits";
 import { useWorkspaceScope } from "@/hooks/use-workspace-path";
 import { rpc } from "@/lib/orpc";
 import type { WorkflowRun } from "@/server/schema";
@@ -17,7 +18,7 @@ import { workflowPath } from "@/workspace/path";
 
 import { useEditorEnv, useOverlay } from "./editor-context";
 
-const ACTIVE = new Set<WorkflowRun["status"]>(["pending", "running"]);
+const ACTIVE = new Set<WorkflowRun["status"]>(["pending", "running", "waiting"]);
 const POLL_MS = 2_000;
 
 function stopping(run: Pick<WorkflowRun, "status" | "finishedAt">): boolean {
@@ -37,10 +38,12 @@ export function RunsPanel({
   selectedRunId,
   onSelectRun,
   revision,
+  onReplay,
 }: {
   selectedRunId: string | null;
   onSelectRun: (runId: string | null) => void;
   revision: number | null;
+  onReplay: (runId: string) => void;
 }) {
   const scope = useWorkspaceScope();
   const { workflowId } = useEditorEnv();
@@ -94,8 +97,16 @@ export function RunsPanel({
           {revision !== null && run.revision !== revision && (
             <span className="text-brand-text">It ran an earlier version of this workflow.</span>
           )}
+          {run.upgraded && (
+            <span className="text-muted-foreground">From before the workflow engine upgrade.</span>
+          )}
           {run.error && <span className="truncate text-destructive-text">{run.error}</span>}
           <span className="ml-auto flex items-center gap-1">
+            {!run.upgraded && (
+              <Button size="xs" variant="ghost" onClick={() => onReplay(run.id)}>
+                <FlaskConical /> Replay in a test
+              </Button>
+            )}
             <Button
               size="xs"
               variant="ghost"
@@ -108,6 +119,11 @@ export function RunsPanel({
               Hide
             </Button>
           </span>
+        </div>
+      )}
+      {run && run.id === selectedRunId && run.waits.some((w) => w.status === "open") && (
+        <div className="shrink-0 border-border-soft border-b px-4">
+          <RunWaits run={run} openOnly />
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -140,7 +156,7 @@ export function RunsPanel({
                       className="size-3.5"
                     />
                     <span className="w-20 shrink-0 capitalize">
-                      {stopping(entry) ? "stopping" : entry.status}
+                      {stopping(entry) ? "stopping" : statusLabel(entry.status)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-muted-foreground">
                       {done} step{done === 1 ? "" : "s"} done

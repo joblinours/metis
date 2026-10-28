@@ -1,3 +1,4 @@
+import type { UpdateStatus } from "@metis/shell-core/update";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { router } from "expo-router";
@@ -20,6 +21,13 @@ import {
   updateSettings,
   useShell,
 } from "@/lib/shell";
+import {
+  checkForUpdates,
+  downloadUpdate,
+  markAnnounced,
+  updatesSupported,
+  useUpdate,
+} from "@/lib/update";
 
 function Panel({
   title,
@@ -83,6 +91,25 @@ function ValueText({ children }: { children: ReactNode }) {
   );
 }
 
+function updateText(status: UpdateStatus, version: string): string {
+  switch (status.state) {
+    case "idle":
+      return `You have version ${version}.`;
+    case "checking":
+      return "Checking for updates…";
+    case "current":
+      return "Up to date.";
+    case "available":
+      return `Version ${status.version} is available.`;
+    case "failed":
+      return "Could not check for updates. Try again later.";
+  }
+}
+
+async function checkNow() {
+  markAnnounced(await checkForUpdates());
+}
+
 function confirmReset() {
   Alert.alert(
     "Reset Metis Suite?",
@@ -104,6 +131,7 @@ function confirmReset() {
 export default function SettingsScreen() {
   const settings = useShell((state) => state.settings);
   const server = useShell((state) => state.server);
+  const update = useUpdate((state) => state.status);
   const [cacheStatus, setCacheStatus] = useState("Keeps you signed in.");
 
   async function onClearCache() {
@@ -148,6 +176,20 @@ export default function SettingsScreen() {
                 onCheckedChange={(next) => updateSettings({ restoreLastPage: next })}
               />
             </Row>
+            {updatesSupported ? (
+              <Row
+                title="Check for updates"
+                description="Asks downloads.trymetis.email once a day whether a newer version exists. Your server is never contacted."
+              >
+                <Switch
+                  checked={settings.checkForUpdates}
+                  onCheckedChange={(next) => {
+                    updateSettings({ checkForUpdates: next });
+                    if (next) void checkNow();
+                  }}
+                />
+              </Row>
+            ) : null}
             {Platform.OS === "android" ? (
               <Row title="Text size" description={`${settings.textZoom}%`}>
                 <View className="flex-row gap-2">
@@ -236,6 +278,29 @@ export default function SettingsScreen() {
               </View>
             ))}
           </Rows>
+          {updatesSupported ? (
+            <Rows>
+              <Row
+                first
+                title="Updates"
+                description={updateText(update, Application.nativeApplicationVersion ?? "unknown")}
+              >
+                {update.state === "available" ? (
+                  <Button onPress={downloadUpdate}>
+                    <Text>Download</Text>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={update.state === "checking"}
+                    onPress={() => void checkNow()}
+                  >
+                    <Text>Check now</Text>
+                  </Button>
+                )}
+              </Row>
+            </Rows>
+          ) : null}
           <Rows>
             <Row first title="Log file" description="Share it with a bug report.">
               <Button

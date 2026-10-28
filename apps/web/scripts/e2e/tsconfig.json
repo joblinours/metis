@@ -4,6 +4,6 @@
     "incremental": false,
     "types": ["node"]
   },
-  "include": ["./**/*.ts", "../../src/types/*.d.ts"],
+  "include": ["./**/*.ts", "../../src/types/*.d.ts", "../../src/emails/*.tsx"],
   "exclude": []
 }

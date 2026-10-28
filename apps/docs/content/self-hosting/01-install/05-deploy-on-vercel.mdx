@@ -1,0 +1,278 @@
+---
+title: Deploy on Vercel or another Node host
+description: Build Metis Suite from its source code on Vercel, or on any Node host that builds from source.
+---
+
+Use this page to build Metis Suite from its repository instead of running the published images. It covers two kinds of host:
+
+- **Vercel**, where the app runs as serverless functions that stop between requests.
+- **Any Node host that builds from source** and keeps the app running as a normal process.
+
+Other serverless hosts, such as Netlify, AWS Lambda, Azure Functions and Google Cloud Functions, have no tested setup.
+
+## Before you start
+
+- **A copy of the whole repository**, such as a fork of [trymetis/metis](https://github.com/trymetis/metis). The app is in the `apps/web` folder, but it needs shared packages from the rest of the repository, so you cannot deploy that folder alone.
+- **Two databases on [Turso](https://turso.tech)**: an app database and an AI memory database, each with its own URL and token. See [Create the databases on Turso](/self-hosting/reference/environment-variables#create-the-databases-on-turso). The host needs no disk. Do not use the `local` database driver, which is for development only.
+- **bun**, the package manager the repository uses. The repository names the version it expects in its root `package.json`, for example `bun@1.4.2`. Vercel does not read that version and picks its own bun 1.x, so the install command below names the version.
+- **Node.js.** The published images run on Node 26. Use Node 26 where your host offers it. Vercel offers Node 24.x at most, so choose 24.x there. That is an older Node than the published images run on.
+- **OpenSSL**, on your own computer, to generate the secrets.
+- **On Vercel, an external scheduler** for background work (see below).
+
+To run a released version, build from its release tag, `app-v<version>`. Releases are listed on the [releases page](https://github.com/trymetis/metis/releases).
+
+If you change the code and let other people use it, set `METIS_SOURCE_URL` to your published source. See [Source code link](/self-hosting/configure/source-code-link).
+
+## What works differently on Vercel
+
+Read this first, to check that Vercel fits what your users need.
+
+| Feature             | On Vercel                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Background work     | The `internal` runner cannot work, and the owner dashboard refuses it. Use `cron` with an external scheduler, or `bullmq` with a worker on another host. See [Background work](/self-hosting/configure/background-work).                                                                                                             |
+| Drives              | Google Drive, OneDrive and S3 servers set to `direct` work. WebDAV, FTP, FTPS, SFTP and S3 servers set to `relay` need an always-on server, so do not list them. See [Drive transfers](/self-hosting/configure/drive-transfers).                                                                                                     |
+| IMAP mailboxes      | They work, but the app connects to the mail server again on every request, so they are slower.                                                                                                                                                                                                                                       |
+| The assistant       | Answers stream within your function time limit. A long answer can be cut off.                                                                                                                                                                                                                                                        |
+| Mail image proxy    | When on, the proxy holds each image in memory, up to its **Max image size (MB)**. Keep that size well under your function's memory.                                                                                                                                                                                                  |
+| Webhooks and push   | Work. Set **Public URL for webhooks and push** under **Dashboard**, **System**, **Workflow runner** to get push. **Only from these IPs** works without **Trusted proxies**, because Vercel replaces `X-Forwarded-For` with the caller's address. See [Webhooks and push](/self-hosting/configure/background-work#webhooks-and-push). |
+| Preview deployments | Sign-in works only at the address in `BETTER_AUTH_URL`, so preview addresses cannot sign in.                                                                                                                                                                                                                                         |
+| Upgrades and undo   | The **Updates** page does not appear, and upgrades cannot be undone. You upgrade by deploying a new version (see below).                                                                                                                                                                                                             |
+| MCP                 | Works.                                                                                                                                                                                                                                                                                                                               |
+
+## Deploy on Vercel
+
+<Steps>
+  <Step title="Generate the secrets">
+    Run this once for each of `BETTER_AUTH_SECRET` and
+    `METIS_ENCRYPTION_KEY`, and once more for `CRON_SECRET`:
+
+    ```bash
+    openssl rand -base64 32
+    ```
+
+    For the setup code, use any random value of at least 8 characters.
+
+    :::warning[Back up the encryption key]
+    Copy `METIS_ENCRYPTION_KEY` to a safe place, such as a password
+    manager. Without it, the stored passwords and tokens cannot be read,
+    and every user has to reconnect every mailbox, calendar and drive.
+    :::
+
+  </Step>
+
+  <Step title="Create the project">
+    Import your copy of the repository into Vercel, with these settings:
+
+    | Setting              | Value                                       |
+    | -------------------- | ------------------------------------------- |
+    | **Root Directory**   | `apps/web`                                  |
+    | **Framework Preset** | Next.js                                     |
+    | **Install Command**  | `bunx bun@1.4.2 install --frozen-lockfile`  |
+    | **Build Command**    | `bun run build`                             |
+    | **Node.js Version**  | `24.x`, the newest Vercel offers            |
+
+    To change **Install Command** and **Build Command**, switch on the
+    **Override** toggle next to each one. In the install command, use the
+    bun version that the root `package.json` of your release names.
+
+  </Step>
+
+  <Step title="Set the environment variables">
+    Add these to the project's environment for production. Write each value
+    as it is, without quotes:
+
+    ```bash
+    BETTER_AUTH_URL=https://mail.example.com
+    BETTER_AUTH_SECRET=<secret>
+    METIS_ENCRYPTION_KEY=<secret>
+    METIS_DB_DRIVER=turso
+    DATABASE_URL=<app database URL>
+    DATABASE_AUTH_TOKEN=<token>
+    MASTRA_DATABASE_URL=<AI memory database URL>
+    MASTRA_DATABASE_AUTH_TOKEN=<token>
+    METIS_SETUP_CODE=<setup code>
+    METIS_OWNER_EMAIL=you@example.com
+    METIS_WORKFLOW_RUNNER_DRIVER=cron
+    CRON_SECRET=<secret>
+    NODE_OPTIONS=--experimental-require-module
+    ```
+
+    Use the URL that `turso db show <database> --url` prints for each
+    database. It starts with `libsql://`.
+
+    - **`BETTER_AUTH_URL`** is the one address people use, starting with
+      `https://`. Use your production domain.
+    - **`METIS_SETUP_CODE`** opens the setup page for the first account.
+      Without it, the setup page shows **Not available**.
+    - **`METIS_OWNER_EMAIL`** is the email of the owner. Without it, nobody
+      can open the owner dashboard.
+    - **`METIS_WORKFLOW_RUNNER_DRIVER`** and **`CRON_SECRET`** pick the
+      `cron` runner. They are starting values, read only by the first
+      preflight, so set them before it runs. To use `bullmq` instead, set
+      `METIS_WORKFLOW_RUNNER_DRIVER=bullmq` and `METIS_WORKFLOW_REDIS_URL`.
+    - **`NODE_OPTIONS=--experimental-require-module`** is required on
+      Vercel. Without it, showing the content of an email fails with an
+      `ERR_REQUIRE_ESM` error.
+
+    Vercel runs many copies of the app at once. Set the cache to `upstash`
+    or `redis`, so that sign-outs and rate limits apply on every copy.
+    Sign-in works without it, because sessions are stored in the database.
+    See the
+    [cache variables](/self-hosting/reference/environment-variables#cache).
+
+    Any other starting value, such as your OAuth providers or AI model,
+    can go here too. See
+    [Environment variables](/self-hosting/reference/environment-variables).
+
+    The build checks every setting, so these variables must be available
+    when Vercel builds, not only when the app runs. A missing or wrong
+    value stops the build with an "Invalid configuration" error. The error
+    names each setting by a key, not by its variable name. For example,
+    `auth.secret` is `BETTER_AUTH_SECRET`. See
+    [Environment variables](/self-hosting/reference/environment-variables).
+
+    :::danger[Never store the internal runner on Vercel]
+    If `internal` is ever stored, the dashboard refuses every save on the
+    **System** pages, except a save on the **Workflow runner** page that
+    changes the runner to `cron` or `bullmq`.
+
+    Set the runner in the environment before the first preflight. This
+    matters most when you run preflight from your own computer or a CI job.
+    Preflight then cannot tell that the app runs on Vercel, so it does not
+    warn you.
+    :::
+
+  </Step>
+
+  <Step title="Run preflight">
+    Preflight applies the release's changes to the app database. The AI
+    memory database sets itself up when the app first uses it. On the first
+    run, preflight also stores your starting settings. It then checks your
+    servers, OAuth providers and AI model, and adds any problem as a
+    warning under **Deploy checks** in the owner dashboard.
+
+    Vercel has no step that runs before the new version takes traffic, so
+    you run preflight yourself, once for every deploy. Pick one way:
+
+    <Tabs>
+      <Tab title="From a checkout">
+        On your computer or in a CI job, check out the same commit you
+        deploy. Set the production environment variables in your shell,
+        then run from the repository root:
+
+        ```bash
+        bun install --frozen-lockfile
+        bun run --cwd apps/web preflight
+        ```
+      </Tab>
+      <Tab title="With the preflight image">
+        Put the production variables in a file, one `NAME=value` per line,
+        then run the preflight image of the same version you deploy:
+
+        ```bash
+        docker run --rm --env-file production.env ghcr.io/trymetis/metis:<version>-preflight
+        ```
+      </Tab>
+      <Tab title="In the build command">
+        Set the build command to:
+
+        ```bash
+        bun run preflight && bun run build
+        ```
+
+        Every build then changes the production database, including
+        preview builds that use the production variables. The database
+        must also be reachable from Vercel's build machines.
+      </Tab>
+    </Tabs>
+
+    Running preflight again on the same version is safe.
+
+    :::warning[Always run preflight before the app]
+    If the app starts on a database that preflight never prepared, sign-in
+    and the setup page fail with database errors. The readiness check
+    `/api/readyz` still answers `200`.
+    :::
+
+  </Step>
+
+  <Step title="Deploy">
+    Deploy the project. Then add your domain to it, if you have not
+    already, so that it matches `BETTER_AUTH_URL`.
+
+  </Step>
+
+  <Step title="Set up the scheduler">
+    With `cron`, background work runs only when something calls the tick
+    endpoint. The endpoint accepts only a `POST` request with the cron
+    secret in the `X-Metis-Secret` header. Vercel Cron cannot call it,
+    because it sends a `GET` request. The endpoint also never reads the
+    `Authorization` header that Vercel Cron sends.
+
+    Use an external scheduler that can send that request, such as
+    cron-job.org, a scheduled GitHub Actions workflow, or a crontab on
+    another machine. The request is shown in
+    [cron](/self-hosting/configure/background-work#cron).
+
+    With `bullmq`, run the worker on another host instead. See
+    [bullmq](/self-hosting/configure/background-work#bullmq).
+
+  </Step>
+
+  <Step title="Create the first account">
+    Open `/setup` at your address and use your `METIS_SETUP_CODE`. Continue
+    with [First run](/self-hosting/install/first-run).
+  </Step>
+</Steps>
+
+## Deploy on another Node host
+
+On a host that builds from source and keeps the app running all the time, the steps are the same as on Vercel, with these differences:
+
+| Setting         | Value                                                   |
+| --------------- | ------------------------------------------------------- |
+| Install command | `bun install --frozen-lockfile`, at the repository root |
+| Build command   | `bun run build`, in `apps/web`                          |
+| Start command   | `bun run preflight && bun run start`, in `apps/web`     |
+
+- **bun is needed when the app runs**, not only for the build, because the start command uses it.
+- **Preflight runs every time the app starts.** With one copy of the app, that is all you need. With several copies, run preflight once as its own step before you start them, and start them with `bun run start` alone.
+- **`NODE_OPTIONS=--experimental-require-module` is needed only on Vercel.**
+- **Background work can stay on `internal`**, as long as the process never sleeps. On a host that stops idle apps, use `cron` or `bullmq`.
+- **Relayed drives work** on a process that stays running.
+- **With several copies, use a `redis` or `upstash` cache.**
+- **Put a reverse proxy in front of the app that replaces `X-Forwarded-For`, and do not let callers reach the app directly.** `bun run start` keeps the `X-Forwarded-For` header a caller sends. A caller who reaches it directly can name any address and pass the **Only from these IPs** check of a webhook trigger. See [Webhooks that only accept some addresses](/self-hosting/configure/background-work#webhooks-that-only-accept-some-addresses).
+
+## Upgrade
+
+<Steps>
+  <Step title="Read the upgrade notes">
+    Open the release on the
+    [releases page](https://github.com/trymetis/metis/releases) and read
+    its **Upgrade notes** section, if it has one. If you skip releases,
+    read the notes of every release in between.
+  </Step>
+
+  <Step title="Back up both databases">
+    Back up the app database and the AI memory database, and keep your
+    encryption key with the backup. See
+    [Backups](/self-hosting/operate/backups).
+
+  </Step>
+
+  <Step title="Run the new version's preflight">
+    Run preflight from the new release's tag, or with its preflight image.
+    Deploy the new version as soon as it succeeds. After preflight has
+    changed the database, your current version may not work fully on it.
+    For example, background work and the **Workflows** pages can stop
+    working until the new version runs.
+
+  </Step>
+
+  <Step title="Deploy the new version">
+    Deploy the new release's tag. If you run a `bullmq` worker, move it to
+    the same version.
+  </Step>
+</Steps>
+
+You cannot go back to an older release once a newer one has changed your database. Preflight refuses the database. Do not start the older app on it. To go back, restore the backup you took before the upgrade, together with the older release. See [Going back further](/self-hosting/operate/upgrade-and-undo#going-back-further).

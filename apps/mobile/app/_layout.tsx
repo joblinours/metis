@@ -27,6 +27,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+        <Stack.Screen name="popup" options={{ presentation: "modal" }} />
       </Stack>
       <PortalHost />
     </SafeAreaListener>

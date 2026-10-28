@@ -4,14 +4,16 @@ import { createContext, useContext } from "react";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
-import { type GraphMailbox, newNode, newNodeId } from "@/workflow/graph";
+import { type GraphResources, newNode, newNodeId } from "@/workflow/graph";
 import {
   edgeId,
-  type WorkflowEdge,
+  type GraphEdge,
+  type GraphNode,
+  type GraphSettings,
+  nodeSchema,
   type WorkflowGraph,
-  type WorkflowNode,
-  type WorkflowNodeKind,
 } from "@/workflow/schema";
+import { nodeOutputs } from "@/workflow/steps";
 
 export interface Snapshot {
   name: string;
@@ -36,14 +38,15 @@ interface EditorActions {
   setGraph: (fn: (graph: WorkflowGraph) => WorkflowGraph) => void;
   setName: (name: string) => void;
   setEnabled: (enabled: boolean) => void;
-  addNode: (kind: WorkflowNodeKind, position: Point, mailboxes: GraphMailbox[]) => string;
-  patchNode: (id: string, patch: Partial<WorkflowNode>) => void;
-  replaceNode: (node: WorkflowNode) => void;
+  addNode: (step: string, position: Point, resources: GraphResources) => string;
+  patchNode: (id: string, patch: Partial<GraphNode>) => void;
+  replaceNode: (node: GraphNode) => void;
   removeNodes: (ids: string[]) => void;
   removeEdges: (ids: string[]) => void;
-  connect: (edge: WorkflowEdge) => void;
+  connect: (edge: GraphEdge) => void;
   moveNodes: (positions: Record<string, Point>) => void;
-  paste: (nodes: WorkflowNode[], edges: WorkflowEdge[], offset: Point) => string[];
+  setSettings: (settings: GraphSettings) => void;
+  paste: (nodes: GraphNode[], edges: GraphEdge[], offset: Point) => string[];
   select: (ids: string[]) => void;
   undo: () => void;
   redo: () => void;
@@ -67,8 +70,35 @@ export function sameSnapshot(a: Snapshot, b: Snapshot): boolean {
   );
 }
 
+const paramsSchema = nodeSchema.shape.params;
+const STEP_REF = /\bsteps\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+
+function renameStepRefs(
+  params: GraphNode["params"],
+  ids: ReadonlyMap<string, string>,
+): GraphNode["params"] {
+  const text = JSON.stringify(params);
+  const renamed = text.replace(STEP_REF, (match, id: string) => {
+    const next = ids.get(id);
+    return next ? `steps.${next}` : match;
+  });
+  if (renamed === text) return params;
+  const parsed = paramsSchema.safeParse(JSON.parse(renamed));
+  return parsed.success ? parsed.data : params;
+}
+
+export function staleEdges(graph: WorkflowGraph): string[] {
+  return graph.edges
+    .filter((edge) => {
+      const source = graph.nodes.find((n) => n.id === edge.source);
+      return source && !nodeOutputs(source, graph).some((o) => o.id === edge.sourceHandle);
+    })
+    .map((edge) => edge.id);
+}
+
 function withoutNodes(graph: WorkflowGraph, ids: ReadonlySet<string>): WorkflowGraph {
   return {
+    ...graph,
     nodes: graph.nodes.filter((n) => !ids.has(n.id)),
     edges: graph.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
   };
@@ -117,8 +147,8 @@ export function createEditorStore(initial: Snapshot): EditorStore {
       setName: (name) => get().update((s) => ({ ...s, name })),
       setEnabled: (enabled) => get().update((s) => ({ ...s, enabled })),
 
-      addNode: (kind, position, mailboxes) => {
-        const node = newNode(kind, position, mailboxes);
+      addNode: (step, position, resources) => {
+        const node = newNode(step, position, resources);
         get().setGraph((graph) => ({ ...graph, nodes: [...graph.nodes, node] }));
         set({ selected: [node.id] });
         return node.id;
@@ -127,10 +157,7 @@ export function createEditorStore(initial: Snapshot): EditorStore {
       patchNode: (id, patch) =>
         get().setGraph((graph) => ({
           ...graph,
-          nodes: graph.nodes.map((n) =>
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a patch carries fields of the node's own kind; the union cannot express that correlation
-            n.id === id ? ({ ...n, ...patch } as WorkflowNode) : n,
-          ),
+          nodes: graph.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
         })),
 
       replaceNode: (node) =>
@@ -162,6 +189,8 @@ export function createEditorStore(initial: Snapshot): EditorStore {
             : { ...graph, edges: [...graph.edges, edge] },
         ),
 
+      setSettings: (settings) => get().setGraph((graph) => ({ ...graph, settings })),
+
       moveNodes: (positions) =>
         get().setGraph((graph) => ({
           ...graph,
@@ -176,9 +205,10 @@ export function createEditorStore(initial: Snapshot): EditorStore {
         const copies = nodes.map((n) => ({
           ...n,
           id: ids.get(n.id) ?? newNodeId(),
+          params: renameStepRefs(n.params, ids),
           position: { x: n.position.x + offset.x, y: n.position.y + offset.y },
         }));
-        const links = edges.flatMap((e): WorkflowEdge[] => {
+        const links = edges.flatMap((e): GraphEdge[] => {
           const source = ids.get(e.source);
           const target = ids.get(e.target);
           if (!source || !target) return [];
@@ -192,6 +222,7 @@ export function createEditorStore(initial: Snapshot): EditorStore {
           ];
         });
         get().setGraph((graph) => ({
+          ...graph,
           nodes: [...graph.nodes, ...copies],
           edges: [...graph.edges, ...links],
         }));

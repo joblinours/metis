@@ -36,7 +36,7 @@ import {
   signupInvite,
   user,
   workflow,
-  workflowNodeRun,
+  workflowStepRun,
   workflowRun,
   workflowTrigger,
   workspace,
@@ -514,8 +514,8 @@ export async function dashboardRunner(now: Date, weekAgo: Date): Promise<Dashboa
         ),
       db
         .select({ n: count() })
-        .from(workflowNodeRun)
-        .where(and(eq(workflowNodeRun.status, "unknown"), isNull(workflowNodeRun.resolvedAt))),
+        .from(workflowStepRun)
+        .where(and(eq(workflowStepRun.status, "unknown"), isNull(workflowStepRun.resolvedAt))),
     ],
   );
 

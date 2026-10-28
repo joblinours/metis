@@ -2,7 +2,6 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import * as drive from "@/mastra/toolkit/drive";
 import { requireDrive, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   createFolderFields,
@@ -15,6 +14,7 @@ import {
   renameFileFields,
   searchFilesFields,
 } from "@/mastra/toolkit/schema";
+import * as drive from "@/ops/drive";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace, workspaceTarget } from "../schema";

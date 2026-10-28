@@ -21,7 +21,7 @@ See also [AGENTS.md](../AGENTS.md), [shortcuts.md](shortcuts.md), [desktop.md](d
 | Workspace search dialog            | `src/components/search/search-dialog.tsx` → `SearchDialog` (a `Dialog` on desktop, a full-height bottom `Sheet` on phones, [search.md](search.md))                                                                                                                                                           |
 | Brand marks                        | `packages/ui/src/components/svgs/` (generated) · `packages/ui/src/components/brand-marks.tsx` → `BrandMark` and the hand-written marks · `src/components/provider-meta.tsx` → `ACCOUNT_PROVIDER_META` · raster art `apps/web/public/brand/`                                                                  |
 | The app's own mark: source         | `src/app/icon.svg` · `packages/ui/src/components/metis-mark.tsx` → `MetisMark`                                                                                                                                                                                                                               |
-| The app's own mark: rendered files | `src/app/favicon.ico`, `src/app/apple-icon.png`, `apps/desktop/static/icon.png`, `apps/desktop/icons/<n>x<n>.png`, `apps/mobile/assets/icon.png`, `apps/mobile/assets/adaptive-icon.png`                                                                                                                     |
+| The app's own mark: rendered files | `src/app/favicon.ico`, `src/app/apple-icon.png`, `apps/desktop/static/icon.png`, `apps/desktop/static/trayTemplate.png` and `@2x`, `apps/desktop/icons/<n>x<n>.png`, `apps/mobile/assets/icon.png`, `apps/mobile/assets/adaptive-icon.png`                                                                   |
 | The app's own mark: drawn copies   | `apps/www/src/app/icon.svg`, `apps/www/src/components/ui/metis-mark.tsx`, the mark in `apps/www/src/app/og/[...slug]/route.tsx`, `apps/docs/public/{icon,logo}.svg`, `apps/mobile/components/metis-mark.tsx`                                                                                                 |
 
 ## Rules
@@ -79,6 +79,7 @@ See also [AGENTS.md](../AGENTS.md), [shortcuts.md](shortcuts.md), [desktop.md](d
   - `apple-icon.png` is 180 px, square and unrounded, because iOS rounds it.
   - `apps/desktop/static/icon.png` is 1024 px RGBA: the electron-builder `icon` for macOS and Windows, and the window icon.
   - `apps/desktop/icons/` is `linux.icon`: one file per size the hicolor theme declares, because GNOME looks icons up only in the size folders `index.theme` lists, which has no 1024.
+  - `apps/desktop/static/trayTemplate.png` (18×18) and `trayTemplate@2x.png` (36×36) hold the triangles alone in black on transparency, cropped to them, because macOS draws a template image in the menu bar's own colour; only `setTray` on `darwin` uses them.
   - `apps/mobile/assets/icon.png` is square and opaque; `adaptive-icon.png` holds the triangles alone on transparency, at two thirds of their size in `icon.svg`, so they fill the 72dp visible area of the 108dp canvas over `#000000`.
 
 ## How it works

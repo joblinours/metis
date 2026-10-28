@@ -2,6 +2,7 @@ import "server-only";
 import type { ResolvedCalendar } from "@/calendar/aggregate";
 import { type DriveSurface, driveSurfaceFor } from "@/drive/aggregate";
 import { sanitizeError } from "@/lib/errors/sanitize-error";
+import type { Resolved } from "@/ops/scope";
 
 import {
   type AgentMailbox,
@@ -11,8 +12,6 @@ import {
   type WorkspaceCtx,
   type WorkspaceMember,
 } from "../runtime-context";
-
-export type Resolved<T> = { error: string } | T;
 
 export class ToolRefusal extends Error {}
 
@@ -114,3 +113,5 @@ export async function requireMember(
       .join(", ")}`,
   };
 }
+
+export type { Resolved };

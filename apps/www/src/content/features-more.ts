@@ -125,7 +125,7 @@ export const MORE_AREAS = {
   workflows: {
     kicker: "Workflows",
     title: ["Rules that", "run on their own."],
-    lede: "Workflows act on mail as it arrives, on a schedule, by hand or before a send, with an AI question where a plain rule is not enough.",
+    lede: "Workflows act on mail, calendars and drives as things change, on a schedule, by hand, from a webhook or before a send, with AI where a plain rule is not enough.",
     href: "/workflows",
     features: [
       {
@@ -138,13 +138,13 @@ export const MORE_AREAS = {
         icon: GitBranch,
         t: "Triggers and actions",
         shot: "agent/steps",
-        d: "Start when mail arrives, on a schedule, by hand or before you send, then label, archive, star, mute or add a Bcc.",
+        d: "Start when mail arrives, an event changes, a file lands or a webhook calls, then label, reply, add events, save files, wait for an answer or ask someone to approve.",
       },
       {
         icon: Filter,
         t: "Match exactly what you mean",
         shot: "workflows/if",
-        d: "Check the sender, recipients, Cc, subject, body or attachments, match all or any, and nest groups for finer rules.",
+        d: "Write a condition over any field of the mail, event or file, with every value an earlier step produced at hand and errors shown as you type.",
       },
       {
         icon: Blocks,
@@ -164,7 +164,7 @@ export const MORE_AREAS = {
         icon: Merge,
         t: "Act once, after every check",
         shot: "workflows/combine",
-        d: "Bring several paths back together so one action runs once, even when a message matches twice.",
+        d: "Bring several paths back together so one action runs once, even when an item matches twice.",
       },
       {
         icon: MailPlus,

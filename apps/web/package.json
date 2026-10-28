@@ -1,6 +1,6 @@
 {
   "name": "@metis/web",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "scripts": {
@@ -49,12 +49,14 @@
     "@json-render/core": "^0.21.3",
     "@json-render/react": "^0.21.3",
     "@libsql/client": "catalog:",
+    "@marcbachmann/cel-js": "^8.0.0",
     "@mastra/ai-sdk": "^1.11.2",
     "@mastra/core": "^1.79.0",
     "@mastra/libsql": "^1.27.0",
     "@mastra/mcp": "^1.18.0",
     "@mastra/memory": "^1.39.0",
     "@metis/gateway-contract": "workspace:*",
+    "@metis/shell-core": "workspace:*",
     "@metis/ui": "workspace:*",
     "@metis/updater-proto": "workspace:*",
     "@microsoft/microsoft-graph-client": "^3.0.7",

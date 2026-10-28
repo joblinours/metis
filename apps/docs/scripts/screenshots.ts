@@ -25,7 +25,9 @@ const stepSchema = z.union([
   z.object({ fill: z.string(), value: z.string() }),
   z.object({ type: z.string(), text: z.string() }),
   z.object({ press: z.string() }),
+  z.object({ drag: z.string(), to: z.string() }),
   z.object({ waitFor: z.string() }),
+  z.object({ waitForHidden: z.string() }),
   z.object({ wait: z.number() }),
   z.object({ scroll: z.string() }),
   z.object({ clearReadLater: z.literal(true) }),
@@ -141,6 +143,21 @@ async function clearReadLater(page: Page, a: Account) {
   );
 }
 
+async function centerOf(page: Page, selector: string) {
+  const box = await page.locator(selector).first().boundingBox();
+  if (!box) throw new Error(`${selector} has no box`);
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+async function drag(page: Page, from: string, to: string) {
+  const start = await centerOf(page, from);
+  const end = await centerOf(page, to);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 12 });
+  await page.mouse.up();
+}
+
 async function run(page: Page, step: Step, a: Account) {
   if ("clearReadLater" in step) await clearReadLater(page, a);
   else if ("goto" in step) await page.goto(resolve(step.goto, a));
@@ -158,8 +175,11 @@ async function run(page: Page, step: Step, a: Account) {
     await page.locator(step.type).first().click();
     await page.keyboard.type(step.text);
   } else if ("press" in step) await page.keyboard.press(step.press);
+  else if ("drag" in step) await drag(page, step.drag, step.to);
   else if ("waitFor" in step)
     await page.locator(step.waitFor).first().waitFor({ state: "visible" });
+  else if ("waitForHidden" in step)
+    await page.locator(step.waitForHidden).first().waitFor({ state: "hidden" });
   else if ("wait" in step) await page.waitForTimeout(step.wait);
   else if ("scroll" in step) await page.locator(step.scroll).first().scrollIntoViewIfNeeded();
 }
@@ -229,7 +249,19 @@ async function region(page: Page, element: string | string[]): Promise<Box> {
   return { x, y, width: right - x, height: bottom - y };
 }
 
+async function unscroll(page: Page) {
+  await page.evaluate(() => {
+    for (const el of document.body.querySelectorAll("*")) {
+      if (el.scrollTop === 0 && el.scrollLeft === 0) continue;
+      const style = getComputedStyle(el);
+      if (style.overflowY === "hidden") el.scrollTop = 0;
+      if (style.overflowX === "hidden") el.scrollLeft = 0;
+    }
+  });
+}
+
 async function capture(page: Page, shot: Shot, path: string) {
+  await unscroll(page);
   if (shot.clip) await page.screenshot({ path, clip: shot.clip });
   else if (shot.element)
     await page.screenshot({

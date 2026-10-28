@@ -8,7 +8,7 @@ See also [AGENTS.md](../AGENTS.md), [drive-providers.md](drive-providers.md), [d
 
 | Concern                                                       | Where                                                                                                                                                                                                   |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Adapter interface + factory                                   | `src/drive/adapter.ts` → `DriveAdapter`, `getDriveAdapter` · wire types `src/types/drive.ts` → `DriveDownloadTarget`                                                                                    |
+| Adapter interface + factory                                   | `src/drive/adapter.ts` → `DriveAdapter`, `DriveChangeSignal`, `getDriveAdapter` · wire types `src/types/drive.ts` → `DriveDownloadTarget`                                                               |
 | Providers                                                     | `src/drive/providers/google.ts` → `googleDrive` · `src/drive/providers/microsoft.ts` → `microsoftDrive` · S3, WebDAV, FTP, SFTP in [drive-providers.md](drive-providers.md)                             |
 | Surfaces, composite ids, root walk                            | `src/drive/aggregate.ts` → `DriveSurface`, `ResolvedDrive`, `compositeDriveId`, `isRootVisible`, `DriveNotVisibleError`                                                                                 |
 | Session                                                       | `src/drive/session.ts` → `DriveSession` · middleware `src/server/middlewares/drive-session.ts`                                                                                                          |
@@ -87,6 +87,7 @@ See also [AGENTS.md](../AGENTS.md), [drive-providers.md](drive-providers.md), [d
 
 ### Surfaces and visibility
 
+- **The optional `DriveAdapter.changes` says only whether a folder changed since a token**, for workflow feeds ([workflow-graph.md](workflow-graph.md)): Google changes from a start page token and Graph's drive delta, each filtered to the folder's direct children; S3, WebDAV, FTP and SFTP leave it out.
 - **Routes touch `DriveSurface`, never `DriveAdapter`, except the relay route.**
   - `DriveSession` carries a ready-built `surface`, as `MailSession` carries an adapter, so the `drive.*` procedures have no `isAggregate` branch.
   - The relay route holds a signature, not a session, so it builds the adapter from the drive id and calls `readStream` / `writeStream` directly.

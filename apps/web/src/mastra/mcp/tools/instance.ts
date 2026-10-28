@@ -3,8 +3,8 @@ import type { RequestContext } from "@mastra/core/request-context";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import * as instance from "@/mastra/toolkit/instance";
 import { ToolRefusal, withToolErrors } from "@/mastra/toolkit/resolve";
+import * as instance from "@/ops/instance";
 import {
   auditCursorInputSchema,
   connectionProviderSchema,

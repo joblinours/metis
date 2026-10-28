@@ -36,12 +36,8 @@
     "name": "assistant/stored-conversation",
     "path": "{workspace}/assistant",
     "steps": [
-      {
-        "waitFor": "role=complementary >> role=link[name=/Most Urgent Email/]"
-      },
-      {
-        "click": "role=complementary >> role=link[name=/Most Urgent Email/]"
-      },
+      { "waitFor": "role=complementary >> role=listitem >> role=link" },
+      { "click": "role=complementary >> role=listitem >> role=link", "nth": 0 },
       {
         "waitFor": "role=log >> text=\"What needs my attention across my mailboxes this week?\""
       },

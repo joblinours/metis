@@ -12,7 +12,9 @@ import { db } from "@/db";
 import { migrateDatabase } from "@/db/migrations";
 import type { PreflightWarning, PreflightWarningKind } from "@/types/preflight";
 
-const migrated = await migrateDatabase(db.$client);
+import { MIGRATIONS } from "../migrations";
+
+const migrated = await migrateDatabase(db.$client, MIGRATIONS);
 if (migrated.baselined) {
   console.log("[preflight] recorded 0000_baseline for a database created before migrations");
 }

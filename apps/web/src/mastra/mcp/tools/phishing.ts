@@ -1,9 +1,9 @@
 import "server-only";
 import { createTool } from "@mastra/core/tools";
 
-import { analyzePhishing as runAnalysis } from "@/mastra/toolkit/phishing";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import { messageTarget } from "@/mastra/toolkit/schema";
+import { analyzePhishing as runAnalysis } from "@/ops/phishing";
 
 import { mcpScopeFromCall } from "../context";
 import { inWorkspace } from "../schema";

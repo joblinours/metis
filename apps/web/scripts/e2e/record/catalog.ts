@@ -23,9 +23,10 @@ const MINUTE = 60_000;
 const USAGE = ["ai_usage"] as const;
 const WORKFLOW_TABLES = [
   "ai_usage",
-  "workflow_occurrence",
+  "workflow_event",
   "workflow_run",
-  "workflow_node_run",
+  "workflow_step_run",
+  "workflow_wait",
 ] as const;
 const EXPLICIT_FTP_DRIVES = new Set(["ftps", "ftp"]);
 const INBOX = "imap:inbox";

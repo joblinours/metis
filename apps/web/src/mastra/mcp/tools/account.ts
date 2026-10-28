@@ -3,8 +3,8 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
 import { CONNECTION_RESOURCES } from "@/connections/types";
-import * as account from "@/mastra/toolkit/account";
 import { withToolErrors } from "@/mastra/toolkit/resolve";
+import * as account from "@/ops/account";
 import {
   createSignupInviteInputSchema,
   createWorkspaceInputSchema,

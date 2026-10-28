@@ -18,12 +18,12 @@ import { Move } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import { type CardDirectory, cardContext } from "@/components/workflow-graph/card-context";
 import { flowEdges } from "@/components/workflow-graph/edges";
 import { graphFitOptions } from "@/components/workflow-graph/fit";
 import { NodeCard } from "@/components/workflow-graph/node-card";
 import { runOverlay } from "@/components/workflow-graph/overlay";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { resolveLabelName } from "@/mail/label-meta";
 import type { WorkflowRunDetail } from "@/server/schema";
 
 import { buildRunNodes, type RunGraphNode } from "./run-graph-elements";
@@ -48,6 +48,7 @@ const nodeTypes: NodeTypes = { run: RunGraphNodeView };
 const LEGEND: { status: string | null; label: string }[] = [
   { status: "completed", label: "Completed" },
   { status: "skipped", label: "Skipped" },
+  { status: "waiting", label: "Waiting" },
   { status: "failed", label: "Failed" },
   { status: "blocked", label: "Blocked" },
   { status: "unknown", label: "Needs review" },
@@ -72,29 +73,19 @@ function useCoarsePointer(): boolean {
 
 export function WorkflowRunGraph({
   run,
-  mailboxLabel,
+  directory,
   selectedId,
   onSelect,
 }: {
   run: WorkflowRunDetail;
-  mailboxLabel: (id: string) => string | null;
+  directory: CardDirectory;
   selectedId: string | null;
   onSelect: (nodeId: string | null) => void;
 }) {
   const overlay = useMemo(() => runOverlay(run), [run]);
   const built = useMemo(
-    () =>
-      buildRunNodes(
-        run,
-        overlay,
-        {
-          graph: run.graph,
-          mailboxEmail: mailboxLabel,
-          labelName: (key) => resolveLabelName(key, []),
-        },
-        selectedId,
-      ),
-    [run, overlay, mailboxLabel, selectedId],
+    () => buildRunNodes(run, overlay, cardContext(run.graph, directory), selectedId),
+    [run, overlay, directory, selectedId],
   );
   const edges = useMemo(() => flowEdges(run.graph, overlay, { editable: false }), [run, overlay]);
   const coarse = useCoarsePointer();

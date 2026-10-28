@@ -2,8 +2,8 @@ package updater
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"slices"
@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	NotesURL       = "https://api.github.com/repos/trymetis/metis/releases?per_page=100"
-	notesTagPrefix = "app-v"
-	notesTimeout   = 10 * time.Second
+	NotesOrigin   = "https://sh.trymetis.email"
+	notesFile     = "release.md"
+	notesTimeout  = 10 * time.Second
+	notesMaxBytes = 256 << 10
 )
 
 type Release struct {
@@ -31,19 +32,25 @@ type Release struct {
 type Releases struct {
 	TTL time.Duration
 
-	mu        sync.Mutex
-	versions  []string
-	notes     map[string]string
-	fetchedAt time.Time
+	mu             sync.Mutex
+	versions       []string
+	fetchedAt      time.Time
+	notes          map[string]string
+	notesFetchedAt time.Time
 }
 
-func (releases *Releases) List(ctx context.Context) ([]Release, error) {
+func NotesURL(version string) string {
+	return fmt.Sprintf("%s/v%s/%s", NotesOrigin, version, notesFile)
+}
+
+func (releases *Releases) List(ctx context.Context, current string) ([]Release, error) {
 	releases.mu.Lock()
 	defer releases.mu.Unlock()
-	if releases.versions == nil || time.Since(releases.fetchedAt) >= releases.TTL {
-		if err := releases.refreshLocked(ctx); err != nil {
-			return nil, err
-		}
+	if err := releases.refreshLocked(ctx); err != nil {
+		return nil, err
+	}
+	if time.Since(releases.notesFetchedAt) >= releases.TTL {
+		releases.fetchNotesLocked(ctx, current)
 	}
 	list := make([]Release, 0, len(releases.versions))
 	for _, version := range releases.versions {
@@ -53,6 +60,9 @@ func (releases *Releases) List(ctx context.Context) ([]Release, error) {
 }
 
 func (releases *Releases) refreshLocked(ctx context.Context) error {
+	if releases.versions != nil && time.Since(releases.fetchedAt) < releases.TTL {
+		return nil
+	}
 	versions, err := fetchReleases(ctx)
 	if err != nil {
 		if releases.versions != nil {
@@ -61,23 +71,44 @@ func (releases *Releases) refreshLocked(ctx context.Context) error {
 		}
 		return err
 	}
-	notes, err := fetchNotes(ctx)
-	if err != nil {
-		log.Printf("[updater] fetching release notes failed, keeping the last notes: %v", err)
-		notes = releases.notes
-	}
 	releases.versions = versions
-	releases.notes = notes
 	releases.fetchedAt = time.Now()
 	return nil
 }
 
+func newer(version, current string) bool {
+	return current == "" || semver.Compare("v"+version, "v"+current) > 0
+}
+
+func (releases *Releases) fetchNotesLocked(ctx context.Context, current string) {
+	ctx, cancel := context.WithTimeout(ctx, notesTimeout)
+	defer cancel()
+	if releases.notes == nil {
+		releases.notes = map[string]string{}
+	}
+	for _, version := range releases.versions {
+		if _, ok := releases.notes[version]; ok || !newer(version, current) {
+			continue
+		}
+		notes, found, err := fetchNotes(ctx, version)
+		if err != nil {
+			log.Printf("[updater] fetching release notes for %s failed: %v", version, err)
+			continue
+		}
+		if found {
+			releases.notes[version] = notes
+		}
+	}
+	releases.notesFetchedAt = time.Now()
+}
+
 func (releases *Releases) Has(ctx context.Context, version string) (bool, error) {
-	list, err := releases.List(ctx)
-	if err != nil {
+	releases.mu.Lock()
+	defer releases.mu.Unlock()
+	if err := releases.refreshLocked(ctx); err != nil {
 		return false, err
 	}
-	return slices.ContainsFunc(list, func(release Release) bool { return release.Version == version }), nil
+	return slices.Contains(releases.versions, version), nil
 }
 
 func fetchReleases(ctx context.Context) ([]string, error) {
@@ -101,40 +132,28 @@ func fetchReleases(ctx context.Context) ([]string, error) {
 	return versions, nil
 }
 
-type githubRelease struct {
-	TagName string `json:"tag_name"`
-	Body    string `json:"body"`
-	Draft   bool   `json:"draft"`
-}
-
-func fetchNotes(ctx context.Context) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(ctx, notesTimeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, NotesURL, nil)
+func fetchNotes(ctx context.Context, version string) (string, bool, error) {
+	url := NotesURL(version)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return "", false, err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Accept", "text/markdown, text/plain")
 	req.Header.Set("User-Agent", "metis-updater")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return "", false, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return "", false, nil
+	}
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s answered %d", NotesURL, res.StatusCode)
+		return "", false, fmt.Errorf("%s answered %d", url, res.StatusCode)
 	}
-	var list []githubRelease
-	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
-		return nil, err
+	body, err := io.ReadAll(io.LimitReader(res.Body, notesMaxBytes))
+	if err != nil {
+		return "", false, err
 	}
-	notes := map[string]string{}
-	for _, release := range list {
-		version, ok := strings.CutPrefix(release.TagName, notesTagPrefix)
-		if !ok || release.Draft || !IsReleaseVersion(version) {
-			continue
-		}
-		notes[version] = strings.TrimSpace(release.Body)
-	}
-	return notes, nil
+	return strings.TrimSpace(string(body)), true, nil
 }

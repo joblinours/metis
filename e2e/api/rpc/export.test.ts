@@ -2,8 +2,9 @@ import { WORKSPACE_CHATS } from "@metis/e2e/lib/llm-scenarios";
 import { expect, test } from "vitest";
 
 import { type Rpc, rpcWithCookie } from "../../clients/rpc";
+import { signIn } from "../../clients/sign-in";
 import { uniqueName } from "../support/poll";
-import { ana, signIn, totpCode } from "../support/session";
+import { ana, totpCode } from "../support/session";
 
 interface ResourceLink {
   provider: string;
@@ -46,7 +47,9 @@ interface DataExport {
     name: string;
     enabled: boolean;
     mailboxes: Record<string, string>;
-    graph: { nodes: { kind: string }[] };
+    calendars: Record<string, string>;
+    drives: Record<string, string>;
+    graph: { nodes: { step: string }[] };
   }[];
   assistantThreads: {
     workspace: string | null;
@@ -97,9 +100,7 @@ test("the export holds the account's preferences, workspaces, labels, workflows 
   const rebrand = data.workflows.find((w) => w.name === "Label rebrand mail");
   expect(rebrand?.workspace).toBe(account.workspaceSlug);
   expect(rebrand?.graph.nodes.length).toBeGreaterThan(0);
-  const sourced = data.workflows.filter((w) =>
-    w.graph.nodes.some((n) => n.kind === "mailbox.source"),
-  );
+  const sourced = data.workflows.filter((w) => w.graph.nodes.some((n) => n.step === "mail.list"));
   expect(sourced.length).toBeGreaterThan(0);
   for (const w of sourced) {
     expect(Object.keys(w.mailboxes).length, w.name).toBeGreaterThan(0);

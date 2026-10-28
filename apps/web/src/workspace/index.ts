@@ -21,6 +21,7 @@ import {
 import type { WorkspaceSummary } from "@/server/schema";
 import { DEFAULT_THEME_BRAND, isThemeBrand, type ThemeBrandId } from "@/theme/brand";
 import type { WorkspacePlan, WorkspaceRole } from "@/types/workspace";
+import { memberJoined } from "@/workflow/hooks";
 
 import type { WorkspacePolicy } from "./policy";
 
@@ -537,6 +538,13 @@ export async function acceptInvite(opts: {
       role: invite.role,
       invitedBy: invite.invitedBy,
       joinedAt: new Date(),
+    });
+    memberJoined({
+      workspaceId: invite.workspaceId,
+      userId: opts.userId,
+      email: invite.email,
+      name: "",
+      role: invite.role,
     });
   }
   await appendWorkspaceOrder(opts.userId, invite.workspaceId);

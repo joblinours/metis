@@ -19,13 +19,29 @@ export interface Workflow {
   name: string;
   enabled: boolean;
   graph: {
-    nodes: { id: string; kind: string; label?: string; title?: string; skip?: boolean }[];
-    edges: unknown[];
+    version: 2;
+    nodes: {
+      id: string;
+      step: string;
+      title?: string;
+      skip?: boolean;
+      position: { x: number; y: number };
+      params: Record<string, { kind: string; value?: unknown; cel?: string; text?: string }>;
+    }[];
+    edges: {
+      id: string;
+      source: string;
+      target: string;
+      sourceHandle: string;
+      targetHandle?: string;
+    }[];
+    settings: Record<string, unknown>;
   };
 }
 
 export interface RunItem {
   id: string;
+  itemKey: string;
   status: string;
   error: string | null;
   decision: { handle: string } | null;
@@ -34,7 +50,7 @@ export interface RunItem {
 
 export interface RunNode {
   nodeId: string;
-  kind: string;
+  step: string;
   reached: boolean;
   items: RunItem[];
 }

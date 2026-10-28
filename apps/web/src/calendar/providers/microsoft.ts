@@ -7,6 +7,7 @@ import type {
 
 import type { ProviderCalendar } from "@/connections";
 import { bind } from "@/lib/bind";
+import { errorStatus, readTokenMap } from "@/lib/token-map";
 import type {
   AttendeeResponse,
   CalendarEvent,
@@ -17,7 +18,7 @@ import type {
   ListEventsOptions,
 } from "@/types/calendar";
 
-import type { CalendarAdapter } from "../adapter";
+import type { CalendarAdapter, CalendarChangeSignal } from "../adapter";
 import { compactConference, conferenceName } from "../conference";
 import { textEventSearch } from "../text-search";
 
@@ -32,9 +33,68 @@ export function microsoftCalendar(accessToken: string): CalendarAdapter {
       deleteEvent,
       respondToEvent,
       searchAst: (token, search) => textEventSearch((opts) => listEvents(token, opts), search),
+      changes,
     },
     accessToken,
   );
+}
+
+const DELTA_PAGES = 20;
+const DELTA_WINDOW_DAYS = 90;
+
+interface DeltaPage {
+  value?: unknown[];
+  "@odata.nextLink"?: string;
+  "@odata.deltaLink"?: string;
+}
+
+async function followDelta(
+  client: Client,
+  start: string,
+): Promise<{ link: string; changed: boolean } | null> {
+  let url = start;
+  let changed = false;
+  for (let page = 0; page < DELTA_PAGES; page += 1) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each delta page needs the previous page's link
+    const res: DeltaPage = await client.api(url).get();
+    if ((res.value ?? []).length > 0) changed = true;
+    if (res["@odata.deltaLink"]) return { link: res["@odata.deltaLink"], changed };
+    const next = res["@odata.nextLink"];
+    if (!next) return null;
+    url = next;
+  }
+  return null;
+}
+
+async function changes(
+  accessToken: string,
+  calendarIds: string[],
+  cursor: string | null,
+): Promise<CalendarChangeSignal | null> {
+  const client = getGraphClient(accessToken);
+  const known = readTokenMap(cursor);
+  const next: Record<string, string> = {};
+  let changed = false;
+  const from = new Date(Date.now() - 86_400_000).toISOString();
+  const to = new Date(Date.now() + DELTA_WINDOW_DAYS * 86_400_000).toISOString();
+  try {
+    for (const calendarId of calendarIds) {
+      const own = known[calendarId];
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one calendar at a time stays inside Graph's per-mailbox throttling
+      const followed = await followDelta(
+        client,
+        own ??
+          `/me/calendars/${calendarId}/calendarView/delta?startDateTime=${from}&endDateTime=${to}`,
+      );
+      if (!followed) return null;
+      next[calendarId] = followed.link;
+      if (own ? followed.changed : !!cursor) changed = true;
+    }
+  } catch (err) {
+    if (errorStatus(err) === 410) return { cursor: "", changed: true, expired: true };
+    throw err;
+  }
+  return { cursor: JSON.stringify(next), changed };
 }
 
 function getGraphClient(accessToken: string): Client {

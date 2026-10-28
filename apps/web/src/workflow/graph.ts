@@ -1,30 +1,31 @@
-import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 
-import { nodeMailboxId } from "./kinds";
-import type {
-  LeafPredicate,
-  MergeKind,
-  PredicateNode,
-  SourceHandle,
-  WorkflowEdge,
-  WorkflowGraph,
-  WorkflowNode,
-  WorkflowNodeKind,
-} from "./schema";
+import { type Binding, expr, literal, template } from "./expr";
 import {
-  DEFAULT_DECISION_STATE_FIELDS,
   DEFAULT_TARGET_HANDLE,
   edgeId,
-  isSourceHandle,
+  GRAPH_VERSION,
+  type GraphEdge,
+  type GraphNode,
+  isHandle,
   mergeInputHandle,
+  type WorkflowGraph,
 } from "./schema";
+import { type ResourceKind, stepDef } from "./steps";
 
-export interface GraphMailbox {
-  mailboxId: string;
-  slug: string;
-  email: string;
-  aiEnabled?: boolean;
+export interface GraphResource {
+  id: string;
+  label: string;
 }
+
+export interface GraphResources {
+  mailbox: GraphResource[];
+  calendar: GraphResource[];
+  drive: GraphResource[];
+  timezone?: string;
+}
+
+export const NO_RESOURCES: GraphResources = { mailbox: [], calendar: [], drive: [] };
 
 export const CARD_WIDTH = 256;
 const COLUMN_GAP = 96;
@@ -97,74 +98,45 @@ export function layoutGraph(
   };
 }
 
+const nodeSuffix = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
+
 export function newNodeId(): string {
-  return nanoid(10);
+  return `s${nodeSuffix()}`;
 }
 
-export function newPredicate(): LeafPredicate {
-  return { kind: "predicate", field: "from", op: "contains", value: "" };
-}
-
-export function newGroupPredicate(): PredicateNode {
-  return { kind: "group", logic: "all", children: [newPredicate()] };
-}
+const RESOURCE_PARAMS: Record<string, ResourceKind> = {
+  mailbox: "mailbox",
+  calendar: "calendar",
+  drive: "drive",
+};
 
 export function newNode(
-  kind: WorkflowNodeKind,
-  position: { x: number; y: number },
-  mailboxes: GraphMailbox[] = [],
-): WorkflowNode {
-  const id = newNodeId();
-  switch (kind) {
-    case "trigger.schedule":
-      return {
-        id,
-        position,
-        kind,
-        cron: "0 9 * * 1-5",
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Etc/UTC",
-      };
-    case "trigger.once":
-      return { id, position, kind, at: new Date().toISOString() };
-    case "mailbox.source":
-      return {
-        id,
-        position,
-        kind,
-        mailboxId: mailboxes[0]?.mailboxId ?? "",
-        operation: "incoming",
-        folder: "inbox",
-        limit: 50,
-      };
-    case "condition":
-      return { id, position, kind, predicate: newGroupPredicate() };
-    case "decision.ask":
-      return {
-        id,
-        position,
-        kind,
-        state: { fields: [...DEFAULT_DECISION_STATE_FIELDS] },
-        questions: [],
-      };
-    case "decision.branch":
-      return { id, position, kind, yesAt: 0.8, noAt: 0.2, minProbability: 0.6 };
-    case "action.label":
-      return { id, position, kind, label: "work" };
-    case "action.autoBcc":
-      return { id, position, kind, address: "" };
-    case "action.system":
-      return { id, position, kind, operation: "cimd-prune" };
-    default:
-      return { id, position, kind };
+  step: string,
+  position: Point,
+  resources: GraphResources = NO_RESOURCES,
+  params: Record<string, Binding> = {},
+): GraphNode {
+  const def = stepDef(step);
+  const defaults: Record<string, Binding> = {};
+  for (const [name, spec] of Object.entries(def?.params ?? {})) {
+    if (spec.default) defaults[name] = spec.default;
+    const kind = RESOURCE_PARAMS[spec.kind];
+    if (kind && spec.required) {
+      const first = resources[kind][0];
+      if (first) defaults[name] = literal(first.id);
+    }
+    if (spec.kind === "timezone" && resources.timezone)
+      defaults[name] = literal(resources.timezone);
   }
+  return { id: newNodeId(), step, position, params: { ...defaults, ...params } };
 }
 
 export function graphEdge(
   source: string,
   target: string,
-  sourceHandle: WorkflowEdge["sourceHandle"] = "out",
+  sourceHandle = "out",
   targetHandle: string = DEFAULT_TARGET_HANDLE,
-): WorkflowEdge {
+): GraphEdge {
   return {
     id: edgeId(source, sourceHandle, target, targetHandle),
     source,
@@ -174,129 +146,203 @@ export function graphEdge(
   };
 }
 
-function listSource(
-  mailbox: GraphMailbox | undefined,
-): Extract<WorkflowNode, { kind: "mailbox.source" }> {
-  return {
-    id: newNodeId(),
-    position: ORIGIN,
-    kind: "mailbox.source",
-    mailboxId: mailbox?.mailboxId ?? "",
-    operation: "list",
-    folder: "inbox",
-    limit: 50,
+function graphOf(nodes: GraphNode[], edges: GraphEdge[]): WorkflowGraph {
+  return { version: GRAPH_VERSION, nodes, edges, settings: {} };
+}
+
+function chain(nodes: GraphNode[], handles: Record<number, string> = {}): GraphEdge[] {
+  return nodes.slice(1).flatMap((node, index) => {
+    const source = nodes[index];
+    return source ? [graphEdge(source.id, node.id, handles[index] ?? "out")] : [];
+  });
+}
+
+type Builder = (r: GraphResources) => WorkflowGraph;
+
+const labelSender: Builder = (r) => {
+  const nodes = [
+    newNode("trigger.mail.received", ORIGIN, r),
+    newNode("logic.if", ORIGIN, r, { condition: expr('item.from.contains("")') }),
+    newNode("mail.label", ORIGIN, r),
+  ];
+  return graphOf(nodes, chain(nodes, { 1: "yes" }));
+};
+
+const saveInvoices: Builder = (r) => {
+  const nodes = [
+    newNode("trigger.mail.received", ORIGIN, r, {
+      filter: expr('item.subject.lowerAscii().contains("invoice") && item.hasAttachments'),
+    }),
+    newNode("logic.split", ORIGIN, r, { list: expr("item.attachments") }),
+    newNode("logic.filter", ORIGIN, r, {
+      condition: expr('item.name.lowerAscii().endsWith(".pdf")'),
+    }),
+    newNode("mail.saveAttachment", ORIGIN, r, { folder: template("Invoices") }),
+  ];
+  return graphOf(nodes, chain(nodes));
+};
+
+const addInvitations: Builder = (r) => {
+  const nodes = [
+    newNode("trigger.mail.received", ORIGIN, r, { filter: expr("item.hasAttachments") }),
+    newNode("logic.split", ORIGIN, r, { list: expr("item.attachments") }),
+    newNode("logic.filter", ORIGIN, r, {
+      condition: expr('item.name.lowerAscii().endsWith(".ics")'),
+    }),
+    newNode("calendar.importIcs", ORIGIN, r),
+  ];
+  return graphOf(nodes, chain(nodes));
+};
+
+const approvedReply: Builder = (r) => {
+  const nodes = [
+    newNode("trigger.mail.received", ORIGIN, r),
+    newNode("ai.generate", ORIGIN, r, {
+      prompt: template(
+        "Write a short, friendly reply to this message from {{ item.fromName }}:\n\n{{ item.body }}",
+      ),
+    }),
+    newNode("flow.approval", ORIGIN, r, {
+      message: template("Send this reply?\n\n{{ item.text }}"),
+    }),
+  ];
+  const reply = newNode("mail.reply", ORIGIN, r, {
+    message: expr("trigger"),
+    body: template("{{ item.text }}"),
+  });
+  return graphOf(
+    [...nodes, reply],
+    [...chain(nodes), graphEdge(nodes[2]?.id ?? "", reply.id, "approved")],
+  );
+};
+
+const followUp: Builder = (r) => {
+  const sent = newNode("trigger.mail.sent", ORIGIN, r);
+  const wait = newNode("flow.waitFor", ORIGIN, r, { event: literal("reply") });
+  const draft = newNode("mail.draft", ORIGIN, r, {
+    to: expr("trigger.to"),
+    subject: template("Re: {{ trigger.subject }}"),
+    body: template("Just following up on my message below."),
+  });
+  return graphOf(
+    [sent, wait, draft],
+    [graphEdge(sent.id, wait.id), graphEdge(wait.id, draft.id, "timeout")],
+  );
+};
+
+const dailyBrief: Builder = (r) => {
+  const nodes = [
+    newNode("trigger.schedule", ORIGIN, r, { cron: literal("0 8 * * 1-5") }),
+    newNode("calendar.list", ORIGIN, r, { to: expr('now + duration("24h")') }),
+    newNode("logic.aggregate", ORIGIN, r),
+    newNode("ai.summarize", ORIGIN, r, { source: expr("item.items") }),
+    newNode("mail.send", ORIGIN, r, {
+      to: expr(`["${r.mailbox[0]?.label ?? ""}"]`),
+      subject: template("Today's meetings"),
+      body: template("{{ item.summary }}"),
+    }),
+  ];
+  return graphOf(nodes, chain(nodes));
+};
+
+const meetingPrep: Builder = (r) => {
+  const nodes = [
+    newNode("trigger.calendar.starting", ORIGIN, r, { minutes: literal(30) }),
+    newNode("ai.agent", ORIGIN, r, {
+      agent: literal("workspace"),
+      task: template(
+        'Find recent mail and files about the meeting "{{ item.title }}" with {{ joined(item.attendees.map(a, a.email), ", ") }} and list what I should know.',
+      ),
+    }),
+    newNode("mail.send", ORIGIN, r, {
+      to: expr(`["${r.mailbox[0]?.label ?? ""}"]`),
+      subject: template("Prep: {{ trigger.title }}"),
+      body: template("{{ item.text }}"),
+    }),
+  ];
+  return graphOf(nodes, chain(nodes));
+};
+
+function mergeBuilder(step: "logic.merge" | "logic.join"): Builder {
+  return (r) => {
+    const trigger = newNode("trigger.schedule", ORIGIN, r);
+    const left = newNode("mail.list", ORIGIN, r);
+    const second = r.mailbox[1] ?? r.mailbox[0];
+    const right = newNode("mail.list", ORIGIN, r, second ? { mailbox: literal(second.id) } : {});
+    const merge = newNode(step, ORIGIN, r);
+    const label = newNode("mail.label", ORIGIN, r);
+    return graphOf(
+      [trigger, left, right, merge, label],
+      [
+        graphEdge(trigger.id, left.id),
+        graphEdge(trigger.id, right.id),
+        graphEdge(left.id, merge.id, "out", mergeInputHandle(0)),
+        graphEdge(right.id, merge.id, "out", mergeInputHandle(1)),
+        graphEdge(merge.id, label.id),
+      ],
+    );
   };
 }
 
-function incomingSource(mailbox: GraphMailbox | undefined): WorkflowNode {
-  return { ...listSource(mailbox), operation: "incoming" };
-}
+const blank: Builder = (r) => graphOf([newNode("trigger.manual", ORIGIN, r)], []);
 
-function branchGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
-  const trigger = newNode("trigger.schedule", ORIGIN);
-  const left = listSource(mailboxes[0]);
-  const right = listSource(mailboxes[1] ?? mailboxes[0]);
-  const markRead = newNode("action.markRead", ORIGIN);
-  const label = newNode("action.label", ORIGIN);
-  return {
-    nodes: [trigger, left, right, markRead, label],
-    edges: [
-      graphEdge(trigger.id, left.id),
-      graphEdge(trigger.id, right.id),
-      graphEdge(left.id, markRead.id),
-      graphEdge(right.id, label.id),
-    ],
-  };
-}
-
-function defaultGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
-  const trigger = newNode("trigger.newMail", ORIGIN);
-  const source = newNode("mailbox.source", ORIGIN, mailboxes);
-  const condition = newNode("condition", ORIGIN);
-  const action = newNode("action.archive", ORIGIN);
-  return {
-    nodes: [trigger, source, condition, action],
-    edges: [
-      graphEdge(trigger.id, source.id),
-      graphEdge(source.id, condition.id),
-      graphEdge(condition.id, action.id, "matched"),
-    ],
-  };
-}
-
-function arrivalGraph(mailboxes: GraphMailbox[]): WorkflowGraph {
-  const leftTrigger = newNode("trigger.newMail", ORIGIN);
-  const rightTrigger = newNode("trigger.newMail", ORIGIN);
-  const left = incomingSource(mailboxes[0]);
-  const right = incomingSource(mailboxes[1] ?? mailboxes[0]);
-  const label = newNode("action.label", ORIGIN);
-  const star = newNode("action.star", ORIGIN);
-  return {
-    nodes: [leftTrigger, rightTrigger, left, right, label, star],
-    edges: [
-      graphEdge(leftTrigger.id, left.id),
-      graphEdge(rightTrigger.id, right.id),
-      graphEdge(left.id, label.id),
-      graphEdge(right.id, star.id),
-    ],
-  };
-}
-
-function mergeGraph(kind: MergeKind, mailboxes: GraphMailbox[]): WorkflowGraph {
-  const trigger = newNode("trigger.schedule", ORIGIN);
-  const left = listSource(mailboxes[0]);
-  const right = listSource(mailboxes[1] ?? mailboxes[0]);
-  const merge = newNode(kind, ORIGIN);
-  const label = newNode("action.label", ORIGIN);
-  return {
-    nodes: [trigger, left, right, merge, label],
-    edges: [
-      graphEdge(trigger.id, left.id),
-      graphEdge(trigger.id, right.id),
-      graphEdge(left.id, merge.id, "out", mergeInputHandle(0)),
-      graphEdge(right.id, merge.id, "out", mergeInputHandle(1)),
-      graphEdge(merge.id, label.id),
-    ],
-  };
-}
-
-export const GRAPH_TEMPLATES = ["single", "arrival", "branch", "append", "join"] as const;
+export const GRAPH_TEMPLATES = [
+  "blank",
+  "labelSender",
+  "saveInvoices",
+  "addInvitations",
+  "approvedReply",
+  "followUp",
+  "dailyBrief",
+  "meetingPrep",
+  "append",
+  "join",
+] as const;
 export type GraphTemplate = (typeof GRAPH_TEMPLATES)[number];
 
 export const TEMPLATE_LABELS: Record<GraphTemplate, string> = {
-  single: "One mailbox, on arrival",
-  arrival: "Two mailboxes, on arrival",
-  branch: "Two mailboxes, on a schedule",
+  blank: "Start from a manual trigger",
+  labelSender: "Label mail from a sender",
+  saveInvoices: "Save invoice PDFs to a drive",
+  addInvitations: "Add mailed invitations to a calendar",
+  approvedReply: "Draft a reply with AI, send once approved",
+  followUp: "Follow up when nobody replies",
+  dailyBrief: "Morning brief of today's meetings",
+  meetingPrep: "Meeting prep from mail and files",
   append: "Two mailboxes, one shared action",
   join: "Two mailboxes, act once both are read",
 };
 
-function rawTemplate(template: GraphTemplate, mailboxes: GraphMailbox[]): WorkflowGraph {
-  if (template === "join") return mergeGraph("merge.join", mailboxes);
-  if (template === "append") return mergeGraph("merge.append", mailboxes);
-  if (template === "branch") return branchGraph(mailboxes);
-  if (template === "arrival") return arrivalGraph(mailboxes);
-  return defaultGraph(mailboxes);
+const BUILDERS: Record<GraphTemplate, Builder> = {
+  blank,
+  labelSender,
+  saveInvoices,
+  addInvitations,
+  approvedReply,
+  followUp,
+  dailyBrief,
+  meetingPrep,
+  append: mergeBuilder("logic.merge"),
+  join: mergeBuilder("logic.join"),
+};
+
+export function templateGraph(name: GraphTemplate, resources: GraphResources): WorkflowGraph {
+  return layoutGraph(BUILDERS[name](resources));
 }
 
-export function templateGraph(template: GraphTemplate, mailboxes: GraphMailbox[]): WorkflowGraph {
-  return layoutGraph(rawTemplate(template, mailboxes));
+export function graphTimezone(graph: WorkflowGraph, trigger: GraphNode | undefined): string {
+  if (graph.settings.timezone) return graph.settings.timezone;
+  const own = trigger?.params.timezone;
+  return own?.kind === "literal" && typeof own.value === "string" && own.value
+    ? own.value
+    : "Etc/UTC";
 }
 
-export function flowHandle(handle: string | null | undefined): SourceHandle {
-  return handle && isSourceHandle(handle) ? handle : "out";
+export function flowHandle(handle: string | null | undefined): string {
+  return handle && isHandle(handle) ? handle : "out";
 }
 
-export function targetsOf(graph: WorkflowGraph, id: string): WorkflowNode[] {
+export function targetsOf(graph: Pick<WorkflowGraph, "nodes" | "edges">, id: string): GraphNode[] {
   const ids = new Set(graph.edges.filter((e) => e.source === id).map((e) => e.target));
   return graph.nodes.filter((n) => ids.has(n.id));
-}
-
-export function graphMailboxIds(graph: WorkflowGraph): string[] {
-  const ids = new Set<string>();
-  for (const node of graph.nodes) {
-    const mailboxId = nodeMailboxId(node);
-    if (mailboxId) ids.add(mailboxId);
-  }
-  return [...ids];
 }

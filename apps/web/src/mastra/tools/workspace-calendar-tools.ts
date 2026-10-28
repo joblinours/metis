@@ -2,8 +2,9 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import * as calendar from "@/ops/calendar";
+
 import { getWorkspaceCtx } from "../runtime-context";
-import * as calendar from "../toolkit/calendar";
 import { requireCalendarAccount, withToolErrors } from "../toolkit/resolve";
 import {
   createEventFields,

@@ -102,6 +102,8 @@ jobs:
           R2_BUCKET: ${{ secrets.DOWNLOADS_R2_BUCKET }}
           VERSION: ${{ needs.release.outputs.version }}
           LATEST: ${{ needs.release.outputs.latest }}
+          CHANGELOG: apps/mobile/CHANGELOG.md
+          VERSION_MANIFEST: true
         run: |
           .github/scripts/r2-upload.sh out "mobile/v$VERSION/" mobile/latest/ \
             metis-suite-universal-linux-android.apk

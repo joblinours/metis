@@ -59,7 +59,7 @@ Everything after the install, from AI models to updates and rollbacks, happens i
 - **Calendar.** Day, week, month, year and schedule views, event editing and invitations, across Google, Outlook, Zoho and CalDAV calendars.
 - **Drive.** Browse, upload, search and preview files on Google Drive, OneDrive, S3, WebDAV, FTP and SFTP, and save mail attachments straight to a drive.
 - **Assistant.** Ask about anything across your mailboxes, calendars and drives in one chat. Changes wait for your approval.
-- **Workflows.** Build automations on a canvas that run when mail arrives, on a schedule or before a send, with an AI question where a plain rule is not enough.
+- **Workflows.** Build automations on a canvas that start on new mail, calendar events, drive changes, schedules or webhooks, and can wait, ask for approval, loop and use AI steps.
 - **MCP.** Use your mail, calendars and drives from Claude, Cursor, VS Code or any other MCP client, limited to the workspaces you approve.
 - **Workspaces.** Separate spaces for you, a team or a client, each with its own accounts, members and AI settings.
 - **Apps.** Works in any browser, with a desktop app and an Android app that sign in to your own instance.
@@ -118,9 +118,13 @@ This is a Bun workspace with Turborepo, and every command runs from the reposito
 | [`apps/web`](apps/web)                                                                             | The Metis Suite app (Next.js)                         |
 | [`apps/desktop`](apps/desktop), [`apps/mobile`](apps/mobile)                                       | Desktop (Electron) and mobile (Expo) apps             |
 | [`apps/docs`](apps/docs)                                                                           | The [documentation site](https://docs.trymetis.email) |
+| [`apps/www`](apps/www)                                                                             | The [website](https://www.trymetis.email)             |
 | [`apps/gateway-cloudflare`](apps/gateway-cloudflare), [`apps/gateway-resend`](apps/gateway-resend) | Mail gateways for Cloudflare Email and Resend         |
 | [`apps/updater`](apps/updater)                                                                     | The updater service (Go)                              |
 | [`packages/ui`](packages/ui)                                                                       | Shared components and theme                           |
+| [`packages/shell-core`](packages/shell-core)                                                       | Logic the desktop and mobile apps share               |
+| [`packages/gateway-contract`](packages/gateway-contract)                                           | The API between the app and its mail gateways         |
+| [`packages/updater-proto`](packages/updater-proto)                                                 | The updater's protocol, generated for TypeScript      |
 | [`e2e`](e2e)                                                                                       | End-to-end tests                                      |
 
 [AGENTS.md](AGENTS.md) and [`agent-docs/`](agent-docs) explain the architecture and the rules every change follows.
