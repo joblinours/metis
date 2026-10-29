@@ -96,7 +96,7 @@ export function isMailboxTag(
   );
 }
 
-function tag(email: Email, mailbox: ResolvedMailbox): Email {
+export function tagEmail(email: Email, mailbox: ResolvedMailbox): Email {
   return {
     ...email,
     id: compositeId(mailbox.mailboxId, email.id),
@@ -206,7 +206,7 @@ async function fanOut(
     }
     pages.push({
       mailbox,
-      emails: (res.emails ?? []).map((email) => tag(email, mailbox)),
+      emails: (res.emails ?? []).map((email) => tagEmail(email, mailbox)),
       next: res.nextPageToken,
     });
   }
@@ -366,7 +366,7 @@ export function getAggregateAdapter(mailboxes: ResolvedMailbox[]): MailAdapter {
       const { target, adapter } = await forId(threadId);
       const mailbox = mailboxes.find((m) => m.mailboxId === target.mailboxId);
       const messages = await adapter.getThread(target.messageId);
-      return mailbox ? messages.map((m) => tag(m, mailbox)) : messages;
+      return mailbox ? messages.map((m) => tagEmail(m, mailbox)) : messages;
     },
 
     async getRaw(id: string) {

@@ -37,6 +37,7 @@ import {
   MAIL_LABEL_SOURCES,
   MAIL_REMOTE_ALLOW_KINDS,
   MAIL_REMOTE_CONTENT_MODES,
+  PROVIDER_FOLDER_KINDS,
   UNSUBSCRIBE_METHODS,
   UNSUBSCRIBE_STATUSES,
 } from "@/types/mail";
@@ -2868,6 +2869,72 @@ export const listMessagesOutputSchema = z.object({
   nextPageToken: z.string().optional(),
   total: z.number().optional(),
   mailboxErrors: z.array(mailboxErrorSchema).optional(),
+});
+
+export const providerFolderSchema = z.object({
+  ref: z.string(),
+  name: z.string(),
+  path: z.string(),
+  parentRef: z.string().optional(),
+  kind: z.enum(PROVIDER_FOLDER_KINDS),
+  unread: z.number().optional(),
+});
+
+export const providerTagSchema = z.object({
+  ref: z.string(),
+  name: z.string(),
+  color: z.string().optional(),
+});
+
+export const mailboxFoldersSchema = z.object({
+  mailboxId: z.string(),
+  mailboxSlug: z.string(),
+  mailboxEmail: z.string(),
+  provider: mailProviderSchema,
+  supportsFolders: z.boolean(),
+  supportsTags: z.boolean(),
+  tagsNeedReconnect: z.boolean(),
+  folders: z.array(providerFolderSchema),
+  tags: z.array(providerTagSchema),
+  error: z.string().optional(),
+});
+
+export const listMailFoldersOutputSchema = z.object({
+  mailboxes: z.array(mailboxFoldersSchema),
+});
+
+export const listFolderEmailsInputSchema = mailboxScopeSchema.extend({
+  folderRef: z.string().min(1),
+  pageToken: z.string().optional(),
+});
+
+export const moveToFolderInputSchema = mailboxScopeSchema.extend({
+  id: z.string().min(1),
+  folderRef: z.string().min(1),
+});
+
+export const moveToFolderOutputSchema = z.object({
+  success: z.literal(true),
+  id: z.string(),
+});
+
+export const setProviderTagsInputSchema = mailboxScopeSchema.extend({
+  ids: z.array(z.string().min(1)).min(1).max(200),
+  add: z.array(z.string().min(1)).max(50).default([]),
+  remove: z.array(z.string().min(1)).max(50).default([]),
+});
+
+const providerFolderNameSchema = z.string().trim().min(1).max(200);
+
+export const createProviderFolderInputSchema = mailboxScopeSchema.extend({
+  name: providerFolderNameSchema,
+  parentRef: z.string().min(1).optional(),
+  mailboxId: z.string().min(1).optional(),
+});
+
+export const createProviderTagInputSchema = mailboxScopeSchema.extend({
+  name: providerFolderNameSchema,
+  mailboxId: z.string().min(1).optional(),
 });
 
 export const getMessageInputSchema = mailboxScopeSchema.extend({
