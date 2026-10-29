@@ -141,16 +141,47 @@ interface FanOutResult {
   mailboxErrors: MailboxError[];
 }
 
+const MAILBOX_TIMEOUT_MS = 20_000;
+const SLOW_MS = 1000;
+
+function mailboxBudget(max: number | undefined, mailboxes: number): number | undefined {
+  if (max === undefined || mailboxes <= 1) return max;
+  return Math.min(max, Math.ceil(max / mailboxes) + 5);
+}
+
+async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timed out after ${ms / 1000}s`)), ms);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fanOut(
   mailboxes: ResolvedMailbox[],
   run: (mailbox: ResolvedMailbox, adapter: MailAdapter) => Promise<MessagesResponse>,
 ): Promise<FanOutResult> {
   const settled = await Promise.all(
     mailboxes.map(async (mailbox) => {
+      const startedAt = Date.now();
       try {
-        const res = await run(mailbox, await adapterForMailbox(mailbox));
+        const res = await withTimeout(
+          (async () => run(mailbox, await adapterForMailbox(mailbox)))(),
+          MAILBOX_TIMEOUT_MS,
+        );
+        const elapsed = Date.now() - startedAt;
+        if (elapsed > SLOW_MS) {
+          console.warn(`[mail/aggregate] ${mailbox.provider} mailbox answered in ${elapsed}ms`);
+        }
         return { mailbox, res, error: null as string | null };
       } catch (err) {
+        console.warn(
+          `[mail/aggregate] ${mailbox.provider} mailbox failed after ${Date.now() - startedAt}ms`,
+        );
         return {
           mailbox,
           res: null,
@@ -264,8 +295,9 @@ export function getAggregateAdapter(mailboxes: ResolvedMailbox[]): MailAdapter {
         requested[mailbox.mailboxId] = cursor?.tokens[mailbox.mailboxId] ?? undefined;
       }
 
+      const budget = mailboxBudget(max, active.length);
       const fan = await fanOut(active, (mailbox, adapter) =>
-        adapter.listMessages(folder, requested[mailbox.mailboxId], max),
+        adapter.listMessages(folder, requested[mailbox.mailboxId], budget),
       );
       return mergePage(fan, cursor, requested);
     },

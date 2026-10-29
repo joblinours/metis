@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { MobileAsideTrigger } from "@/components/mobile-aside";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
@@ -62,6 +63,7 @@ import {
   useMutedThreadIds,
 } from "@/mail/mail-cache";
 import { mailboxChipStyle } from "@/mail/mailbox-color";
+import type { MailboxScope } from "@/server/schema";
 import { type MailListView, useMailStore } from "@/store/mail-store";
 import type { Email, MailFolder } from "@/types/mail";
 import { mailPath } from "@/workspace/path";
@@ -101,6 +103,23 @@ const TABS: { id: FilterTab; label: string }[] = [
 ];
 
 const PRIMARY_EXCLUDED_LABELS = new Set(["promotional", "social", "newsletter", "transactions"]);
+
+interface ClassifyAttempts {
+  attempted: Set<string>;
+  running: boolean;
+}
+
+const CLASSIFY_ATTEMPTS = new Map<string, ClassifyAttempts>();
+
+function classifyAttempts(scope: MailboxScope): ClassifyAttempts {
+  const key = `${scope.workspaceSlug}/${scope.mailboxSlug}`;
+  let attempts = CLASSIFY_ATTEMPTS.get(key);
+  if (!attempts) {
+    attempts = { attempted: new Set(), running: false };
+    CLASSIFY_ATTEMPTS.set(key, attempts);
+  }
+  return attempts;
+}
 
 export function EmailList({ folder, view }: EmailListProps) {
   const scope = useMailboxScope();
@@ -148,11 +167,6 @@ export function EmailList({ folder, view }: EmailListProps) {
   const mutedThreadIds = useMutedThreadIds(scope);
   const platformAi = usePlatformPolicy().ai;
   const aiEnabled = useScopePolicy().ai;
-  const [classifying, setClassifying] = useState(false);
-  const classifyRun = useRef<{
-    scope: typeof scope | null;
-    attempted: Set<string>;
-  }>({ scope: null, attempted: new Set() });
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -180,15 +194,14 @@ export function EmailList({ folder, view }: EmailListProps) {
   }
 
   useEffect(() => {
-    if (!aiEnabled || !labelsReady || classifying) return;
-    if (classifyRun.current.scope !== scope) {
-      classifyRun.current = { scope, attempted: new Set() };
-    }
-    const run = classifyRun.current;
-    const batch = emails.filter((e) => !labels[e.id] && !run.attempted.has(e.id)).slice(0, 25);
+    if (!aiEnabled || !labelsReady) return;
+    const attempts = classifyAttempts(scope);
+    if (attempts.running) return;
+    const { attempted } = attempts;
+    const batch = emails.filter((e) => !labels[e.id] && !attempted.has(e.id)).slice(0, 25);
     if (batch.length === 0) return;
 
-    for (const e of batch) run.attempted.add(e.id);
+    for (const e of batch) attempted.add(e.id);
     const items = batch.map((e) => ({
       id: e.id,
       sender: e.fromName || e.from,
@@ -196,18 +209,20 @@ export function EmailList({ folder, view }: EmailListProps) {
       snippet: e.snippet,
     }));
 
-    setClassifying(true);
-    orpc.mail.labels
-      .classify({ ...scope, items })
-      .then((d: { labels?: Record<string, { label: string; confidence: number }> }) => {
+    attempts.running = true;
+    orpc.mail.labels.classify({ ...scope, items }).then(
+      (d: { labels?: Record<string, { label: string; confidence: number }> }) => {
+        attempts.running = false;
         const classified = d.labels;
-        if (classified && classifyRun.current === run) {
+        if (classified) {
           setCachedLabels(scope, (current) => ({ ...current, ...classified }));
         }
-      })
-      .catch(() => {})
-      .finally(() => setClassifying(false));
-  }, [emails, labels, scope, aiEnabled, labelsReady, classifying]);
+      },
+      () => {
+        attempts.running = false;
+      },
+    );
+  }, [emails, labels, scope, aiEnabled, labelsReady]);
 
   useEffect(() => {
     const target = loadMoreRef.current;
@@ -267,7 +282,12 @@ export function EmailList({ folder, view }: EmailListProps) {
     e.stopPropagation();
     const next = !email.isStarred;
     updateEmail(email.id, { isStarred: next });
-    await orpc.mail.messages.star({ ...scope, id: email.id, starred: next });
+    try {
+      await orpc.mail.messages.star({ ...scope, id: email.id, starred: next });
+    } catch {
+      updateEmail(email.id, { isStarred: !next });
+      toast.error(next ? "Could not star this message" : "Could not unstar this message");
+    }
   }
 
   async function handleSelect(email: Email) {
@@ -319,11 +339,19 @@ export function EmailList({ folder, view }: EmailListProps) {
   async function bulkMarkRead(read: boolean) {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
+    const previous = new Map(
+      emails.filter((e) => selectedIds.has(e.id)).map((e) => [e.id, e.isRead]),
+    );
     for (const id of ids) {
       updateEmail(id, { isRead: read });
     }
     clearSelected();
-    await orpc.mail.messages.markRead({ ...scope, ids, read });
+    try {
+      await orpc.mail.messages.markRead({ ...scope, ids, read });
+    } catch {
+      for (const [id, wasRead] of previous) updateEmail(id, { isRead: wasRead });
+      toast.error(read ? "Could not mark as read" : "Could not mark as unread");
+    }
   }
 
   const folderLabel = readLaterMode

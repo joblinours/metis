@@ -14,7 +14,9 @@ import { getQueryClient, refreshQueries, refreshQuery } from "@/lib/query-client
 import type { MailboxScope, MailListState } from "@/server/schema";
 import type { Email, MailFolder } from "@/types/mail";
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
+const HEAD_SIZE = 25;
+const HEAD_FRESH_MS = 30_000;
 
 type ListPage = Awaited<ReturnType<typeof orpc.mail.messages.list>>;
 type SearchResult = Awaited<ReturnType<typeof orpc.mail.messages.search>>;
@@ -265,14 +267,27 @@ export function useEmailSource(
   return folderList;
 }
 
+const lastHeadRefresh = new Map<string, number>();
+
 export async function refreshMailListHead(scope: MailboxScope, folder: MailFolder) {
   const client = getQueryClient();
   const { queryKey } = mailListOptions(scope, folder);
-  if (!client.getQueryData(queryKey) || client.isFetching({ queryKey }) > 0) return;
+  const state = client.getQueryState(queryKey);
+  if (!state?.data || client.isFetching({ queryKey }) > 0) return;
+  const key = hashKey(queryKey);
+  const lastRefresh = Math.max(state.dataUpdatedAt, lastHeadRefresh.get(key) ?? 0);
+  if (Date.now() - lastRefresh < HEAD_FRESH_MS) return;
   const startedAt = Date.now();
-  const page = await orpc.mail.messages.list({ ...scope, folder, limit: PAGE_SIZE });
+  lastHeadRefresh.set(key, startedAt);
+  const page = await orpc.mail.messages.list({ ...scope, folder, limit: HEAD_SIZE });
   const incoming = withoutRemoved(page.emails ?? [], startedAt);
   if (incoming.length === 0) return;
+  const cached = client.getQueryData(queryKey);
+  const loaded = new Set(cached?.pages.flatMap((p) => p.emails.map((e) => e.id)) ?? []);
+  if (incoming.length >= HEAD_SIZE && incoming.every((e) => !loaded.has(e.id))) {
+    await refreshQuery(queryKey);
+    return;
+  }
   client.setQueryData(queryKey, (old) => {
     if (!old) return old;
     const byId = new Map(incoming.map((e) => [e.id, e]));
