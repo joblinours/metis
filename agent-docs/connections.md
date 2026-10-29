@@ -78,6 +78,8 @@ See also [AGENTS.md](../AGENTS.md), [workspaces.md](workspaces.md), [servers.md]
 - **Credential connect** is `connections.createCredential` ([servers.md](servers.md)).
 - **`reconcileQuarantine`** stamps `quarantined_at` on connections whose provider is unconfigured or whose server reference no longer resolves, and clears it when the entry returns.
 - **Token refresh.** `resolveConnectionAuth(row)` returns `{kind: "oauth", accessToken}`, refreshing through `getFreshAccessToken` when near expiry, or `{kind: "credentials", credentials, email}` for credential providers.
+  - One refresh runs per connection per process (`REFRESHING`); concurrent requests await it, and requests that read the row before it was written reuse the new token (`REFRESHED`), because Zoho throttles its token endpoint and a burst of refreshes fails.
+  - Token endpoint calls (`postForm` in `src/connections/drivers/oauth.ts`) time out after `TOKEN_TIMEOUT_MS`, so a hung provider cannot hold a page.
 - **Revoke.** `revokeConnection` deletes the row, then calls the driver's `revoke`: a POST to `oauth2.googleapis.com/revoke` for Google, every Zoho DC, nothing for Microsoft.
 
 ## Deliberate limits
