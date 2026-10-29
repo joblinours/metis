@@ -2,6 +2,7 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import * as folders from "@/ops/folders";
 import * as labels from "@/ops/labels";
 import * as mail from "@/ops/mail";
 import { analyzePhishing } from "@/ops/phishing";
@@ -9,15 +10,19 @@ import { analyzePhishing } from "@/ops/phishing";
 import { actorHeaders, getWorkspaceCtx } from "../runtime-context";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
+  applyProviderLabelsFields,
   attachmentTarget,
   contactSearchFields,
   createLabelFields,
+  createMailFolderFields,
   draftFields,
   draftTarget,
   labelKeyTarget,
   listEmailsFields,
+  listEmailsInFolderFields,
   mailboxTarget,
   messageTarget,
+  moveToFolderFields,
   setLabelsFields,
   summarizeThreadFields,
 } from "../toolkit/schema";
@@ -393,6 +398,80 @@ const setLabelsTool = createTool({
     }),
 });
 
+const listMailFoldersTool = createTool({
+  id: "listMailFolders",
+  description:
+    "List a mailbox's own folders and labels at the provider (Gmail labels, Zoho folders, sub-folders and tags, Outlook folders and categories), with each folderId, labelId and path. Use these ids with listEmailsInFolder, moveToFolder and applyProviderLabels; what you change there shows in the provider's own app.",
+  inputSchema: z.object(mailboxTarget),
+  execute: async ({ mailboxId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = getWorkspaceCtx(requestContext);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.listMailFolders(r.mailbox);
+    }),
+});
+
+const listEmailsInFolderTool = createTool({
+  id: "listEmailsInFolder",
+  description:
+    "List the emails in one of a mailbox's provider folders or labels (a folderId from listMailFolders), newest first, with each email's provider labelIds.",
+  inputSchema: z.object(listEmailsInFolderFields),
+  execute: async ({ mailboxId, folderId, limit, pageToken }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = getWorkspaceCtx(requestContext);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.listEmailsInFolder(r.mailbox, { folderId, limit, pageToken });
+    }),
+});
+
+const moveToFolderTool = createTool({
+  id: "moveToFolder",
+  description:
+    "Move an email into one of its mailbox's provider folders (a folderId from listMailFolders). On Gmail it adds that label and takes the email out of the inbox. Returns the email's id after the move, which can change.",
+  inputSchema: z.object(moveToFolderFields),
+  execute: async ({ mailboxId, id, folderId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = getWorkspaceCtx(requestContext);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.moveToFolder(r.mailbox, id, folderId);
+    }),
+});
+
+const applyProviderLabelsTool = createTool({
+  id: "applyProviderLabels",
+  description:
+    "Add and remove provider labels (Gmail labels, Zoho tags, Outlook categories; labelIds from listMailFolders) on several emails of one mailbox. An email can carry several.",
+  inputSchema: z.object(applyProviderLabelsFields),
+  execute: async ({ mailboxId, ids, add, remove }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = getWorkspaceCtx(requestContext);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.applyProviderLabels(r.mailbox, { ids, add, remove });
+    }),
+});
+
+const createMailFolderTool = createTool({
+  id: "createMailFolder",
+  description:
+    "Create a folder (optionally inside another one) or a label in a mailbox, at the provider.",
+  inputSchema: z.object({
+    ...createMailFolderFields,
+    summary: z.string().describe("Short description of the folder or label and where it goes"),
+  }),
+  requireApproval: true,
+  execute: async ({ mailboxId, kind, name, parentFolderId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = getWorkspaceCtx(requestContext);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.createMailFolder(r.mailbox, { kind, name, parentFolderId });
+    }),
+});
+
 const searchContactsTool = createTool({
   id: "searchContacts",
   description:
@@ -476,6 +555,11 @@ export const workspaceMailTools = {
   createLabel: createLabelTool,
   deleteLabel: deleteLabelTool,
   setLabels: setLabelsTool,
+  listMailFolders: listMailFoldersTool,
+  listEmailsInFolder: listEmailsInFolderTool,
+  moveToFolder: moveToFolderTool,
+  applyProviderLabels: applyProviderLabelsTool,
+  createMailFolder: createMailFolderTool,
   searchContacts: searchContactsTool,
   deleteDraft: deleteDraftTool,
   getRawEmail: getRawEmailTool,

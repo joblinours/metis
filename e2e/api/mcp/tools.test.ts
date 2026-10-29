@@ -1415,6 +1415,63 @@ const ALONE: Case[] = [
 
 const LABELS: Case[] = [
   {
+    tool: "listMailFolders",
+    run: async (s, c) => {
+      expect(await s.ok("listMailFolders", box(c))).toMatchObject({
+        mailboxId: c.mailboxId,
+        supportsFolders: false,
+        supportsLabels: false,
+        labelsNeedReconnect: false,
+        folders: [],
+        labels: [],
+      });
+      expect(await s.refused("listMailFolders", { ...ws(c), mailboxId: "nope" })).toContain(
+        'Unknown mailboxId "nope"',
+      );
+    },
+  },
+  {
+    tool: "listEmailsInFolder",
+    run: async (s, c) => {
+      expect(await s.refused("listEmailsInFolder", { ...box(c), folderId: "Projects" })).toContain(
+        "has no provider folders",
+      );
+    },
+  },
+  {
+    tool: "moveToFolder",
+    run: async (s, c) => {
+      const target = await must(s, c, "inbox", GITHUB);
+      expect(
+        await s.refused("moveToFolder", { ...box(c), id: target.id, folderId: "Projects" }),
+      ).toContain("has no provider folders");
+      expect(await find(s, c, "inbox", GITHUB)).toBeDefined();
+    },
+  },
+  {
+    tool: "applyProviderLabels",
+    run: async (s, c) => {
+      const target = await must(s, c, "inbox", GITHUB);
+      expect(await s.refused("applyProviderLabels", { ...box(c), ids: [target.id] })).toContain(
+        "at least one labelId",
+      );
+      expect(
+        await s.refused("applyProviderLabels", { ...box(c), ids: [target.id], add: ["Work"] }),
+      ).toContain("has no provider labels");
+    },
+  },
+  {
+    tool: "createMailFolder",
+    run: async (s, c) => {
+      expect(
+        await s.refused("createMailFolder", { ...box(c), kind: "folder", name: uniqueName() }),
+      ).toContain("has no provider folders");
+      expect(
+        await s.refused("createMailFolder", { ...box(c), kind: "label", name: uniqueName() }),
+      ).toContain("has no provider labels");
+    },
+  },
+  {
     tool: "createLabel",
     run: async (s, c) => {
       const name = uniqueName();

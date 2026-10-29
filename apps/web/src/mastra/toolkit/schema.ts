@@ -91,6 +91,49 @@ export const setLabelsFields = {
   label: z.string().min(1),
 };
 
+export const folderIdTarget = {
+  folderId: z.string().min(1).describe("A folderId from listMailFolders"),
+};
+
+export const listEmailsInFolderFields = {
+  ...mailboxTarget,
+  ...folderIdTarget,
+  limit: z.number().min(1).max(50).default(10),
+  pageToken: z.string().optional(),
+};
+
+export const moveToFolderFields = { ...messageTarget, ...folderIdTarget };
+
+export const applyProviderLabelsFields = {
+  ...mailboxTarget,
+  ids: z.array(z.string().min(1)).min(1).max(200),
+  add: z
+    .array(z.string().min(1))
+    .max(50)
+    .default([])
+    .describe("labelIds from listMailFolders to add"),
+  remove: z
+    .array(z.string().min(1))
+    .max(50)
+    .default([])
+    .describe("labelIds from listMailFolders to remove"),
+};
+
+export const createMailFolderFields = {
+  ...mailboxTarget,
+  kind: z
+    .enum(["folder", "label"])
+    .describe(
+      "folder: a provider folder (on Gmail, a label shown as a folder); label: a provider label",
+    ),
+  name: z.string().trim().min(1).max(200),
+  parentFolderId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("A folderId from listMailFolders to create the folder inside"),
+};
+
 export const contactSearchFields = {
   ...mailboxTarget,
   query: z
