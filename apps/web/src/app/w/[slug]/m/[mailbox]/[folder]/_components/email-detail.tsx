@@ -105,6 +105,7 @@ import type { Attachment } from "@/types/mail";
 import { ALL_DRIVES_SLUG } from "@/workspace/path";
 
 import { MessageContent } from "./message-content";
+import { MoveToFolderMenu, ProviderTagChips, ProviderTagsMenu } from "./provider-actions";
 import { type SummaryActions, ThreadSummaryCards } from "./thread-summary";
 import { TrackerBadge } from "./tracker-badge";
 
@@ -825,6 +826,9 @@ export function EmailDetail() {
 
         <div className="flex-1" />
 
+        <MoveToFolderMenu email={selectedEmail} />
+        <ProviderTagsMenu email={selectedEmail} />
+
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -1038,9 +1042,14 @@ export function EmailDetail() {
         <ScrollArea className="h-full">
           <div ref={scrollContentRef} className="px-6 py-6 md:px-10 md:py-8">
             <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-2 flex items-start justify-between gap-3 bg-background/95 px-6 pt-6 pb-3 backdrop-blur-sm md:-mx-10 md:-mt-8 md:px-10 md:pt-8">
-              <h2 className="min-w-0 wrap-break-word text-[26px] font-medium leading-tight tracking-[-0.3px] md:text-[30px] font-serif text-foreground">
-                {selectedEmail.subject}
-              </h2>
+              <div className="min-w-0">
+                <h2 className="wrap-break-word text-[26px] font-medium leading-tight tracking-[-0.3px] md:text-[30px] font-serif text-foreground">
+                  {selectedEmail.subject}
+                </h2>
+                <div className="mt-1.5 flex flex-wrap gap-1.5 empty:hidden">
+                  <ProviderTagChips email={selectedEmail} />
+                </div>
+              </div>
               {phishingDetectionEnabled && (
                 <PhishingIndicator
                   loading={analysisLoading}

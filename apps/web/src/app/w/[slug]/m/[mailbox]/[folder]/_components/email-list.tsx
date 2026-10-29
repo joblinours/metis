@@ -69,6 +69,8 @@ import { type MailListView, useMailStore } from "@/store/mail-store";
 import type { Email, MailFolder } from "@/types/mail";
 import { ALL_MAILBOXES_SLUG, mailPath } from "@/workspace/path";
 
+import { BulkMoveMenu, ProviderTagChips } from "./provider-actions";
+
 interface EmailListProps {
   folder: MailFolder;
   view: MailListView;
@@ -486,6 +488,10 @@ export function EmailList({ folder, view }: EmailListProps) {
           >
             Unread
           </Button>
+          <BulkMoveMenu
+            emails={emails.filter((e) => selectedIds.has(e.id))}
+            onMoved={clearSelected}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -798,6 +804,7 @@ function EmailRow({
           <Tag label={mailboxChip.label} color={mailboxChip.bg} fg={mailboxChip.fg} />
         )}
         {labelInfo && <Tag label={labelInfo.label} color={labelInfo.bg} fg={labelInfo.fg} />}
+        <ProviderTagChips email={email} max={3} />
         <Tag
           label={
             email.provider === "google"

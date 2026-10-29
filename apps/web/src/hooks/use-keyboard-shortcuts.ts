@@ -31,6 +31,7 @@ export function useKeyboardShortcuts() {
     agentOpen,
     updateEmail,
     removeEmail,
+    setProviderMenu,
   } = useMailStore();
 
   const bindings = useMemo<ChordBindings>(() => {
@@ -109,6 +110,18 @@ export function useKeyboardShortcuts() {
         },
       },
       a: { label: "Agent", run: () => setAgentOpen(!agentOpen) },
+      o: {
+        label: "Move to folder",
+        run: () => {
+          if (selectedEmail) setProviderMenu("move");
+        },
+      },
+      l: {
+        label: "Provider labels",
+        run: () => {
+          if (selectedEmail) setProviderMenu("tags");
+        },
+      },
     };
   }, [
     pathname,
@@ -120,6 +133,7 @@ export function useKeyboardShortcuts() {
     setAgentOpen,
     updateEmail,
     removeEmail,
+    setProviderMenu,
   ]);
 
   const chord = useChord({ prefix: MAIL_CHORD_PREFIX, bindings });
