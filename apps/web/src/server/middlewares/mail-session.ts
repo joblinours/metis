@@ -9,7 +9,7 @@ import { enforceRateLimit } from "@/services/rate-limit";
 import type { MailboxScope } from "../schema";
 import { workspaceSession } from "./workspace-session";
 
-const MAIL_RATE = { scope: "mail-session", limit: 300, windowSec: 60 };
+const MAIL_RATE = { scope: "mail-session", limit: 1200, windowSec: 60 };
 
 const resolveMailbox = os
   .$context<{ appUser: WorkspaceUserSession }>()

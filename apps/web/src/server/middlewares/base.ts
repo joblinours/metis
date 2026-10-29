@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 
 import { BadRequestError } from "@/lib/errors/bad-request";
 import { NotVisibleError } from "@/lib/errors/not-visible";
+import { statusOf } from "@/lib/errors/provider-error";
 import { sanitizeError } from "@/lib/errors/sanitize-error";
 import { RateLimitedError } from "@/services/rate-limit";
 
@@ -37,7 +38,12 @@ function toClientError(err: unknown, path: readonly string[]): unknown {
   }
   console.error(`[orpc] ${path.join(".")} failed:`, cause);
 
-  const code = err instanceof ORPCError ? err.code : "INTERNAL_SERVER_ERROR";
+  const code =
+    statusOf(cause) === 429
+      ? "TOO_MANY_REQUESTS"
+      : err instanceof ORPCError
+        ? err.code
+        : "INTERNAL_SERVER_ERROR";
   return new ORPCError(code, { message: sanitizeError(cause, path), cause });
 }
 
