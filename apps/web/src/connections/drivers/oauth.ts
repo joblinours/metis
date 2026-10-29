@@ -45,11 +45,14 @@ export interface OAuthDriverOptions {
   revoke?: (token: RevokableToken) => Promise<void>;
 }
 
+const TOKEN_TIMEOUT_MS = 10_000;
+
 export async function postForm(endpoint: string, body: Record<string, string>): Promise<Response> {
   return fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(body),
+    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
   });
 }
 

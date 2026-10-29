@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { decodeHTML } from "entities";
 import { z } from "zod";
 
-import { isZohoRegion, type ZohoRegion, zohoRegionOrder } from "@/connections/zoho-regions";
+import { detectZohoRegion, type ZohoRegion } from "@/connections/zoho-regions";
 import { bind } from "@/lib/bind";
 import { ProviderError } from "@/lib/errors/provider-error";
 import { isRecord, keysOf } from "@/lib/guards";
@@ -58,6 +58,8 @@ export function zohoMail(accessToken: string): MailAdapter {
 
 type Region = ZohoRegion;
 
+const SLOW_MS = 1000;
+
 type ZohoValue = string | number;
 
 interface ZohoMessage {
@@ -100,10 +102,6 @@ interface ZohoRawMessage {
   rawMessage?: string;
 }
 
-const REGION_TTL_SEC = 24 * 60 * 60;
-
-const regionCache = new Map<string, Region>();
-
 function tokenKey(prefix: string, accessToken: string): string {
   const digest = createHash("sha256").update(accessToken).digest("base64url").slice(0, 32);
   return `zoho:${prefix}:${digest}`;
@@ -114,38 +112,7 @@ function mailBase(region: Region): string {
 }
 
 async function detectRegion(accessToken: string): Promise<Region> {
-  const local = regionCache.get(accessToken);
-  if (local) return local;
-
-  const key = tokenKey("region", accessToken);
-  const shared = await getCache().get(key);
-  if (shared && isZohoRegion(shared)) {
-    regionCache.set(accessToken, shared);
-    return shared;
-  }
-
-  const ordered = zohoRegionOrder();
-
-  const errors: string[] = [];
-  for (const region of ordered) {
-    try {
-      /* oxlint-disable eslint/no-await-in-loop -- probes each Zoho region in order and stops at the one that owns the account */
-      const res = await fetch(`https://mail.zoho.${region}/api/accounts`, {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-      });
-      console.log(`[zoho-mail] detectRegion mail.zoho.${region}/api/accounts → ${res.status}`);
-      if (res.ok) {
-        regionCache.set(accessToken, region);
-        await getCache().set(key, region, REGION_TTL_SEC);
-        /* oxlint-enable eslint/no-await-in-loop */
-        return region;
-      }
-      errors.push(`${region}:${res.status}`);
-    } catch (err) {
-      errors.push(`${region}:${err instanceof Error ? err.message : "err"}`);
-    }
-  }
-  throw new Error(`Could not detect Zoho DC — tried: ${errors.join(", ")}`);
+  return detectZohoRegion(accessToken, "mail", (region) => `${mailBase(region)}/accounts`);
 }
 
 const FOLDER_NAMES: Record<MailFolder, string[]> = {
@@ -190,10 +157,15 @@ function authHeaders(accessToken: string, extra: Record<string, string> = {}) {
 
 async function zohoFetch(accessToken: string, path: string, init?: RequestInit): Promise<Response> {
   const region = await detectRegion(accessToken);
+  const startedAt = Date.now();
   const res = await fetch(`${mailBase(region)}${path}`, {
     ...init,
     headers: mergeHeaders(authHeaders(accessToken), init?.headers),
   });
+  const elapsed = Date.now() - startedAt;
+  if (elapsed > SLOW_MS) {
+    console.warn(`[zoho-mail] ${init?.method ?? "GET"} ${path.split("?")[0]} took ${elapsed}ms`);
+  }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new ProviderError("zoho", res.status, txt, `Zoho ${path}`);
