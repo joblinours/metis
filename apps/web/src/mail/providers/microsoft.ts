@@ -38,10 +38,7 @@ export function microsoftMail(accessToken: string): MailAdapter {
       deleteMessage,
       starMessage,
       markRead,
-      batchMarkRead: async (token, ids, read) => {
-        // oxlint-disable-next-line eslint/no-await-in-loop -- Graph throttles concurrent requests per mailbox, so large selections go one at a time
-        for (const id of ids) await markRead(token, id, read);
-      },
+      batchMarkRead,
       search,
       searchAst,
       getRaw,
@@ -453,6 +450,28 @@ async function listAllInFolder(accessToken: string, folder: MailFolder): Promise
 
 interface GraphBatchResponse {
   responses?: { id: string; status: number; body?: unknown }[];
+}
+
+async function batchMarkRead(accessToken: string, ids: string[], read: boolean): Promise<void> {
+  const client = getGraphClient(accessToken);
+  for (let i = 0; i < ids.length; i += 20) {
+    const chunk = ids.slice(i, i + 20);
+    const requests = chunk.map((id, idx) => ({
+      id: String(idx + 1),
+      method: "PATCH",
+      url: `/me/messages/${id}`,
+      headers: { "Content-Type": "application/json" },
+      body: { isRead: read },
+    }));
+    // oxlint-disable-next-line eslint/no-await-in-loop -- $batch requests of Graph's 20-request maximum run in order and stop at the first failure
+    const data: GraphBatchResponse = await client.api("/$batch").post({ requests });
+    const failed = (data.responses ?? []).filter((r) => r.status >= 400);
+    if (failed.length > 0) {
+      throw new Error(
+        `Microsoft Graph error: failed to mark ${failed.length} of ${chunk.length} message(s) (${failed.map((r) => r.status).join(", ")})`,
+      );
+    }
+  }
 }
 
 async function batchDelete(accessToken: string, ids: string[]): Promise<Map<string, string>> {

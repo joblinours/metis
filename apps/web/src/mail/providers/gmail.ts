@@ -1,6 +1,7 @@
-import { auth, gmail as gmailApi } from "@googleapis/gmail";
+import { auth, gmail as gmailApi, type gmail_v1 } from "@googleapis/gmail";
 
 import { bind } from "@/lib/bind";
+import { mapLimit } from "@/lib/map-limit";
 import { errorStatus } from "@/lib/token-map";
 import { isPlainTerm, type TagToken, tagKey, tagText } from "@/search/ast";
 import { parseSearchDate } from "@/search/dates";
@@ -29,10 +30,7 @@ export function gmailMail(accessToken: string): MailAdapter {
       deleteMessage,
       starMessage,
       markRead,
-      batchMarkRead: async (token, ids, read) => {
-        // oxlint-disable-next-line eslint/no-await-in-loop -- one request at a time stays inside Gmail's per-user rate limit for large selections
-        for (const id of ids) await markRead(token, id, read);
-      },
+      batchMarkRead,
       search,
       searchAst,
       getRaw,
@@ -59,6 +57,8 @@ function getGmailClient(accessToken: string) {
   client.setCredentials({ access_token: accessToken });
   return gmailApi({ version: "v1", auth: client });
 }
+
+const SLOW_MS = 1000;
 
 const LABEL_MAP: Record<MailFolder, string> = {
   inbox: "INBOX",
@@ -231,6 +231,35 @@ async function searchAst(
   };
 }
 
+const METADATA_CONCURRENCY = 10;
+
+async function getMetadata(
+  gmail: ReturnType<typeof getGmailClient>,
+  messages: gmail_v1.Schema$Message[],
+  metadataHeaders: string[],
+) {
+  const startedAt = Date.now();
+  const settled = await mapLimit(messages, METADATA_CONCURRENCY, (m) =>
+    gmail.users.messages.get({
+      userId: "me",
+      // oxlint-disable-next-line typescript/no-non-null-assertion --googleapis types Message.id as nullable for request bodies, but messages.list responses always populate it.
+      id: m.id!,
+      format: "metadata",
+      metadataHeaders,
+    }),
+  );
+  const fulfilled = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  const failed = settled.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+  const elapsed = Date.now() - startedAt;
+  if (failed.length > 0 || elapsed > SLOW_MS) {
+    console.warn(
+      `[gmail] metadata for ${messages.length} message(s) in ${elapsed}ms, ${failed.length} failed`,
+    );
+  }
+  if (fulfilled.length === 0 && failed.length > 0) throw failed[0];
+  return fulfilled;
+}
+
 async function listPage(
   accessToken: string,
   params: Record<string, unknown>,
@@ -247,26 +276,16 @@ async function listPage(
     };
   }
 
-  const detailed = await Promise.all(
-    messages.map((m) =>
-      gmail.users.messages.get({
-        userId: "me",
-        // oxlint-disable-next-line typescript/no-non-null-assertion --googleapis types Message.id as nullable for request bodies, but messages.list responses always populate it.
-        id: m.id!,
-        format: "metadata",
-        metadataHeaders: [
-          "From",
-          "To",
-          "Cc",
-          "Reply-To",
-          "Subject",
-          "Date",
-          "Message-ID",
-          "References",
-        ],
-      }),
-    ),
-  );
+  const detailed = await getMetadata(gmail, messages, [
+    "From",
+    "To",
+    "Cc",
+    "Reply-To",
+    "Subject",
+    "Date",
+    "Message-ID",
+    "References",
+  ]);
 
   const emails: Email[] = detailed.map((res) => {
     const msg = res.data;
@@ -636,17 +655,15 @@ async function search(
 
   if (messages.length === 0) return { emails: [] };
 
-  const detailed = await Promise.all(
-    messages.map((m) =>
-      gmail.users.messages.get({
-        userId: "me",
-        // oxlint-disable-next-line typescript/no-non-null-assertion --googleapis types Message.id as nullable for request bodies, but messages.list responses always populate it.
-        id: m.id!,
-        format: "metadata",
-        metadataHeaders: ["From", "To", "Reply-To", "Subject", "Date", "Message-ID", "References"],
-      }),
-    ),
-  );
+  const detailed = await getMetadata(gmail, messages, [
+    "From",
+    "To",
+    "Reply-To",
+    "Subject",
+    "Date",
+    "Message-ID",
+    "References",
+  ]);
 
   const emails: Email[] = detailed.map((res) => {
     const msg = res.data;
@@ -719,6 +736,21 @@ async function batchDelete(accessToken: string, ids: string[]): Promise<Map<stri
     });
   }
   return new Map();
+}
+
+async function batchMarkRead(accessToken: string, ids: string[], read: boolean): Promise<void> {
+  const gmail = getGmailClient(accessToken);
+  for (let i = 0; i < ids.length; i += 1000) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- batches of the API's 1000-id maximum run in order and stop at the first failure
+    await gmail.users.messages.batchModify({
+      userId: "me",
+      requestBody: {
+        ids: ids.slice(i, i + 1000),
+        addLabelIds: read ? [] : ["UNREAD"],
+        removeLabelIds: read ? ["UNREAD"] : [],
+      },
+    });
+  }
 }
 
 type GmailMessagePart = {
