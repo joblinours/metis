@@ -44,6 +44,7 @@ import { CUSTOM_LABEL_COLORS, type CustomLabelColor, type MailFolder } from "@/t
 import { mailPath, workspaceRootPath } from "@/workspace/path";
 
 import { MailboxSwitcher } from "./mailbox-switcher";
+import { ProviderFoldersSection } from "./provider-folders-section";
 
 const MAILBOXES: {
   label: string;
@@ -74,7 +75,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { workspaceSlug, mailboxSlug, folder } = useWorkspacePath();
-  const activeLabel = searchParams.get("label") ?? null;
+  const activeLabel = searchParams.get("label") ?? searchParams.get("pfolder") ?? null;
+  const activeFolderRef = searchParams.get("pfolder");
   const scope = useMailboxScope();
   const leafHref = (leaf: string, search = ""): Route =>
     workspaceSlug && mailboxSlug
@@ -268,6 +270,11 @@ export function Sidebar() {
           )}
         </div>
       </div>
+
+      <ProviderFoldersSection
+        activeFolderRef={activeFolderRef}
+        folderHref={(ref) => leafHref("inbox", `?pfolder=${encodeURIComponent(ref)}`)}
+      />
 
       <AlertDialog
         open={pendingDeleteLabel !== null}

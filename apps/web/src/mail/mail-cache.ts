@@ -176,6 +176,20 @@ function labelListOptions(scope: MailboxScope, label: string) {
   };
 }
 
+function providerFolderListOptions(scope: MailboxScope, folderRef: string) {
+  return {
+    ...rpc.mail.folders.listEmails.infiniteOptions({
+      input: (pageToken: string | undefined) => ({ ...scope, folderRef, pageToken }),
+      initialPageParam: undefined,
+      getNextPageParam: (last) => last.nextPageToken ?? undefined,
+      staleTime: Infinity,
+    }),
+    queryFn: pagedQueryFn((pageToken, signal) =>
+      orpc.mail.folders.listEmails({ ...scope, folderRef, pageToken }, { signal }),
+    ),
+  };
+}
+
 function usePagedEmails(list: {
   data?: InfiniteData<ListPage>;
   isFetching: boolean;
@@ -205,14 +219,17 @@ export type ListSource =
   | { kind: "folder" }
   | { kind: "read-later" }
   | { kind: "label"; label: string }
+  | { kind: "provider"; folderRef: string }
   | { kind: "state"; state: MailListState };
 
 export function listSource(
   readLater: boolean,
   label: string | null,
   tab: string | undefined,
+  folderRef: string | null = null,
 ): ListSource {
   if (readLater) return { kind: "read-later" };
+  if (folderRef) return { kind: "provider", folderRef };
   if (label) return { kind: "label", label };
   if (tab === "unread" || tab === "starred") return { kind: "state", state: tab };
   return { kind: "folder" };
@@ -229,7 +246,9 @@ export function refreshListOnSwitch(scope: MailboxScope, folder: MailFolder, sou
       ? stateListOptions(scope, folder, source.state).queryKey
       : source.kind === "label"
         ? labelListOptions(scope, source.label).queryKey
-        : null;
+        : source.kind === "provider"
+          ? providerFolderListOptions(scope, source.folderRef).queryKey
+          : null;
   if (!queryKey || !getQueryClient().getQueryData(queryKey)) return;
   void refreshQuery(queryKey);
 }
@@ -241,7 +260,8 @@ export function useEmailSource(
   search: string,
   fetching = true,
 ) {
-  const paged = !search && (source.kind === "label" || source.kind === "state");
+  const paged =
+    !search && (source.kind === "label" || source.kind === "state" || source.kind === "provider");
   const folderList = useMailList(
     scope,
     folder,
@@ -255,6 +275,12 @@ export function useEmailSource(
       enabled: fetching && paged && source.kind === "label",
     }),
   );
+  const providerList = usePagedEmails(
+    useInfiniteQuery({
+      ...providerFolderListOptions(scope, source.kind === "provider" ? source.folderRef : ""),
+      enabled: fetching && paged && source.kind === "provider",
+    }),
+  );
   const stateList = usePagedEmails(
     useInfiniteQuery({
       ...stateListOptions(scope, folder, source.kind === "state" ? source.state : "unread"),
@@ -263,6 +289,7 @@ export function useEmailSource(
   );
   if (source.kind === "read-later") return savedList;
   if (paged && source.kind === "label") return labelList;
+  if (paged && source.kind === "provider") return providerList;
   if (paged && source.kind === "state") return stateList;
   return folderList;
 }
@@ -310,6 +337,7 @@ function mapCachedEmails(map: (emails: Email[]) => Email[]) {
     rpc.mail.messages.list.key({ type: "infinite" }),
     rpc.mail.messages.listInState.key({ type: "infinite" }),
     rpc.mail.labels.listEmails.key({ type: "infinite" }),
+    rpc.mail.folders.listEmails.key({ type: "infinite" }),
   ]) {
     for (const [queryKey, data] of client.getQueriesData<InfiniteData<ListPage>>({
       queryKey: pagedKey,

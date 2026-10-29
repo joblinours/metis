@@ -16,7 +16,7 @@ export function useCurrentEmails(): Email[] {
   const tab = useMailStore(
     (s) => s.listTabs[`${scope.workspaceSlug}/${scope.mailboxSlug}/${folder}`],
   );
-  const label = useSearchParams().get("label");
-  const source = listSource(view === "read-later", label, tab);
+  const params = useSearchParams();
+  const source = listSource(view === "read-later", params.get("label"), tab, params.get("pfolder"));
   return useEmailSource(scope, folder, source, search, false).emails;
 }
