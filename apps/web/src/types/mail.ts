@@ -126,6 +126,24 @@ export interface MailboxError {
   error: string;
 }
 
+export const PROVIDER_FOLDER_KINDS = ["folder", "label"] as const;
+export type ProviderFolderKind = (typeof PROVIDER_FOLDER_KINDS)[number];
+
+export interface ProviderFolder {
+  ref: string;
+  name: string;
+  path: string;
+  parentRef?: string;
+  kind: ProviderFolderKind;
+  unread?: number;
+}
+
+export interface ProviderTag {
+  ref: string;
+  name: string;
+  color?: string;
+}
+
 export interface MessagesResponse {
   emails: Email[];
   nextPageToken?: string;

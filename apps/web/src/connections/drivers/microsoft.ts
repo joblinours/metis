@@ -52,7 +52,7 @@ export const microsoftDriver = createOAuthDriver({
   scopes: {
     base: ["openid", "email", "profile", "User.Read", "offline_access"],
     byResource: {
-      mailbox: ["Mail.ReadWrite", "Mail.Send"],
+      mailbox: ["Mail.ReadWrite", "Mail.Send", "MailboxSettings.ReadWrite"],
       calendar: ["Calendars.ReadWrite"],
       drive: ["Files.ReadWrite"],
     },

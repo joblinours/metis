@@ -19,6 +19,8 @@ import {
   isMailFolder,
   type MailFolder,
   type MessagesResponse,
+  type ProviderFolder,
+  type ProviderTag,
   type UnsubscribeInfo,
 } from "@/types/mail";
 
@@ -51,6 +53,13 @@ export function zohoMail(accessToken: string): MailAdapter {
       getHeaders,
       listAttachments,
       downloadAttachment,
+      listProviderFolders,
+      listInProviderFolder,
+      moveToProviderFolder,
+      createProviderFolder,
+      listProviderTags,
+      setProviderTags,
+      createProviderTag,
     },
     accessToken,
   );
@@ -79,6 +88,7 @@ interface ZohoMessage {
   receivedTime?: ZohoValue;
   sentDateInGMT?: ZohoValue;
   mailFormat?: string;
+  labelId?: unknown;
 }
 
 interface ZohoAttachmentInfo {
@@ -125,12 +135,24 @@ const FOLDER_NAMES: Record<MailFolder, string[]> = {
   spam: ["Spam", "Junk"],
 };
 
+const zohoFolderSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  path: z.string(),
+  parentId: z.string().optional(),
+  type: z.string().optional(),
+  unread: z.number().optional(),
+});
+
 const accountCacheSchema = z.object({
   accountId: z.string().min(1),
   folderIds: z.record(z.string(), z.string()),
+  folders: z.array(zohoFolderSchema),
   fromAddress: z.string(),
   ts: z.number(),
 });
+
+type ZohoFolder = z.infer<typeof zohoFolderSchema>;
 
 type AccountCache = z.infer<typeof accountCacheSchema>;
 
@@ -203,22 +225,62 @@ async function loadAccount(accessToken: string): Promise<AccountCache> {
 
   const foldersRes = await zohoFetch(accessToken, `/accounts/${accountId}/folders`);
   const foldersData = await foldersRes.json();
+  const folders = parseFolders(foldersData?.data);
   const folderIds: Record<string, string> = {};
-  for (const folder of foldersData?.data ?? []) {
-    const name = String(folder?.folderName ?? "");
-    if (name) folderIds[name.toLowerCase()] = String(folder.folderId);
+  for (const folder of folders.toSorted((a, b) => depth(b.path) - depth(a.path))) {
+    folderIds[folder.name.toLowerCase()] = folder.id;
   }
-  console.log(`[zoho-mail] loadAccount → ${Object.keys(folderIds).length} folder(s)`);
+  console.log(`[zoho-mail] loadAccount → ${folders.length} folder(s)`);
 
   const entry: AccountCache = {
     accountId,
     folderIds,
+    folders,
     fromAddress,
     ts: Date.now(),
   };
   accountCache.set(accessToken, entry);
   await getCache().set(key, JSON.stringify(entry), ACCOUNT_CACHE_TTL_SEC);
   return entry;
+}
+
+function idText(value: unknown): string | undefined {
+  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
+function depth(path: string): number {
+  return path.split("/").filter(Boolean).length;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  const n = Number(value);
+  return value !== undefined && value !== null && value !== "" && Number.isFinite(n)
+    ? n
+    : undefined;
+}
+
+function parseFolders(data: unknown): ZohoFolder[] {
+  if (!Array.isArray(data)) return [];
+  return data.flatMap((raw: unknown): ZohoFolder[] => {
+    if (!isRecord(raw)) return [];
+    const id = idText(raw.folderId) ?? "";
+    const name = typeof raw.folderName === "string" ? raw.folderName : "";
+    if (!id || !name) return [];
+    const path = typeof raw.path === "string" && raw.path ? raw.path : `/${name}`;
+    const parent = idText(raw.parentFolderId);
+    const parentId = parent && parent !== "0" ? parent : undefined;
+    const unread = optionalNumber(raw.unreadCount ?? raw.unreadMessageCount);
+    return [
+      {
+        id,
+        name,
+        path,
+        ...(parentId ? { parentId } : {}),
+        ...(typeof raw.folderType === "string" ? { type: raw.folderType } : {}),
+        ...(unread === undefined ? {} : { unread }),
+      },
+    ];
+  });
 }
 
 function resolveFolderId(cache: AccountCache, folder: MailFolder): string | undefined {
@@ -261,6 +323,17 @@ function decodeMessageId(id: string): MessageRef {
   return { folderId, messageId };
 }
 
+function tagIds(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value)
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
 function zohoMessageToEmail(msg: ZohoMessage, folder: MailFolder, folderId: string): Email {
   const fromEntry = parseRecipientList(msg.fromAddress ?? msg.sender, {
     htmlEntities: true,
@@ -292,7 +365,7 @@ function zohoMessageToEmail(msg: ZohoMessage, folder: MailFolder, folderId: stri
     date: dateIso,
     isRead: status !== "0",
     isStarred: flagid === "flag_imp" || flagid === "flag_red",
-    labels: [],
+    labels: tagIds(msg.labelId),
     provider: "zoho",
     folder,
   };
@@ -865,4 +938,166 @@ async function downloadAttachment(
   const buf = Buffer.from(await res.arrayBuffer());
   const mimeType = res.headers.get("content-type") ?? "application/octet-stream";
   return { buffer: buf, mimeType };
+}
+
+const HIDDEN_FOLDER_TYPES = new Set(["outbox", "templates", "snoozed"]);
+
+function standardFolderIds(acc: AccountCache): Map<string, MailFolder> {
+  const ids = new Map<string, MailFolder>();
+  for (const folder of keysOf(FOLDER_NAMES)) {
+    const id = resolveFolderId(acc, folder);
+    if (id) ids.set(id, folder);
+  }
+  return ids;
+}
+
+function toProviderFolder(folder: ZohoFolder, byPath: Map<string, string>): ProviderFolder {
+  const path = folder.path.replace(/^\/+/, "");
+  const cut = path.lastIndexOf("/");
+  const parentRef = folder.parentId ?? (cut > 0 ? byPath.get(path.slice(0, cut)) : undefined);
+  return {
+    ref: folder.id,
+    name: folder.name,
+    path,
+    ...(parentRef ? { parentRef } : {}),
+    kind: "folder",
+    ...(folder.unread === undefined ? {} : { unread: folder.unread }),
+  };
+}
+
+async function listProviderFolders(accessToken: string): Promise<ProviderFolder[]> {
+  const acc = await loadAccount(accessToken);
+  const standard = standardFolderIds(acc);
+  const byPath = new Map(acc.folders.map((f) => [f.path.replace(/^\/+/, ""), f.id]));
+  return acc.folders
+    .filter((f) => !standard.has(f.id) && !HIDDEN_FOLDER_TYPES.has((f.type ?? "").toLowerCase()))
+    .map((f) => toProviderFolder(f, byPath))
+    .toSorted((a, b) => a.path.localeCompare(b.path));
+}
+
+function requireCustomFolder(acc: AccountCache, ref: string): ZohoFolder {
+  const folder = acc.folders.find((f) => f.id === ref);
+  if (!folder) {
+    throw new Error(
+      `Unknown Zoho folder "${ref}". These are all of them: ${acc.folders.map((f) => `${f.id} (${f.path})`).join(", ")}`,
+    );
+  }
+  return folder;
+}
+
+async function listInProviderFolder(
+  accessToken: string,
+  ref: string,
+  pageToken?: string,
+  max = 50,
+): Promise<MessagesResponse> {
+  const acc = await loadAccount(accessToken);
+  requireCustomFolder(acc, ref);
+  const folder = standardFolderIds(acc).get(ref) ?? "archive";
+  const start = pageToken ? Number(pageToken) : 1;
+  const limit = Math.min(Math.max(max, 1), 200);
+  const res = await zohoFetch(
+    accessToken,
+    `/accounts/${acc.accountId}/messages/view?folderId=${ref}&start=${start}&limit=${limit}`,
+  );
+  const data = await res.json();
+  const items: ZohoMessage[] = data?.data ?? [];
+  return {
+    emails: items.map((m) => zohoMessageToEmail(m, folder, ref)),
+    nextPageToken: items.length >= limit ? String(start + items.length) : undefined,
+  };
+}
+
+async function moveToProviderFolder(accessToken: string, id: string, ref: string): Promise<string> {
+  const acc = await loadAccount(accessToken);
+  requireCustomFolder(acc, ref);
+  const { messageId } = decodeMessageId(id);
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/updatemessage`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "moveMessage", messageId: [messageId], destfolderId: ref }),
+  });
+  return encodeMessageId({ folderId: ref, messageId });
+}
+
+async function forgetAccount(accessToken: string): Promise<void> {
+  accountCache.delete(accessToken);
+  await getCache().del(tokenKey("account", accessToken));
+}
+
+async function createProviderFolder(
+  accessToken: string,
+  name: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  const acc = await loadAccount(accessToken);
+  if (parentRef) requireCustomFolder(acc, parentRef);
+  const res = await zohoFetch(accessToken, `/accounts/${acc.accountId}/folders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folderName: name, ...(parentRef ? { parentFolderId: parentRef } : {}) }),
+  });
+  const data = await res.json();
+  await forgetAccount(accessToken);
+  const [created] = parseFolders([{ folderName: name, parentFolderId: parentRef, ...data?.data }]);
+  if (!created) throw new Error("Zoho did not return the new folder");
+  const fresh = await loadAccount(accessToken);
+  const byPath = new Map(fresh.folders.map((f) => [f.path.replace(/^\/+/, ""), f.id]));
+  return toProviderFolder(fresh.folders.find((f) => f.id === created.id) ?? created, byPath);
+}
+
+const DEFAULT_TAG_COLOR = "#5C9EF0";
+
+function parseTags(data: unknown): ProviderTag[] {
+  if (!Array.isArray(data)) return [];
+  return data.flatMap((raw: unknown): ProviderTag[] => {
+    if (!isRecord(raw)) return [];
+    const ref = idText(raw.labelId) ?? "";
+    const name = typeof raw.displayName === "string" ? raw.displayName : "";
+    if (!ref || !name) return [];
+    return [{ ref, name, ...(typeof raw.color === "string" ? { color: raw.color } : {}) }];
+  });
+}
+
+async function listProviderTags(accessToken: string): Promise<ProviderTag[]> {
+  const acc = await loadAccount(accessToken);
+  const res = await zohoFetch(accessToken, `/accounts/${acc.accountId}/labels`);
+  const data = await res.json();
+  return parseTags(data?.data).toSorted((a, b) => a.name.localeCompare(b.name));
+}
+
+async function createProviderTag(accessToken: string, name: string): Promise<ProviderTag> {
+  const acc = await loadAccount(accessToken);
+  const res = await zohoFetch(accessToken, `/accounts/${acc.accountId}/labels`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName: name, color: DEFAULT_TAG_COLOR }),
+  });
+  const data = await res.json();
+  const [created] = parseTags([{ displayName: name, color: DEFAULT_TAG_COLOR, ...data?.data }]);
+  if (!created) throw new Error("Zoho did not return the new tag");
+  return created;
+}
+
+async function setProviderTags(
+  accessToken: string,
+  ids: string[],
+  add: string[],
+  remove: string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  const acc = await loadAccount(accessToken);
+  const messageId = ids.map((id) => decodeMessageId(id).messageId);
+  for (const [mode, labelId] of [
+    ["applyLabel", add],
+    ["removeLabel", remove],
+  ] as const) {
+    if (labelId.length === 0) continue;
+    // oxlint-disable-next-line eslint/no-await-in-loop -- add then remove, in order, so a tag in both ends removed
+    await zohoFetch(accessToken, `/accounts/${acc.accountId}/updatemessage`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, labelId, messageId, isFolderSpecific: false }),
+    });
+  }
 }

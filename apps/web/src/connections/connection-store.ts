@@ -126,6 +126,11 @@ function unionScopes(existing: string | null, incoming: string | null): string {
   return [...new Set([...splitScopes(existing), ...splitScopes(incoming)])].join(separator);
 }
 
+export function hasScope(scope: string | null, wanted: string): boolean {
+  const lower = wanted.toLowerCase();
+  return splitScopes(scope).some((granted) => granted.toLowerCase() === lower);
+}
+
 export function grantedResources(
   target: Pick<Connection, "provider" | "scope">,
 ): ConnectionResource[] {

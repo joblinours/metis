@@ -14,6 +14,8 @@ import {
   isMailFolder,
   type MailFolder,
   type MessagesResponse,
+  type ProviderFolder,
+  type ProviderTag,
   type UnsubscribeInfo,
 } from "@/types/mail";
 
@@ -47,6 +49,13 @@ export function gmailMail(accessToken: string): MailAdapter {
       listAttachments,
       downloadAttachment,
       changes,
+      listProviderFolders,
+      listInProviderFolder,
+      moveToProviderFolder,
+      createProviderFolder,
+      listProviderTags,
+      setProviderTags,
+      createProviderTag,
     },
     accessToken,
   );
@@ -799,4 +808,114 @@ async function downloadAttachment(
   return {
     buffer: Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64"),
   };
+}
+
+const LABELS_TTL_MS = 30_000;
+const labelsCache = new Map<string, { at: number; labels: gmail_v1.Schema$Label[] }>();
+
+async function userLabels(accessToken: string): Promise<gmail_v1.Schema$Label[]> {
+  const cached = labelsCache.get(accessToken);
+  if (cached && Date.now() - cached.at < LABELS_TTL_MS) return cached.labels;
+  const res = await getGmailClient(accessToken).users.labels.list({ userId: "me" });
+  const labels = (res.data.labels ?? []).filter((l) => l.type === "user" && l.id && l.name);
+  labelsCache.set(accessToken, { at: Date.now(), labels });
+  return labels;
+}
+
+function labelToFolder(label: gmail_v1.Schema$Label, byName: Map<string, string>): ProviderFolder {
+  const path = label.name ?? "";
+  const cut = path.lastIndexOf("/");
+  const parentRef = cut > 0 ? byName.get(path.slice(0, cut)) : undefined;
+  return {
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- userLabels keeps only labels with an id
+    ref: label.id!,
+    name: cut > 0 ? path.slice(cut + 1) : path,
+    path,
+    ...(parentRef ? { parentRef } : {}),
+    kind: "label",
+  };
+}
+
+async function listProviderFolders(accessToken: string): Promise<ProviderFolder[]> {
+  const labels = await userLabels(accessToken);
+  const byName = new Map(labels.map((l) => [l.name ?? "", l.id ?? ""]));
+  return labels
+    .map((label) => labelToFolder(label, byName))
+    .toSorted((a, b) => a.path.localeCompare(b.path));
+}
+
+async function listProviderTags(accessToken: string): Promise<ProviderTag[]> {
+  const labels = await userLabels(accessToken);
+  return labels
+    .map((l) => ({
+      // oxlint-disable-next-line typescript/no-non-null-assertion -- userLabels keeps only labels with an id
+      ref: l.id!,
+      name: l.name ?? "",
+      ...(l.color?.backgroundColor ? { color: l.color.backgroundColor } : {}),
+    }))
+    .toSorted((a, b) => a.name.localeCompare(b.name));
+}
+
+async function listInProviderFolder(
+  accessToken: string,
+  ref: string,
+  pageToken?: string,
+  maxResults = 50,
+): Promise<MessagesResponse> {
+  const params: Record<string, unknown> = { userId: "me", maxResults, labelIds: [ref] };
+  if (pageToken) params.pageToken = pageToken;
+  return listPage(accessToken, params, null);
+}
+
+async function moveToProviderFolder(accessToken: string, id: string, ref: string): Promise<string> {
+  await getGmailClient(accessToken).users.messages.modify({
+    userId: "me",
+    id,
+    requestBody: { addLabelIds: [ref], removeLabelIds: ["INBOX", "SPAM"] },
+  });
+  return id;
+}
+
+async function createLabel(accessToken: string, name: string): Promise<gmail_v1.Schema$Label> {
+  const res = await getGmailClient(accessToken).users.labels.create({
+    userId: "me",
+    requestBody: { name, labelListVisibility: "labelShow", messageListVisibility: "show" },
+  });
+  labelsCache.delete(accessToken);
+  return res.data;
+}
+
+async function createProviderFolder(
+  accessToken: string,
+  name: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  const labels = await userLabels(accessToken);
+  const parent = parentRef ? labels.find((l) => l.id === parentRef) : undefined;
+  if (parentRef && !parent) throw new Error(`Unknown Gmail label "${parentRef}"`);
+  const created = await createLabel(accessToken, parent ? `${parent.name}/${name}` : name);
+  const byName = new Map(labels.map((l) => [l.name ?? "", l.id ?? ""]));
+  return labelToFolder(created, byName);
+}
+
+async function createProviderTag(accessToken: string, name: string): Promise<ProviderTag> {
+  const created = await createLabel(accessToken, name);
+  return { ref: created.id ?? "", name: created.name ?? name };
+}
+
+async function setProviderTags(
+  accessToken: string,
+  ids: string[],
+  add: string[],
+  remove: string[],
+): Promise<void> {
+  if (add.length === 0 && remove.length === 0) return;
+  const gmail = getGmailClient(accessToken);
+  for (let i = 0; i < ids.length; i += 1000) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- batches of the API's 1000-id maximum run in order and stop at the first failure
+    await gmail.users.messages.batchModify({
+      userId: "me",
+      requestBody: { ids: ids.slice(i, i + 1000), addLabelIds: add, removeLabelIds: remove },
+    });
+  }
 }

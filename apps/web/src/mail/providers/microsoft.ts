@@ -6,6 +6,8 @@ import type {
 } from "@microsoft/microsoft-graph-types";
 
 import { bind } from "@/lib/bind";
+import { isRecord } from "@/lib/guards";
+import { mapLimit } from "@/lib/map-limit";
 import { errorStatus } from "@/lib/token-map";
 import { isPlainTerm, type TagToken, tagKey, tagText } from "@/search/ast";
 import {
@@ -21,8 +23,11 @@ import {
   type DraftPayload,
   type Email,
   isMailFolder,
+  MAIL_FOLDERS,
   type MailFolder,
   type MessagesResponse,
+  type ProviderFolder,
+  type ProviderTag,
   type UnsubscribeInfo,
 } from "@/types/mail";
 
@@ -55,6 +60,13 @@ export function microsoftMail(accessToken: string): MailAdapter {
       listAttachments,
       downloadAttachment,
       changes,
+      listProviderFolders,
+      listInProviderFolder,
+      moveToProviderFolder,
+      createProviderFolder,
+      listProviderTags,
+      setProviderTags,
+      createProviderTag,
     },
     accessToken,
   );
@@ -148,6 +160,7 @@ function msMessageToEmail(msg: Message, folder: MailFolder): Email {
     date: msg.receivedDateTime ?? msg.createdDateTime ?? "",
     isRead: msg.isRead ?? false,
     isStarred: msg.flag?.flagStatus === "flagged",
+    labels: msg.categories ?? [],
     provider: "microsoft",
     folder,
   };
@@ -533,4 +546,238 @@ async function downloadAttachment(
     .responseType(ResponseType.ARRAYBUFFER)
     .get();
   return { buffer: Buffer.from(bytes) };
+}
+
+const WELL_KNOWN_FOLDERS = [
+  "inbox",
+  "sentitems",
+  "drafts",
+  "deleteditems",
+  "archive",
+  "junkemail",
+  "outbox",
+  "conversationhistory",
+  "searchfolders",
+  "syncissues",
+];
+const FOLDER_SELECT = "id,displayName,parentFolderId,childFolderCount,unreadItemCount";
+const FOLDER_DEPTH = 6;
+
+interface GraphFolder {
+  id?: string;
+  displayName?: string;
+  parentFolderId?: string;
+  childFolderCount?: number;
+  unreadItemCount?: number;
+}
+
+async function wellKnownFolderIds(client: Client): Promise<Map<string, MailFolder | null>> {
+  const requests = WELL_KNOWN_FOLDERS.map((name, idx) => ({
+    id: String(idx + 1),
+    method: "GET",
+    url: `/me/mailFolders/${name}?$select=id`,
+  }));
+  const data: GraphBatchResponse = await client.api("/$batch").post({ requests });
+  const standard = new Map<string, MailFolder | null>();
+  for (const response of data.responses ?? []) {
+    const name = WELL_KNOWN_FOLDERS[Number(response.id) - 1];
+    const body = response.body;
+    if (!name || response.status >= 400 || !isRecord(body) || typeof body.id !== "string") continue;
+    const folder = MAIL_FOLDERS.find((f) => FOLDER_MAP[f] === name && f !== "starred");
+    standard.set(body.id, folder ?? null);
+  }
+  return standard;
+}
+
+async function listFolderLevel(client: Client, url: string): Promise<GraphFolder[]> {
+  const out: GraphFolder[] = [];
+  let next: string | undefined = url;
+  while (next) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each page needs the previous page's link
+    const page: { value?: GraphFolder[]; "@odata.nextLink"?: string } = await client
+      .api(next)
+      .get();
+    out.push(...(page.value ?? []));
+    next = page["@odata.nextLink"];
+  }
+  return out;
+}
+
+async function allFolders(client: Client): Promise<GraphFolder[]> {
+  const all: GraphFolder[] = [];
+  let level = await listFolderLevel(client, `/me/mailFolders?$top=250&$select=${FOLDER_SELECT}`);
+  for (let depth = 0; depth < FOLDER_DEPTH && level.length > 0; depth += 1) {
+    all.push(...level);
+    const parents = level.filter((f) => f.id && (f.childFolderCount ?? 0) > 0);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each level needs the ids of the one above it
+    const settled = await mapLimit(parents, 4, (f) =>
+      listFolderLevel(
+        client,
+        `/me/mailFolders/${f.id}/childFolders?$top=250&$select=${FOLDER_SELECT}`,
+      ),
+    );
+    level = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+  }
+  return all;
+}
+
+async function listProviderFolders(accessToken: string): Promise<ProviderFolder[]> {
+  const client = getGraphClient(accessToken);
+  const [folders, standard] = await Promise.all([allFolders(client), wellKnownFolderIds(client)]);
+  const byId = new Map(folders.flatMap((f) => (f.id ? [[f.id, f] as const] : [])));
+  const pathOf = (folder: GraphFolder, seen = 0): string => {
+    const parent = folder.parentFolderId ? byId.get(folder.parentFolderId) : undefined;
+    const name = folder.displayName ?? "";
+    return parent && seen < FOLDER_DEPTH ? `${pathOf(parent, seen + 1)}/${name}` : name;
+  };
+  return folders
+    .filter((f) => f.id && f.displayName && !standard.has(f.id))
+    .map((f) => {
+      const parentRef =
+        f.parentFolderId && byId.has(f.parentFolderId) ? f.parentFolderId : undefined;
+      return {
+        // oxlint-disable-next-line typescript/no-non-null-assertion -- filtered to folders with an id
+        ref: f.id!,
+        name: f.displayName ?? "",
+        path: pathOf(f),
+        ...(parentRef ? { parentRef } : {}),
+        kind: "folder" as const,
+        ...(f.unreadItemCount === undefined ? {} : { unread: f.unreadItemCount }),
+      };
+    })
+    .toSorted((a, b) => a.path.localeCompare(b.path));
+}
+
+async function listInProviderFolder(
+  accessToken: string,
+  ref: string,
+  skipToken?: string,
+  top = 50,
+): Promise<MessagesResponse> {
+  let request = getGraphClient(accessToken)
+    .api(`/me/mailFolders/${encodeURIComponent(ref)}/messages`)
+    .top(top)
+    .orderby("receivedDateTime desc");
+  if (skipToken) request = request.query({ $skipToken: skipToken });
+  const data: MessagePage = await request.get();
+  const nextLink = data["@odata.nextLink"];
+  return {
+    emails: (data.value ?? []).map((m) => msMessageToEmail(m, "archive")),
+    nextPageToken: nextLink
+      ? (new URL(nextLink).searchParams.get("$skipToken") ?? undefined)
+      : undefined,
+  };
+}
+
+async function moveToProviderFolder(accessToken: string, id: string, ref: string): Promise<string> {
+  return move(accessToken, id, ref);
+}
+
+async function createProviderFolder(
+  accessToken: string,
+  name: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  const client = getGraphClient(accessToken);
+  const url = parentRef
+    ? `/me/mailFolders/${encodeURIComponent(parentRef)}/childFolders`
+    : "/me/mailFolders";
+  const created: GraphFolder = await client.api(url).post({ displayName: name });
+  if (!created.id) throw new Error("Microsoft Graph did not return the new folder");
+  const parentPath = parentRef
+    ? (await listProviderFolders(accessToken)).find((f) => f.ref === parentRef)?.path
+    : undefined;
+  return {
+    ref: created.id,
+    name,
+    path: parentPath ? `${parentPath}/${name}` : name,
+    ...(parentRef ? { parentRef } : {}),
+    kind: "folder",
+  };
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  preset0: "#e74c3c",
+  preset1: "#e67e22",
+  preset2: "#a0522d",
+  preset3: "#f1c40f",
+  preset4: "#2ecc71",
+  preset5: "#1abc9c",
+  preset6: "#7f8c3d",
+  preset7: "#3498db",
+  preset8: "#9b59b6",
+  preset9: "#c0392b",
+};
+
+async function listProviderTags(accessToken: string): Promise<ProviderTag[]> {
+  const data: { value?: { displayName?: string; color?: string }[] } = await getGraphClient(
+    accessToken,
+  )
+    .api("/me/outlook/masterCategories")
+    .get();
+  return (data.value ?? [])
+    .flatMap((c) => {
+      if (!c.displayName) return [];
+      const color = c.color ? CATEGORY_COLORS[c.color] : undefined;
+      return [{ ref: c.displayName, name: c.displayName, ...(color ? { color } : {}) }];
+    })
+    .toSorted((a, b) => a.name.localeCompare(b.name));
+}
+
+async function createProviderTag(accessToken: string, name: string): Promise<ProviderTag> {
+  await getGraphClient(accessToken)
+    .api("/me/outlook/masterCategories")
+    .post({ displayName: name, color: "preset7" });
+  return { ref: name, name, color: CATEGORY_COLORS.preset7 };
+}
+
+async function setProviderTags(
+  accessToken: string,
+  ids: string[],
+  add: string[],
+  remove: string[],
+): Promise<void> {
+  if (add.length === 0 && remove.length === 0) return;
+  const client = getGraphClient(accessToken);
+  const dropped = new Set(remove);
+  for (let i = 0; i < ids.length; i += 20) {
+    const chunk = ids.slice(i, i + 20);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- $batch requests of Graph's 20-request maximum run in order and stop at the first failure
+    const read: GraphBatchResponse = await client.api("/$batch").post({
+      requests: chunk.map((id, idx) => ({
+        id: String(idx + 1),
+        method: "GET",
+        url: `/me/messages/${id}?$select=categories`,
+      })),
+    });
+    const requests = (read.responses ?? []).flatMap((response) => {
+      const id = chunk[Number(response.id) - 1];
+      const body = response.body;
+      if (!id || response.status >= 400 || !isRecord(body)) return [];
+      const current = Array.isArray(body.categories) ? body.categories.map(String) : [];
+      const categories = [...new Set([...current.filter((c) => !dropped.has(c)), ...add])];
+      return [
+        {
+          id: response.id,
+          method: "PATCH",
+          url: `/me/messages/${id}`,
+          headers: { "Content-Type": "application/json" },
+          body: { categories },
+        },
+      ];
+    });
+    if (requests.length < chunk.length) {
+      throw new Error(
+        `Microsoft Graph error: could not read ${chunk.length - requests.length} message(s)`,
+      );
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the PATCHes of a chunk follow its reads
+    const data: GraphBatchResponse = await client.api("/$batch").post({ requests });
+    const failed = (data.responses ?? []).filter((r) => r.status >= 400);
+    if (failed.length > 0) {
+      throw new Error(
+        `Microsoft Graph error: failed to update ${failed.length} of ${chunk.length} message(s) (${failed.map((r) => r.status).join(", ")})`,
+      );
+    }
+  }
 }

@@ -40,6 +40,14 @@ export function followMoves(adapter: MailAdapter, mailboxId: string): MailAdapte
     deleteMessage: follow((id) => adapter.deleteMessage(id)),
     archiveMessage: follow((id) => adapter.archiveMessage(id)),
     restoreMessage: follow((id) => adapter.restoreMessage(id)),
+    ...(adapter.moveToProviderFolder && {
+      moveToProviderFolder: (id: string, ref: string) =>
+        follow(
+          (target) =>
+            adapter.moveToProviderFolder?.(target, ref) ??
+            Promise.reject(new Error("Moving to a folder is not supported")),
+        )(id),
+    }),
     batchDelete: async (ids) => {
       const moved = await adapter.batchDelete(ids);
       await Promise.all(

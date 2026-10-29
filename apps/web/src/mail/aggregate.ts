@@ -17,6 +17,7 @@ export interface ResolvedMailbox {
   mailboxEmail: string;
   provider: MailProvider;
   policy: ResolvedPolicy;
+  grantScope: string | null;
   auth: () => Promise<ConnectionAuth>;
 }
 
