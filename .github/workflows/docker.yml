@@ -1,35 +1,22 @@
 name: Docker images
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: ["**"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  release:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'app-v')
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.release.outputs.version }}
-      latest: ${{ steps.release.outputs.latest }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check the tag matches the web app version
-        id: release
-        run: .github/scripts/release-version.sh app-v apps/web/package.json .version
-
-      - name: Check the changelog has this release
-        if: steps.release.outputs.version != ''
-        run: .github/scripts/changelog-section.sh CHANGELOG.md "${{ steps.release.outputs.version }}" > /dev/null
-
   build:
     name: ${{ matrix.image }}
-    needs: release
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -62,9 +49,8 @@ jobs:
       - name: Image tags
         id: tags
         env:
-          VERSION: ${{ needs.release.outputs.version }}
-          LATEST: ${{ needs.release.outputs.latest }}
           SUFFIX: ${{ matrix.suffix }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: .github/scripts/image-tags.sh
 
       - name: Log in to GHCR
@@ -85,30 +71,7 @@ jobs:
           target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           build-args: ${{ matrix.build-args }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,scope=${{ matrix.image }},mode=max
-
-  publish:
-    needs: [release, build]
-    if: github.event_name == 'release'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Collect the published files
-        run: |
-          mkdir out
-          cp bootstrap.sh out/bootstrap
-          cp compose.yml out/compose.yml
-
-      - name: Upload to R2
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.SH_R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SH_R2_SECRET_ACCESS_KEY }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_BUCKET: ${{ secrets.SH_R2_BUCKET }}
-          VERSION: ${{ needs.release.outputs.version }}
-          LATEST: ${{ needs.release.outputs.latest }}
-          CHANGELOG: CHANGELOG.md
-        run: .github/scripts/r2-upload.sh out "v$VERSION/" "" bootstrap compose.yml
