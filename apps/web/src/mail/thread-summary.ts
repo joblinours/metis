@@ -6,7 +6,7 @@ import { recordAiUsage } from "@/ai/usage";
 import { keysOf } from "@/lib/guards";
 import { summarizerAgent } from "@/mastra/agents/summarizer";
 import { decideOne, decisionEnabled, decisionUsageProvider } from "@/services/decision";
-import { getLlm, structuredOutput } from "@/services/llm";
+import { getLlm, llmUnavailable, structuredOutput } from "@/services/llm";
 import { enforceRateLimit } from "@/services/rate-limit";
 import type { ThreadSummary } from "@/types/thread-summary";
 
@@ -262,6 +262,13 @@ export async function buildThreadSummary(
 ): Promise<SummaryResponse> {
   const scopedThread = scopeMessage(session, threadId ?? messageId);
   const model = `${getLlm().summary.modelId}#${SUMMARY_FORMAT}`;
+
+  if (llmUnavailable()) {
+    const stored = await getThreadSummary(scopedThread);
+    return stored
+      ? { ...stored.summary, cached: true }
+      : { cards: [], failedAt: new Date().toISOString(), cached: false };
+  }
 
   const conversation = await loadConversation(session, messageId, threadId);
   const msgs = conversation.messages;

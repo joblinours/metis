@@ -6,16 +6,17 @@ import { createAnthropicDriver } from "./drivers/anthropic";
 import { createDisabledDriver } from "./drivers/disabled";
 import { createOpenAiDriver } from "./drivers/openai";
 import { createOpenAiCompatibleDriver } from "./drivers/openai-compatible";
+import { guardDriver } from "./guard";
 import type { LlmDriver } from "./types";
 
 function buildDriver(cfg: LlmConfig): LlmDriver {
   switch (cfg.driver) {
     case "openai":
-      return createOpenAiDriver(cfg);
+      return guardDriver(createOpenAiDriver(cfg));
     case "anthropic":
-      return createAnthropicDriver(cfg);
+      return guardDriver(createAnthropicDriver(cfg));
     case "openai-compatible":
-      return createOpenAiCompatibleDriver(cfg);
+      return guardDriver(createOpenAiCompatibleDriver(cfg));
     case "disabled":
       return createDisabledDriver();
   }

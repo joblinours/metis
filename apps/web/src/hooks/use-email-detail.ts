@@ -198,12 +198,12 @@ export function useEmailBody(email: Email | null) {
   return { body, bodyHtml: bodyAsHtml(body) };
 }
 
-export function useSmartReplies(email: Email | null) {
+export function useSmartReplies(email: Email | null, enabled = true) {
   const scope = useMailboxScope();
   const query = useQuery(
     rpc.ai.smartReplies.queryOptions({
       input:
-        email?.folder === "inbox"
+        enabled && email?.folder === "inbox"
           ? {
               ...scope,
               id: email.id,
@@ -214,7 +214,7 @@ export function useSmartReplies(email: Email | null) {
           : skipToken,
     }),
   );
-  const inbox = email?.folder === "inbox";
+  const inbox = enabled && email?.folder === "inbox";
   return {
     replies: (inbox && query.data?.replies) || NO_REPLIES,
     loading: inbox && query.isFetching,
