@@ -104,6 +104,7 @@ async function toResolved(found: WorkspaceMailboxRow): Promise<ResolvedMailbox |
     mailboxEmail: found.email,
     provider: found.provider,
     policy: found.policy,
+    grantScope: found.scope,
     auth: async () => auth,
   };
 }
@@ -117,6 +118,7 @@ function lazyResolved(found: WorkspaceMailboxRow): ResolvedMailbox {
     mailboxEmail: found.email,
     provider: found.provider,
     policy: found.policy,
+    grantScope: found.scope,
     auth: () => {
       pending ??= resolveConnectionAuth(found).then((resolved) => {
         if (!resolved) {

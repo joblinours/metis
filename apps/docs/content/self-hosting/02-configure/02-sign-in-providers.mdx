@@ -120,7 +120,7 @@ https://mail.example.com/api/connections/zoho/callback
 
     Metis Suite asks users for these Microsoft Graph permissions, depending
     on what they connect: `openid`, `email`, `profile`, `User.Read` and
-    `offline_access`; `Mail.ReadWrite` and `Mail.Send` for mail;
+    `offline_access`; `Mail.ReadWrite`, `Mail.Send` and `MailboxSettings.ReadWrite` for mail;
     `Calendars.ReadWrite` for calendars; `Files.ReadWrite` for drives.
 
     **Admin consent.** Users give these permissions when they connect,
@@ -129,6 +129,8 @@ https://mail.example.com/api/connections/zoho/callback
     **API permissions**, **Add a permission**, **Microsoft Graph**,
     **Delegated permissions**. An admin can then click
     **Grant admin consent for**, followed by the name of the organization.
+    If you granted admin consent before, add `MailboxSettings.ReadWrite`
+    and grant consent again. Users need it to use Outlook categories.
 
     **Publisher verification.** Microsoft can block users in other
     organizations from consenting to a multitenant app whose publisher is
@@ -165,7 +167,7 @@ https://mail.example.com/api/connections/zoho/callback
        tab.
 
     Metis Suite asks users for `AaaServer.profile.READ`; `ZohoMail.messages.ALL`,
-    `ZohoMail.folders.ALL` and `ZohoMail.accounts.READ` for mail; and
+    `ZohoMail.folders.ALL`, `ZohoMail.tags.ALL` and `ZohoMail.accounts.READ` for mail; and
     `ZohoCalendar.calendar.ALL` and `ZohoCalendar.event.ALL` for calendars.
 
     Zoho's own guide: [set up an OAuth client](https://www.zoho.com/accounts/protocol/oauth-setup.html).

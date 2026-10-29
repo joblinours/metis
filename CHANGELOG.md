@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Whi
 
 ## Unreleased
 
+### Upgrade notes
+
+- Reconnect Zoho accounts to use their tags as labels (new permission `ZohoMail.tags.ALL`), and Outlook accounts to use their categories (new permission `MailboxSettings.ReadWrite`). Folders work without reconnecting.
+
+### Added
+
+- Mail: each account's own folders, sub-folders and labels in the sidebar (Gmail labels, Zoho folders and tags, Outlook folders and categories), with one group per account in All inboxes. Opening one lists its emails.
+- Mail: Move to a folder and add or remove labels from an email, by menu, by dragging an email onto a folder, or with `m o` and `m l`. Changes are made at the provider, so they show in Gmail, Zoho Mail and Outlook.
+- Mail: create folders, sub-folders and labels at the provider from the sidebar.
+- Workspace AI and MCP: `listMailFolders`, `listEmailsInFolder`, `moveToFolder`, `applyProviderLabels` and `createMailFolder` (off by default for MCP clients).
+
+### Changed
+
+- Mail: mailboxes open much faster. Gmail reads at most 10 messages at a time instead of a whole page at once, the first page holds 50 messages, and the unified inbox asks each account for its share of a page instead of a full page each.
+- Mail: opening and closing a message no longer reloads the list or asks the AI to label the same messages again.
+- Mail: marking many Gmail or Outlook messages read or unread is one request per batch instead of one per message.
+- Zoho: a new sign-in token tries the data center that answered last first, then the one set under Dashboard → Zoho.
+
+### Fixed
+
+- A slow or unreachable account no longer holds the unified inbox: after 20 seconds it shows as unavailable and the others load.
+- Fewer "Internal Server Error" pages: requests that refresh an account's sign-in at the same moment share one refresh, and token refreshes time out after 10 seconds.
+- Pages that fail to load show a message and a Try again button, and opening a folder shows a placeholder right away.
+- A failed star or mark as read is undone in the list, with a message, instead of silently drifting from the account.
+- Clicks on a message that move the pointer slightly no longer start a drag.
+- When the AI model stops answering, smart replies, summaries and labels stop calling it for 5 minutes instead of retrying on every message.
+- Thread summaries and smart replies follow the workspace AI switch.
+
 ## 0.2.0 - 2026-10-28
 
 ### Upgrade notes

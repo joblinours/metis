@@ -12,7 +12,7 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
 | Driving it                      | `bootstrap.sh` → `cmd_deploy` · release pins `pin_release`, `latest_release` · the compose download `fetch_compose`                                  |
 | Health endpoints                | `apps/web/src/app/api/livez/route.ts`, `apps/web/src/app/api/readyz/route.ts` · the database probe `apps/web/src/db/readiness.ts` → `databasesReady` |
 | Images                          | `Dockerfile` (`runner`, `worker`, `updater`) · `preflight.Dockerfile` (the preflight image)                                                          |
-| Publishing                      | `.github/workflows/docker.yml` → jobs `release`, `build`, `publish` · tags `.github/scripts/image-tags.sh`                                           |
+| Publishing                      | `.github/workflows/docker.yml` → job `build` · tags `.github/scripts/image-tags.sh`                                                                  |
 | Standalone output and tracing   | `apps/web/next.config.ts` → `output` (when `NEXT_BUILD_OUTPUT=standalone`), `outputFileTracingIncludes`                                              |
 | One-shot preflight              | `apps/web/scripts/preflight.ts`                                                                                                                      |
 | Worker entry                    | `apps/web/scripts/workflow-worker.ts`                                                                                                                |
@@ -41,16 +41,13 @@ See also [AGENTS.md](../AGENTS.md), [updater.md](updater.md), [self-host.md](sel
 
 ### Releases and images
 
-- **Every release is addressable by its version.** On a GitHub release tagged `app-v<version>`, `docker.yml` pushes `:<version>`, `:<version>-preflight`, `:<version>-worker` and `:<version>-updater` beside the `<sha>*` tags.
-  - It also pushes the `latest*` tags unless the release is a pre-release.
-  - A run by hand (`workflow_dispatch`) pushes `latest*` and `<sha>*` only, and skips `publish`.
-  - Releases tagged `desktop-v*` or `mobile-v*` build no images ([downloads.md](downloads.md)).
+- **This fork publishes its images to `ghcr.io/<owner>/<repo>` on every push** (`docker.yml`); it publishes no desktop, mobile or self-host scripts, and runs no e2e workflow.
+  - Every push tags `:<sha>` and `:<branch>` (the ref lowercased, other characters as `-`), each with the image's suffix (`-preflight`, `-worker`, `-updater`).
+  - The repository's default branch also tags `latest*`.
+  - A `v<version>` git tag tags `:<version>*`, the tag to pin in a deployment.
+  - A newer push on the same ref cancels the previous build.
 - **A pre-release image is reachable only by pinning it.** `latest_release` and the updater's `fetchReleases` accept only `X.Y.Z` tags.
-- **An `app-v*` tag must match `apps/web/package.json` → `version`, and the root `CHANGELOG.md` must hold a `## <version> - <date>` section with entries; `docker.yml` fails the run before building otherwise.**
-  - `.github/scripts/changelog-section.sh` checks the section and prints it, which is also how the release body is written (`gh release create app-v<version> --verify-tag --notes-file …`).
-  - The updater shows that body as the release's notes on Dashboard → Updates ([updater.md](updater.md)).
-  - That field is the version the app shows beside its source link on every platform, including hosts no tag reaches ([ui.md](ui.md)).
-  - Bump it in the commit the tag points at.
+- **`apps/web/package.json` → `version` is the version the app shows beside its source link on every platform**, including hosts no tag reaches ([ui.md](ui.md)); bump it in the commit a `v*` tag points at.
 - **The updater is the only container with the Docker socket**, and the app reaches it only through its socket ([updater.md](updater.md)).
 - **Preflight is its own image and a one-shot service.** The app and worker wait on it with `service_completed_successfully`.
   - As the app's entrypoint it would re-run the whole server verification and quarantine pass on every restart.

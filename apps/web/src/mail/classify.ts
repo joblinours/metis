@@ -7,7 +7,7 @@ import { mailboxLabel, mailLabel } from "@/db/schema";
 import { classifierAgent } from "@/mastra/agents/classifier";
 import { BUILT_IN_LABELS, type ClassifyItemInput } from "@/server/schema";
 import { decisionEnabled } from "@/services/decision";
-import { getLlm } from "@/services/llm";
+import { getLlm, llmUnavailable } from "@/services/llm";
 import { labelsApplied } from "@/workflow/hooks";
 
 import { compositeId } from "./aggregate";
@@ -67,7 +67,7 @@ export async function classifyMessages(
     } catch (err) {
       console.error("[mail/labels] classify by decision failed:", err);
     }
-  } else if (toClassify.length > 0) {
+  } else if (toClassify.length > 0 && !llmUnavailable()) {
     const refToId = new Map<string, string>();
     for (const [i, e] of toClassify.entries()) {
       refToId.set(`e${i + 1}`, e.id);

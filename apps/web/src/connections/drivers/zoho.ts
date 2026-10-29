@@ -76,7 +76,12 @@ export const zohoDriver = createOAuthDriver({
   scopes: {
     base: ["AaaServer.profile.READ"],
     byResource: {
-      mailbox: ["ZohoMail.messages.ALL", "ZohoMail.folders.ALL", "ZohoMail.accounts.READ"],
+      mailbox: [
+        "ZohoMail.messages.ALL",
+        "ZohoMail.folders.ALL",
+        "ZohoMail.accounts.READ",
+        "ZohoMail.tags.ALL",
+      ],
       calendar: ["ZohoCalendar.calendar.ALL", "ZohoCalendar.event.ALL"],
       drive: [],
     },

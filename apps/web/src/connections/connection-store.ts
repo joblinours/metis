@@ -26,6 +26,9 @@ import type {
 import { isCredentialProvider } from "./types";
 
 const EXPIRY_SKEW_MS = 60_000;
+const SLOW_REFRESH_MS = 1000;
+const REFRESHING = new Map<string, Promise<string | null>>();
+const REFRESHED = new Map<string, { accessToken: string; expiresAt: number }>();
 
 export interface Connection {
   connectionId: string;
@@ -121,6 +124,11 @@ function splitScopes(scope: string | null): string[] {
 function unionScopes(existing: string | null, incoming: string | null): string {
   const separator = (incoming ?? existing ?? "").includes(",") ? "," : " ";
   return [...new Set([...splitScopes(existing), ...splitScopes(incoming)])].join(separator);
+}
+
+export function hasScope(scope: string | null, wanted: string): boolean {
+  const lower = wanted.toLowerCase();
+  return splitScopes(scope).some((granted) => granted.toLowerCase() === lower);
 }
 
 export function grantedResources(
@@ -396,7 +404,29 @@ async function getFreshAccessToken(target: ConnectionTokens): Promise<string | n
     return target.accessToken;
   }
 
-  const refreshed = await getOAuthDriver(target.provider).refresh(target.refreshToken);
+  const recent = REFRESHED.get(target.connectionId);
+  if (recent && recent.expiresAt - now > EXPIRY_SKEW_MS) return recent.accessToken;
+
+  const running = REFRESHING.get(target.connectionId);
+  if (running) return running;
+
+  const refresh = refreshAccessToken(target, target.refreshToken).finally(() => {
+    REFRESHING.delete(target.connectionId);
+  });
+  REFRESHING.set(target.connectionId, refresh);
+  return refresh;
+}
+
+async function refreshAccessToken(
+  target: ConnectionTokens,
+  refreshToken: string,
+): Promise<string | null> {
+  const startedAt = Date.now();
+  const refreshed = await getOAuthDriver(target.provider).refresh(refreshToken);
+  const elapsed = Date.now() - startedAt;
+  if (elapsed > SLOW_REFRESH_MS) {
+    console.warn(`[connections] ${target.provider} token refresh took ${elapsed}ms`);
+  }
   if (!refreshed) {
     console.error(`[connections] refresh failed for ${target.connectionId} (${target.provider})`);
     return target.accessToken;
@@ -418,5 +448,11 @@ async function getFreshAccessToken(target: ConnectionTokens): Promise<string | n
     console.error("[connections] failed to persist refreshed token:", err);
   }
 
+  if (refreshed.expiresInSec) {
+    REFRESHED.set(target.connectionId, {
+      accessToken: refreshed.accessToken,
+      expiresAt: Date.now() + refreshed.expiresInSec * 1000,
+    });
+  }
   return refreshed.accessToken;
 }

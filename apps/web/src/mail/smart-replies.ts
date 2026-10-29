@@ -1,7 +1,7 @@
 import "server-only";
 import { recordAiUsage } from "@/ai/usage";
 import { drafterAgent } from "@/mastra/agents/drafter";
-import { getLlm } from "@/services/llm";
+import { getLlm, LlmUnavailableError, llmUnavailable } from "@/services/llm";
 
 import type { MailSession } from "./session";
 import { SMART_REPLY_GENERATE_OPTIONS, smartReplyPrompt } from "./smart-reply-prompt";
@@ -17,6 +17,7 @@ export async function generateSmartReplies(
   mail: MailSession,
   request: SmartReplyRequest,
 ): Promise<{ label: string; body: string }[]> {
+  if (llmUnavailable()) throw new LlmUnavailableError();
   const body = await mail.adapter.getMessage(request.id);
 
   const result = await drafterAgent.generate(

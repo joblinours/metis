@@ -1,15 +1,12 @@
-import { createHash } from "node:crypto";
-
 import { z } from "zod";
 
 import type { ProviderCalendar } from "@/connections";
-import { isZohoRegion, type ZohoRegion, zohoRegionOrder } from "@/connections/zoho-regions";
+import { detectZohoRegion, type ZohoRegion } from "@/connections/zoho-regions";
 import { bind } from "@/lib/bind";
 import { BadRequestError } from "@/lib/errors/bad-request";
 import { ProviderError } from "@/lib/errors/provider-error";
 import { mergeHeaders } from "@/lib/headers";
 import { lenient } from "@/lib/zod";
-import { getCache } from "@/services/cache";
 import type {
   AttendeeResponse,
   CalendarEvent,
@@ -147,46 +144,12 @@ const zohoEventsSchema = z.object({ events: lenient(z.array(zohoEventSchema)) })
 type ZohoAttendee = z.infer<typeof zohoAttendeeSchema>;
 type ZohoEvent = z.infer<typeof zohoEventSchema>;
 
-const REGION_TTL_SEC = 24 * 60 * 60;
-const regionCache = new Map<string, Region>();
-
-function tokenKey(accessToken: string): string {
-  const digest = createHash("sha256").update(accessToken).digest("base64url").slice(0, 32);
-  return `zoho:calendar-region:${digest}`;
-}
-
 async function detectRegion(accessToken: string): Promise<Region> {
-  const local = regionCache.get(accessToken);
-  if (local) return local;
-
-  const key = tokenKey(accessToken);
-  const shared = await getCache().get(key);
-  if (shared && isZohoRegion(shared)) {
-    regionCache.set(accessToken, shared);
-    return shared;
-  }
-
-  const ordered = zohoRegionOrder();
-
-  const errors: string[] = [];
-  for (const region of ordered) {
-    try {
-      /* oxlint-disable eslint/no-await-in-loop -- probes each Zoho region in order and stops at the one that owns the account */
-      const res = await fetch(`https://calendar.zoho.${region}/api/v1/calendars`, {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-      });
-      if (res.ok) {
-        regionCache.set(accessToken, region);
-        await getCache().set(key, region, REGION_TTL_SEC);
-        /* oxlint-enable eslint/no-await-in-loop */
-        return region;
-      }
-      errors.push(`${region}:${res.status}`);
-    } catch (err) {
-      errors.push(`${region}:${err instanceof Error ? err.message : "err"}`);
-    }
-  }
-  throw new Error(`Could not detect Zoho Calendar DC — tried: ${errors.join(", ")}`);
+  return detectZohoRegion(
+    accessToken,
+    "calendar",
+    (region) => `https://calendar.zoho.${region}/api/v1/calendars`,
+  );
 }
 
 async function call<S extends z.ZodType>(

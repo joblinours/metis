@@ -63,6 +63,8 @@ Press **m**, then:
 | **m** then **u** | Mark the open message read or unread                                                                                                                                                         |
 | **m** then **e** | Archive the open message                                                                                                                                                                     |
 | **m** then **#** | Delete the open message, without asking first. Most mailboxes move it to Trash; Cloudflare Email and Resend mailboxes, and messages already in Trash on a mail server, are deleted for good. |
+| **m** then **o** | Open the **Move** menu for the open message (Gmail, Outlook and Zoho Mail)                                                                                                                   |
+| **m** then **l** | Open the **Labels** menu for provider labels on the open message (Gmail, Outlook and Zoho Mail)                                                                                              |
 | **m** then **/** | Jump to the search box                                                                                                                                                                       |
 | **m** then **a** | Open or close the **Mail AI** panel                                                                                                                                                          |
 

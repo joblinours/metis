@@ -416,6 +416,27 @@ function toolCopy(part: AnyToolPart, mailboxEmails: MailboxEmailMap): ToolCopy {
         success: `Unsubscribe handled for ${plural(count, "sender")}`,
       };
     }
+    case "createMailFolder": {
+      const folderName = asString(input?.name);
+      const what = asString(input?.kind) === "label" ? "label" : "folder";
+      const where = mailboxEmail ? ` in ${mailboxEmail}` : "";
+      return {
+        icon: FolderPlus,
+        loading: `Creating the ${what}...`,
+        approval: folderName
+          ? `Approve creating the ${what} "${folderName}"${where}`
+          : `Approve creating this ${what}${where}`,
+        success: folderName ? `Created "${folderName}"` : `Created the ${what}`,
+      };
+    }
+    case "moveToFolder": {
+      return {
+        icon: FolderInput,
+        loading: "Moving the email...",
+        approval: "Approve moving this email",
+        success: "Moved the email",
+      };
+    }
     case "deleteLabel": {
       const label = asString(input?.label);
       return {

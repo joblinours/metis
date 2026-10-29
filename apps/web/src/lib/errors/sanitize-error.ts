@@ -6,6 +6,12 @@ import { ProviderError, statusOf } from "./provider-error";
 const OPERATIONS: Record<string, string> = {
   "mail.messages.send": "send your email",
   "mail.messages.list": "load your mail",
+  "mail.folders.list": "load the account's folders",
+  "mail.folders.listEmails": "open that folder",
+  "mail.folders.move": "move that email",
+  "mail.folders.setTags": "change those labels",
+  "mail.folders.create": "create that folder",
+  "mail.folders.createTag": "create that label",
   "mail.messages.get": "open that email",
   "mail.messages.search": "run that search",
   "mail.messages.delete": "delete that email",

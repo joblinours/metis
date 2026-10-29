@@ -3,6 +3,7 @@
 Where the desktop and Android apps are published, and the exact URL of every file: `https://downloads.trymetis.email`, a public Cloudflare R2 bucket.
 Paths are from the repository root.
 See also [AGENTS.md](../AGENTS.md), [desktop.md](desktop.md), [mobile.md](mobile.md), [deployment.md](deployment.md), [self-host.md](self-host.md), [www.md](www.md).
+This fork runs none of these workflows: it publishes only the Docker images ([deployment.md](deployment.md)), so this describes upstream.
 
 ## Code map
 

@@ -7,6 +7,8 @@ import type {
   Email,
   MailFolder,
   MessagesResponse,
+  ProviderFolder,
+  ProviderTag,
   UnsubscribeInfo,
 } from "@/types/mail";
 
@@ -51,6 +53,13 @@ export interface MailAdapter {
     attachmentId: string,
   ): Promise<{ buffer: Buffer; mimeType?: string } | null>;
   changes?(folder: MailFolder, cursor: string | null): Promise<MailChanges | null>;
+  listProviderFolders?(): Promise<ProviderFolder[]>;
+  listInProviderFolder?(ref: string, pageToken?: string, max?: number): Promise<MessagesResponse>;
+  moveToProviderFolder?(id: string, ref: string): Promise<string>;
+  createProviderFolder?(name: string, parentRef?: string): Promise<ProviderFolder>;
+  listProviderTags?(): Promise<ProviderTag[]>;
+  setProviderTags?(ids: string[], add: string[], remove: string[]): Promise<void>;
+  createProviderTag?(name: string): Promise<ProviderTag>;
 }
 
 function credentialEmail(auth: ConnectionAuth): string {

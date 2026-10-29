@@ -369,6 +369,37 @@ export const MCP_TOOL_MANIFEST = [
     sensitive: true,
   },
   {
+    key: "listMailFolders",
+    label: "List mail folders",
+    description: "List a mailbox's folders and labels at the provider",
+    group: "Mail folders",
+  },
+  {
+    key: "listEmailsInFolder",
+    label: "List emails in folder",
+    description: "List the emails in a provider folder or label",
+    group: "Mail folders",
+  },
+  {
+    key: "moveToFolder",
+    label: "Move to folder",
+    description: "Move an email into a provider folder",
+    group: "Mail folders",
+  },
+  {
+    key: "applyProviderLabels",
+    label: "Apply provider labels",
+    description: "Add or remove Gmail labels, Zoho tags or Outlook categories on emails",
+    group: "Mail folders",
+  },
+  {
+    key: "createMailFolder",
+    label: "Create mail folder",
+    description: "Create a folder or label at the provider",
+    group: "Mail folders",
+    sensitive: true,
+  },
+  {
     key: "snoozeEmail",
     label: "Snooze email",
     description: "Archive an email until a chosen time",

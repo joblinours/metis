@@ -1,9 +1,17 @@
 import { environmentManager, QueryClient, type QueryKey } from "@tanstack/react-query";
 
+import { isRecord } from "./guards";
+
+const RETRY_STATUSES = new Set([429, 502, 503, 504]);
+
+function retryOnce(failureCount: number, error: unknown): boolean {
+  return failureCount < 1 && isRecord(error) && RETRY_STATUSES.has(Number(error.status));
+}
+
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: false, refetchOnWindowFocus: false },
+      queries: { retry: retryOnce, retryDelay: 1500, refetchOnWindowFocus: false },
       mutations: { retry: false },
     },
   });

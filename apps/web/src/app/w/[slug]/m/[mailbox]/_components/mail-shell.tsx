@@ -47,7 +47,7 @@ export function MailShell({ children }: MailShellProps) {
   const isMobile = useIsMobile();
   const [dragging, setDragging] = useState<Email | null>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor),
   );
 

@@ -235,6 +235,7 @@ export async function toAgentMailbox(stored: WorkspaceMailboxRow): Promise<Agent
     mailboxEmail: stored.email,
     provider,
     policy: stored.policy,
+    grantScope: stored.scope,
     auth: async () => auth,
   };
   return {

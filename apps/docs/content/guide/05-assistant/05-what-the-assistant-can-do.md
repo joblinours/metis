@@ -22,6 +22,9 @@ The Workspace Assistant can do everything below, across all the mailboxes, calen
 - Delete emails **(approval)**
 - List labels, set or clear a label on one or many emails, and create a label
 - Delete a label **(approval)**
+- For Gmail, Outlook and Zoho Mail mailboxes: list the account's folders and labels, list the emails in a folder, and move an email to a folder
+- Add or remove provider labels (Gmail labels, Outlook categories, Zoho tags) on up to 200 emails at a time
+- Create a folder, optionally inside another one, or a provider label **(approval)**. The approval card names the folder and the mailbox, for example: Approve creating the folder "Clients" in you@example.com.
 - Create and update drafts
 - Delete a draft **(approval)**
 - Send an email **(approval)**

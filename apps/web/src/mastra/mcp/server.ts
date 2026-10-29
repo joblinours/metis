@@ -53,6 +53,13 @@ import {
   unpinFolder,
 } from "./tools/drive";
 import {
+  applyProviderLabels,
+  createMailFolder,
+  listEmailsInFolder,
+  listMailFolders,
+  moveToFolder,
+} from "./tools/folders";
+import {
   addReadLater,
   cancelScheduled,
   cancelSnooze,
@@ -231,6 +238,11 @@ const MCP_TOOLS = {
   createLabel,
   deleteLabel,
   setLabels,
+  listMailFolders,
+  listEmailsInFolder,
+  moveToFolder,
+  applyProviderLabels,
+  createMailFolder,
   searchContacts,
   deleteDraft,
   getRawEmail,

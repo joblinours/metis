@@ -117,6 +117,10 @@ Paths are relative to `apps/web/`. See also [AGENTS.md](../AGENTS.md), [mcp.md](
 - **The other agents** return JSON in a requested schema: `drafterAgent` (reply drafts in `src/server/routes/ai.ts`, smart replies in `src/mail/smart-replies.ts`), `summarizerAgent` and `classifierAgent` ([mail-ai.md](mail-ai.md)).
   - `workflowWriterAgent` serves the workflow AI steps and fills their declared fields through `structuredOutput`.
 - **Models.** Each agent runs on one `getLlm()` slot from `src/services/llm`, rebuilt on the first call after the LLM section changes: the four chat agents and the workflow agents on `chat`, `drafterAgent` on `smartReply`, `summarizerAgent` on `summary`, `classifierAgent` on `classifier` ([configuration.md](configuration.md)).
+- **Every model slot sits behind one circuit breaker** (`src/services/llm/guard.ts` → `guardDriver`, applied in `registry.ts`).
+  - After `TRIP_AFTER` model calls in a row fail on an API or network error, every call fails fast with `LlmUnavailableError` for `OPEN_MS`, logged once under `[llm]`; a non-streamed call also times out after `GENERATE_TIMEOUT_MS`.
+  - Smart replies, thread summaries and the LLM classify path check `llmUnavailable()` before reading mail, so an unreachable model costs no provider call; a summary then serves its stored cards.
+  - The breaker is per process and leaves the AI switch alone, so MCP and every gate keep working while the model is down.
 - **Streaming.** Chat routes stream via `handleChatStream` → `createUIMessageStreamResponse` into the AI SDK's `useChat`; the UI is AI Elements (`src/components/ai-elements/*`) on Base UI shadcn ([ui.md](ui.md)).
   - Each chat route validates the posted messages with `parseUIMessages` (`src/ai/messages.ts`, the AI SDK's `safeValidateUIMessages`) and answers 400 when they do not validate; stored threads read back through it too.
 - **Resident vs searchable tools.** Only `RESIDENT_TOOL_KEYS` are always loaded; the rest load through `workspaceToolSearch` (Mastra's `ToolSearchProcessor`). The workspace agent's instructions name only the resident tools and the capability areas.

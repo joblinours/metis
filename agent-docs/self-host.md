@@ -1,6 +1,7 @@
 # Self-host scripts
 
 Where `bootstrap.sh` and `compose.yml` are published for every server release: `https://sh.trymetis.email`, a public Cloudflare R2 bucket of its own. Paths are from the repository root. See also [AGENTS.md](../AGENTS.md), [deployment.md](deployment.md), [downloads.md](downloads.md), [updater.md](updater.md).
+This fork runs none of these workflows: it publishes only the Docker images ([deployment.md](deployment.md)), so this describes upstream.
 
 ## Code map
 

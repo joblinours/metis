@@ -25,6 +25,8 @@ export interface ComposeInitial {
 
 export type MailListView = "folder" | "read-later";
 
+export type ProviderMenu = "move" | "tags" | null;
+
 interface MailState {
   selectedEmail: Email | null;
   selectedFolder: MailFolder;
@@ -39,6 +41,8 @@ interface MailState {
   listTabs: Record<string, string>;
   setListTab: (key: string, tab: string) => void;
   visibleEmailIds: string[];
+  providerMenu: ProviderMenu;
+  setProviderMenu: (menu: ProviderMenu) => void;
 
   setVisibleEmailIds: (ids: string[]) => void;
   setSelectedEmail: (email: Email | null) => void;
@@ -70,9 +74,11 @@ export const useMailStore = create<MailState>((set) => ({
   listTabs: {},
   setListTab: (key, tab) => set((s) => ({ listTabs: { ...s.listTabs, [key]: tab } })),
   visibleEmailIds: [],
+  providerMenu: null,
+  setProviderMenu: (menu) => set({ providerMenu: menu }),
 
   setVisibleEmailIds: (ids) => set({ visibleEmailIds: ids }),
-  setSelectedEmail: (email) => set({ selectedEmail: email }),
+  setSelectedEmail: (email) => set({ selectedEmail: email, providerMenu: null }),
   setSelectedFolder: (folder, view = "folder") =>
     set({
       selectedFolder: folder,
