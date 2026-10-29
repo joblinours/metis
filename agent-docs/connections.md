@@ -49,6 +49,7 @@ See also [AGENTS.md](../AGENTS.md), [workspaces.md](workspaces.md), [servers.md]
 - **Scopes are per resource, unioned per grant.** Each driver exposes `grantedResources(scope)`; an OAuth driver builds the scope it requests from the resources (`scopesFor`, used by `buildAuthUrl` and `exchangeCode`).
   - Google sends `include_granted_scopes=true` and the callback unions the returned scope.
   - Zoho has no incremental authorization (`mergesGrantedScopes: false`), so the start route asks for the union of everything already granted; a narrower Zoho refresh token would overwrite the one mail depends on.
+- **A feature that needs a scope added after the grant checks the stored scope, never assumes it.** `hasScope(scope, wanted)` reads `connection.scope` (carried on `ResolvedMailbox.grantScope`); provider labels need `ZohoMail.tags.ALL` on Zoho and `MailboxSettings.ReadWrite` on Outlook, so older grants keep working and are asked to reconnect for labels only ([mail.md](mail.md)).
 - **Every driver declares `resources`**, so an unsupported (provider, resource) pair fails at the start route instead of after a consent round trip.
 - **`connectServers()` is the one list of what can be connected, read from the config snapshot per call.**
   - Each OAuth provider with both halves of its key pair contributes one entry (`credentials.ts` warns once per half-pair); every server-list entry contributes one.

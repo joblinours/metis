@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Whi
 
 ## Unreleased
 
+### Upgrade notes
+
+- Reconnect Zoho accounts to use their tags as labels (new permission `ZohoMail.tags.ALL`), and Outlook accounts to use their categories (new permission `MailboxSettings.ReadWrite`). Folders work without reconnecting.
+
+### Added
+
+- Mail: each account's own folders, sub-folders and labels in the sidebar (Gmail labels, Zoho folders and tags, Outlook folders and categories), with one group per account in All inboxes. Opening one lists its emails.
+- Mail: Move to a folder and add or remove labels from an email, by menu, by dragging an email onto a folder, or with `m o` and `m l`. Changes are made at the provider, so they show in Gmail, Zoho Mail and Outlook.
+- Mail: create folders, sub-folders and labels at the provider from the sidebar.
+- Workspace AI and MCP: `listMailFolders`, `listEmailsInFolder`, `moveToFolder`, `applyProviderLabels` and `createMailFolder` (off by default for MCP clients).
+
 ### Changed
 
 - Mail: mailboxes open much faster. Gmail reads at most 10 messages at a time instead of a whole page at once, the first page holds 50 messages, and the unified inbox asks each account for its share of a page instead of a full page each.

@@ -27,6 +27,7 @@ The chord system shared by mail, calendar and drive, the app-wide keys, and the 
 - **An armed prefix followed by an unbound key is swallowed**, so a typo after the prefix fires nothing.
 - **The same `bindings` object feeds the handler, `ChordHint` and `ShortcutsHelp`**, so hint, help and handler cannot drift; the bare keys reach the help from each surface's `*_UNCHORDED` list.
 - **Shortcuts are skipped while typing** (`isTypingTarget`).
+- **A shortcut that opens a menu sets a store flag, never the menu's own state.** `m o` (move to folder) and `m l` (provider labels) set `providerMenu` in `mail-store`, which the menus in `EmailDetail` read; selecting another message clears it.
 
 ## How it works
 
