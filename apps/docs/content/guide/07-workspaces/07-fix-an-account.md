@@ -3,7 +3,7 @@ title: Fix an account that stops working
 description: Reconnect an account that needs it, and what to do when an account becomes unavailable.
 ---
 
-Sometimes a connected account stops working. This page covers the two cases you may see.
+Sometimes a connected account stops working. This page covers the cases you may see.
 
 ## "This account needs to be reconnected."
 
@@ -17,6 +17,15 @@ To fix it, connect the same account again:
 Metis Suite updates the existing connection. The account stays in all its workspaces, with all its settings. You do not need to add it to your workspaces again.
 
 For the full connect steps, see [Connect an account](/guide/workspaces/connect-an-account).
+
+## "Reconnect this account to use its labels."
+
+This notice shows in the **Folders** section of mail, under an Outlook or Zoho Mail account. It means the account needs a new permission to use Outlook categories or Zoho tags.
+
+- The account's folders keep working.
+- Its labels are not available until you reconnect. The **Labels** button does not show for its emails, and the assistant answers that the labels need new permissions.
+
+To fix it, connect the same account again, as described above for Microsoft or Zoho. When the provider asks, allow the new permission. Gmail accounts never need this. See [Folders and provider labels](/guide/mail/folders-and-provider-labels).
 
 ## Unavailable accounts
 

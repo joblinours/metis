@@ -7,6 +7,7 @@ export default defineMeta({
     "read-your-mail",
     "find-and-filter-mail",
     "labels",
+    "folders-and-provider-labels",
     "compose-and-send",
     "schedule-a-send",
     "snooze-and-read-later",
