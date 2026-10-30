@@ -55,7 +55,13 @@ export function gmailMail(accessToken: string): MailAdapter {
       createProviderFolder,
       listProviderTags,
       setProviderTags,
+      getProviderTags,
       createProviderTag,
+      renameProviderTag,
+      deleteProviderTag,
+      renameProviderFolder,
+      moveProviderFolder,
+      deleteProviderFolder,
     },
     accessToken,
   );
@@ -918,4 +924,102 @@ async function setProviderTags(
       requestBody: { ids: ids.slice(i, i + 1000), addLabelIds: add, removeLabelIds: remove },
     });
   }
+}
+
+function requireLabel(labels: gmail_v1.Schema$Label[], ref: string): gmail_v1.Schema$Label {
+  const label = labels.find((l) => l.id === ref);
+  if (!label) {
+    throw new Error(
+      `Unknown Gmail label "${ref}". These are all of them: ${labels.map((l) => `${l.id} (${l.name})`).join(", ")}`,
+    );
+  }
+  return label;
+}
+
+async function renamePath(accessToken: string, ref: string, nextPath: string): Promise<void> {
+  const labels = await userLabels(accessToken);
+  const label = requireLabel(labels, ref);
+  const previous = label.name ?? "";
+  const gmail = getGmailClient(accessToken);
+  const moves = labels
+    .filter((l) => l.id === ref || (l.name ?? "").startsWith(`${previous}/`))
+    .map((l) => ({ id: l.id ?? "", name: `${nextPath}${(l.name ?? "").slice(previous.length)}` }))
+    .toSorted((a, b) => a.name.length - b.name.length);
+  for (const move of moves) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- parents are renamed before their children so Gmail keeps the hierarchy
+    await gmail.users.labels.patch({ userId: "me", id: move.id, requestBody: { name: move.name } });
+  }
+  labelsCache.delete(accessToken);
+}
+
+function leafOf(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+async function folderByRef(accessToken: string, ref: string): Promise<ProviderFolder> {
+  const folder = (await listProviderFolders(accessToken)).find((f) => f.ref === ref);
+  if (!folder) throw new Error(`Gmail label "${ref}" is gone`);
+  return folder;
+}
+
+async function renameProviderFolder(
+  accessToken: string,
+  ref: string,
+  name: string,
+): Promise<ProviderFolder> {
+  const label = requireLabel(await userLabels(accessToken), ref);
+  const path = label.name ?? "";
+  const cut = path.lastIndexOf("/");
+  await renamePath(accessToken, ref, cut > 0 ? `${path.slice(0, cut)}/${name}` : name);
+  return folderByRef(accessToken, ref);
+}
+
+async function moveProviderFolder(
+  accessToken: string,
+  ref: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  const labels = await userLabels(accessToken);
+  const label = requireLabel(labels, ref);
+  const leaf = leafOf(label.name ?? "");
+  if (!parentRef) {
+    await renamePath(accessToken, ref, leaf);
+    return folderByRef(accessToken, ref);
+  }
+  const parent = requireLabel(labels, parentRef);
+  const parentPath = parent.name ?? "";
+  if (parentRef === ref || parentPath.startsWith(`${label.name}/`)) {
+    throw new Error("A label cannot move inside itself");
+  }
+  await renamePath(accessToken, ref, `${parentPath}/${leaf}`);
+  return folderByRef(accessToken, ref);
+}
+
+async function deleteProviderFolder(accessToken: string, ref: string): Promise<void> {
+  requireLabel(await userLabels(accessToken), ref);
+  await getGmailClient(accessToken).users.labels.delete({ userId: "me", id: ref });
+  labelsCache.delete(accessToken);
+}
+
+async function renameProviderTag(
+  accessToken: string,
+  ref: string,
+  name: string,
+): Promise<ProviderTag> {
+  await renamePath(accessToken, ref, name);
+  const label = requireLabel(await userLabels(accessToken), ref);
+  return { ref, name: label.name ?? name };
+}
+
+async function deleteProviderTag(accessToken: string, ref: string): Promise<void> {
+  await deleteProviderFolder(accessToken, ref);
+}
+
+async function getProviderTags(accessToken: string, id: string): Promise<string[]> {
+  const res = await getGmailClient(accessToken).users.messages.get({
+    userId: "me",
+    id,
+    format: "minimal",
+  });
+  return res.data.labelIds ?? [];
 }

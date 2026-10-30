@@ -59,7 +59,13 @@ export function zohoMail(accessToken: string): MailAdapter {
       createProviderFolder,
       listProviderTags,
       setProviderTags,
+      getProviderTags,
       createProviderTag,
+      renameProviderTag,
+      deleteProviderTag,
+      renameProviderFolder,
+      moveProviderFolder,
+      deleteProviderFolder,
     },
     accessToken,
   );
@@ -1100,4 +1106,96 @@ async function setProviderTags(
       body: JSON.stringify({ mode, labelId, messageId, isFolderSpecific: false }),
     });
   }
+}
+
+async function freshFolder(accessToken: string, ref: string): Promise<ProviderFolder> {
+  await forgetAccount(accessToken);
+  const folder = (await listProviderFolders(accessToken)).find((f) => f.ref === ref);
+  if (!folder) throw new Error(`Zoho folder "${ref}" is gone`);
+  return folder;
+}
+
+async function updateFolder(
+  accessToken: string,
+  ref: string,
+  body: Record<string, string>,
+): Promise<ProviderFolder> {
+  const acc = await loadAccount(accessToken);
+  requireCustomFolder(acc, ref);
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/folders/${ref}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return freshFolder(accessToken, ref);
+}
+
+async function renameProviderFolder(
+  accessToken: string,
+  ref: string,
+  name: string,
+): Promise<ProviderFolder> {
+  return updateFolder(accessToken, ref, { mode: "rename", folderName: name });
+}
+
+async function moveProviderFolder(
+  accessToken: string,
+  ref: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  const acc = await loadAccount(accessToken);
+  if (parentRef) requireCustomFolder(acc, parentRef);
+  if (parentRef === ref) throw new Error("A folder cannot move inside itself");
+  return updateFolder(accessToken, ref, { mode: "move", parentFolderId: parentRef ?? "0" });
+}
+
+async function deleteProviderFolder(accessToken: string, ref: string): Promise<void> {
+  const acc = await loadAccount(accessToken);
+  requireCustomFolder(acc, ref);
+  if (standardFolderIds(acc).has(ref)) throw new Error("Standard Zoho folders cannot be deleted");
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/folders/${ref}`, { method: "DELETE" });
+  await forgetAccount(accessToken);
+}
+
+async function requireTag(accessToken: string, ref: string): Promise<ProviderTag> {
+  const tags = await listProviderTags(accessToken);
+  const tag = tags.find((t) => t.ref === ref);
+  if (!tag) {
+    throw new Error(
+      `Unknown Zoho tag "${ref}". These are all of them: ${tags.map((t) => `${t.ref} (${t.name})`).join(", ")}`,
+    );
+  }
+  return tag;
+}
+
+async function renameProviderTag(
+  accessToken: string,
+  ref: string,
+  name: string,
+): Promise<ProviderTag> {
+  const tag = await requireTag(accessToken, ref);
+  const acc = await loadAccount(accessToken);
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/labels/${ref}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName: name, ...(tag.color ? { color: tag.color } : {}) }),
+  });
+  return { ...tag, name };
+}
+
+async function deleteProviderTag(accessToken: string, ref: string): Promise<void> {
+  await requireTag(accessToken, ref);
+  const acc = await loadAccount(accessToken);
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/labels/${ref}`, { method: "DELETE" });
+}
+
+async function getProviderTags(accessToken: string, id: string): Promise<string[]> {
+  const ref = decodeMessageId(id);
+  const acc = await loadAccount(accessToken);
+  const res = await zohoFetch(
+    accessToken,
+    `/accounts/${acc.accountId}/folders/${ref.folderId}/messages/${ref.messageId}/details`,
+  );
+  const data = await res.json();
+  return tagIds(isRecord(data?.data) ? data.data.labelId : undefined);
 }

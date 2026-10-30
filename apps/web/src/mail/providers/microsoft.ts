@@ -6,6 +6,7 @@ import type {
 } from "@microsoft/microsoft-graph-types";
 
 import { bind } from "@/lib/bind";
+import { BadRequestError } from "@/lib/errors/bad-request";
 import { isRecord } from "@/lib/guards";
 import { mapLimit } from "@/lib/map-limit";
 import { errorStatus } from "@/lib/token-map";
@@ -66,7 +67,13 @@ export function microsoftMail(accessToken: string): MailAdapter {
       createProviderFolder,
       listProviderTags,
       setProviderTags,
+      getProviderTags,
       createProviderTag,
+      renameProviderTag,
+      deleteProviderTag,
+      renameProviderFolder,
+      moveProviderFolder,
+      deleteProviderFolder,
     },
     accessToken,
   );
@@ -780,4 +787,71 @@ async function setProviderTags(
       );
     }
   }
+}
+
+async function freshFolder(accessToken: string, ref: string): Promise<ProviderFolder> {
+  const folder = (await listProviderFolders(accessToken)).find((f) => f.ref === ref);
+  if (!folder) throw new Error(`Outlook folder "${ref}" is gone`);
+  return folder;
+}
+
+async function renameProviderFolder(
+  accessToken: string,
+  ref: string,
+  name: string,
+): Promise<ProviderFolder> {
+  await getGraphClient(accessToken)
+    .api(`/me/mailFolders/${encodeURIComponent(ref)}`)
+    .patch({ displayName: name });
+  return freshFolder(accessToken, ref);
+}
+
+async function moveProviderFolder(
+  accessToken: string,
+  ref: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  if (parentRef === ref) throw new Error("A folder cannot move inside itself");
+  const moved: GraphFolder = await getGraphClient(accessToken)
+    .api(`/me/mailFolders/${encodeURIComponent(ref)}/move`)
+    .post({ destinationId: parentRef ?? "msgfolderroot" });
+  return freshFolder(accessToken, moved.id ?? ref);
+}
+
+async function deleteProviderFolder(accessToken: string, ref: string): Promise<void> {
+  await getGraphClient(accessToken)
+    .api(`/me/mailFolders/${encodeURIComponent(ref)}`)
+    .delete();
+}
+
+async function masterCategoryId(accessToken: string, name: string): Promise<string> {
+  const data: { value?: { id?: string; displayName?: string }[] } = await getGraphClient(
+    accessToken,
+  )
+    .api("/me/outlook/masterCategories")
+    .get();
+  const found = (data.value ?? []).find((c) => c.displayName === name);
+  if (!found?.id) {
+    throw new Error(
+      `Unknown Outlook category "${name}". These are all of them: ${(data.value ?? []).map((c) => c.displayName).join(", ")}`,
+    );
+  }
+  return found.id;
+}
+
+async function renameProviderTag(): Promise<ProviderTag> {
+  throw new BadRequestError("Outlook does not allow renaming a category: create a new one instead");
+}
+
+async function deleteProviderTag(accessToken: string, ref: string): Promise<void> {
+  const id = await masterCategoryId(accessToken, ref);
+  await getGraphClient(accessToken).api(`/me/outlook/masterCategories/${id}`).delete();
+}
+
+async function getProviderTags(accessToken: string, id: string): Promise<string[]> {
+  const msg: Message = await getGraphClient(accessToken)
+    .api(`/me/messages/${id}`)
+    .select("categories")
+    .get();
+  return msg.categories ?? [];
 }

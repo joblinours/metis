@@ -228,3 +228,92 @@ export async function createTag(
   if (!tagsGranted(mailbox)) throw new BadRequestError(reconnectMessage(mailbox));
   return withTagRef(scope, mailbox.mailboxId, await adapter.createProviderTag(args.name));
 }
+
+async function folderAdapter(scope: FolderScope, folderRef: string) {
+  const { mailbox, ref } = resolveRef(scope, folderRef);
+  return { mailbox, ref, adapter: await adapterForMailbox(mailbox) };
+}
+
+export async function renameFolder(
+  scope: FolderScope,
+  folderRef: string,
+  name: string,
+): Promise<ProviderFolder> {
+  const { mailbox, ref, adapter } = await folderAdapter(scope, folderRef);
+  if (!adapter.renameProviderFolder) {
+    throw new BadRequestError(`${mailbox.mailboxEmail} has no provider folders`);
+  }
+  return withFolderRefs(scope, mailbox.mailboxId, await adapter.renameProviderFolder(ref, name));
+}
+
+export async function moveFolder(
+  scope: FolderScope,
+  folderRef: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  const { mailbox, ref, adapter } = await folderAdapter(scope, folderRef);
+  const parent = parentRef ? resolveRef(scope, parentRef) : null;
+  if (parent && parent.mailbox.mailboxId !== mailbox.mailboxId) {
+    throw new BadRequestError("A folder can only move inside a folder of its own mailbox");
+  }
+  if (!adapter.moveProviderFolder) {
+    throw new BadRequestError(`${mailbox.mailboxEmail} has no provider folders`);
+  }
+  return withFolderRefs(
+    scope,
+    mailbox.mailboxId,
+    await adapter.moveProviderFolder(ref, parent?.ref),
+  );
+}
+
+export async function deleteFolder(scope: FolderScope, folderRef: string): Promise<void> {
+  const { mailbox, ref, adapter } = await folderAdapter(scope, folderRef);
+  if (!adapter.deleteProviderFolder) {
+    throw new BadRequestError(`${mailbox.mailboxEmail} has no provider folders`);
+  }
+  await adapter.deleteProviderFolder(ref);
+}
+
+async function tagAdapter(scope: FolderScope, tagRef: string) {
+  const { mailbox, ref } = resolveRef(scope, tagRef);
+  if (!tagsGranted(mailbox)) throw new BadRequestError(reconnectMessage(mailbox));
+  return { mailbox, ref, adapter: await adapterForMailbox(mailbox) };
+}
+
+export async function renameTag(
+  scope: FolderScope,
+  tagRef: string,
+  name: string,
+): Promise<ProviderTag> {
+  const { mailbox, ref, adapter } = await tagAdapter(scope, tagRef);
+  if (!adapter.renameProviderTag) {
+    throw new BadRequestError(`${mailbox.mailboxEmail} has no provider labels`);
+  }
+  return withTagRef(scope, mailbox.mailboxId, await adapter.renameProviderTag(ref, name));
+}
+
+export async function deleteTag(scope: FolderScope, tagRef: string): Promise<void> {
+  const { mailbox, ref, adapter } = await tagAdapter(scope, tagRef);
+  if (!adapter.deleteProviderTag) {
+    throw new BadRequestError(`${mailbox.mailboxEmail} has no provider labels`);
+  }
+  await adapter.deleteProviderTag(ref);
+}
+
+export async function messageTags(scope: FolderScope, id: string): Promise<string[]> {
+  const message = scopeMessage(scope, id);
+  const mailbox = scope.mailboxes.find((m) => m.mailboxId === message.mailboxId);
+  if (!mailbox) return [];
+  const adapter = await adapterForMailbox(mailbox);
+  if (!adapter.getProviderTags || !adapter.listProviderTags) {
+    throw new BadRequestError(`${mailbox.mailboxEmail} has no provider labels`);
+  }
+  const [known, labels] = await Promise.all([
+    adapter.listProviderTags(),
+    adapter.getProviderTags(message.messageId),
+  ]);
+  const tags = new Set(known.map((t) => t.ref));
+  return labels
+    .filter((label) => tags.has(label))
+    .map((label) => outRef(scope, mailbox.mailboxId, label));
+}
