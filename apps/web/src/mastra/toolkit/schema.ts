@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { draftAttachmentInput } from "@/ops/attachments";
 import { THEME_BRAND_IDS } from "@/theme/brand";
 import { WRITABLE_ATTENDEE_RESPONSES } from "@/types/calendar";
 import { MAIL_FOLDERS } from "@/types/mail";
@@ -24,6 +25,13 @@ export const draftFields = {
   bcc: z.array(z.string()).optional(),
   subject: z.string(),
   bodyHtml: z.string(),
+  attachments: z
+    .array(draftAttachmentInput)
+    .max(10)
+    .optional()
+    .describe(
+      "Files to attach: an attachment of another email (source email), or a file you write (source inline, as text or base64). On updateDraft this replaces the draft's attachments; leave it out to keep them.",
+    ),
 };
 
 export const threadTarget = { mailboxId: z.string(), threadId: z.string() };

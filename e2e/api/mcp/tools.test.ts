@@ -744,6 +744,24 @@ const READS: Case[] = [
     },
   },
   {
+    tool: "getAttachment",
+    run: async (s, c) => {
+      const out = await s.call("getAttachment", {
+        ...box(c),
+        id: c.inviteId,
+        attachmentId: c.attachmentId,
+      });
+      expect(out.isError).toBe(false);
+      expect(out.text).toContain("Rebrand review");
+      const unknown = await s.call("getAttachment", {
+        ...box(c),
+        id: c.inviteId,
+        attachmentId: "no-such-attachment",
+      });
+      expect(unknown.text).toContain('Unknown attachmentId "no-such-attachment"');
+    },
+  },
+  {
     tool: "searchContacts",
     run: async (s, c) => {
       const out = await s.ok<{ count: number; contacts: { email: string }[] }>("searchContacts", {

@@ -1,5 +1,6 @@
 import "server-only";
 import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
 
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
@@ -8,6 +9,7 @@ import {
   messageTarget,
   summarizeThreadFields,
 } from "@/mastra/toolkit/schema";
+import { getAttachment as previewAttachment, getAttachmentOutput } from "@/ops/attachments";
 import * as mail from "@/ops/mail";
 
 import { mcpScopeFromCall } from "../context";
@@ -39,6 +41,56 @@ export const getAttachmentText = createTool({
       if ("error" in r) return r;
       return mail.getAttachmentText(r.mailbox, id, attachmentId);
     }),
+});
+
+const previewOutput = getAttachmentOutput.omit({ image: true }).strict();
+
+const previewContent = z.array(
+  z.union([
+    z.object({ type: z.literal("text"), text: z.string() }),
+    z.object({ type: z.literal("image"), data: z.string(), mimeType: z.string() }),
+  ]),
+);
+
+const previewSchema = previewOutput.extend({
+  structuredContent: previewOutput.optional(),
+  content: previewContent.optional(),
+});
+
+export const getAttachment = createTool({
+  id: "getAttachment",
+  description:
+    "See an email attachment: images come back as the image itself, PDFs, Word documents (.docx), spreadsheets (.xlsx), calendar invites, contact cards, wallet passes, forwarded emails and text files as their content. Get the attachmentId from listAttachments.",
+  inputSchema: inWorkspace(attachmentTarget),
+  outputSchema: previewSchema,
+  execute: async ({ workspaceId, mailboxId, id, attachmentId }, { requestContext }) => {
+    const result = await withToolErrors(async () => {
+      const ctx = await mcpScopeFromCall(requestContext, workspaceId);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return previewAttachment(r.mailbox, id, attachmentId);
+    });
+    const { image, ...structured } = "image" in result ? result : { ...result, image: undefined };
+    const parsed = previewOutput.safeParse(structured);
+    const structuredContent = parsed.success
+      ? parsed.data
+      : { error: "Could not read that attachment" };
+    const header = [structuredContent.filename, structuredContent.mimeType, structuredContent.kind]
+      .filter(Boolean)
+      .join(" · ");
+    const content: z.infer<typeof previewContent> = [
+      {
+        type: "text",
+        text: structuredContent.error
+          ? `${header ? `${header}: ` : ""}${structuredContent.error}`
+          : structuredContent.text !== undefined
+            ? `${header}\n\n${structuredContent.text}`
+            : header,
+      },
+    ];
+    if (image) content.push({ type: "image", data: image.data, mimeType: image.mimeType });
+    return { structuredContent, content };
+  },
 });
 
 export const searchContacts = createTool({

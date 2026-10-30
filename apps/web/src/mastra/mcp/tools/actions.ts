@@ -2,6 +2,7 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import { draftAttachments } from "@/mastra/toolkit/attachments";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import { draftFields, mailboxTarget, messageTarget } from "@/mastra/toolkit/schema";
 import * as mail from "@/ops/mail";
@@ -88,11 +89,21 @@ export const sendEmail = createTool({
   description:
     "Send a new email from a specific mailbox. Provide the mailboxId to send from. Prefer createDraft when the user has not asked for it to go out.",
   inputSchema: inWorkspace({ ...mailboxTarget, ...draftFields }),
-  execute: async ({ workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml }, { requestContext }) =>
+  execute: async (
+    { workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml, attachments },
+    { requestContext },
+  ) =>
     withToolErrors(async () => {
       const ctx = await mcpScopeFromCall(requestContext, workspaceId);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.send(r.mailbox, { to, cc, bcc, subject, bodyHtml });
+      return mail.send(r.mailbox, {
+        to,
+        cc,
+        bcc,
+        subject,
+        bodyHtml,
+        attachments: await draftAttachments(ctx, r.mailbox, attachments),
+      });
     }),
 });

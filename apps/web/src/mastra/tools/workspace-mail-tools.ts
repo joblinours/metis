@@ -2,12 +2,14 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import { getAttachment as previewAttachment } from "@/ops/attachments";
 import * as folders from "@/ops/folders";
 import * as labels from "@/ops/labels";
 import * as mail from "@/ops/mail";
 import { analyzePhishing } from "@/ops/phishing";
 
 import { actorHeaders, getWorkspaceCtx } from "../runtime-context";
+import { draftAttachments } from "../toolkit/attachments";
 import { LABEL_TOOL_TEXT } from "../toolkit/label-text";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
@@ -213,12 +215,19 @@ const sendEmailTool = createTool({
     ...draftFields,
     summary: z.string().describe("Short description of the mail that will go out, and to whom"),
   }),
-  execute: async ({ mailboxId, to, cc, bcc, subject, bodyHtml }, { requestContext }) =>
+  execute: async ({ mailboxId, to, cc, bcc, subject, bodyHtml, attachments }, { requestContext }) =>
     withToolErrors(async () => {
       const ctx = getWorkspaceCtx(requestContext);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.send(r.mailbox, { to, cc, bcc, subject, bodyHtml });
+      return mail.send(r.mailbox, {
+        to,
+        cc,
+        bcc,
+        subject,
+        bodyHtml,
+        attachments: await draftAttachments(ctx, r.mailbox, attachments),
+      });
     }),
   requireApproval: true,
 });
@@ -228,12 +237,19 @@ const createDraftTool = createTool({
   description:
     "Create a draft email in a specific mailbox. The draft is saved to the provider's Drafts folder — nothing is sent. Returns the draft id for later updates.",
   inputSchema: z.object({ ...mailboxTarget, ...draftFields }),
-  execute: async ({ mailboxId, to, cc, bcc, subject, bodyHtml }, { requestContext }) =>
+  execute: async ({ mailboxId, to, cc, bcc, subject, bodyHtml, attachments }, { requestContext }) =>
     withToolErrors(async () => {
       const ctx = getWorkspaceCtx(requestContext);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.createDraft(r.mailbox, { to, cc, bcc, subject, bodyHtml });
+      return mail.createDraft(r.mailbox, {
+        to,
+        cc,
+        bcc,
+        subject,
+        bodyHtml,
+        attachments: await draftAttachments(ctx, r.mailbox, attachments),
+      });
     }),
 });
 
@@ -245,7 +261,10 @@ const updateDraftTool = createTool({
     draftId: z.string(),
     ...draftFields,
   }),
-  execute: async ({ mailboxId, draftId, to, cc, bcc, subject, bodyHtml }, { requestContext }) =>
+  execute: async (
+    { mailboxId, draftId, to, cc, bcc, subject, bodyHtml, attachments },
+    { requestContext },
+  ) =>
     withToolErrors(async () => {
       const ctx = getWorkspaceCtx(requestContext);
       const r = requireMailbox(ctx, mailboxId);
@@ -256,6 +275,7 @@ const updateDraftTool = createTool({
         bcc,
         subject,
         bodyHtml,
+        attachments: await draftAttachments(ctx, r.mailbox, attachments),
       });
     }),
 });
@@ -304,6 +324,21 @@ const getAttachmentTextTool = createTool({
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
       return mail.getAttachmentText(r.mailbox, id, attachmentId);
+    }),
+});
+
+const getAttachmentTool = createTool({
+  id: "getAttachment",
+  description:
+    "See an email attachment: images come back as the image itself, PDFs, Word documents (.docx), spreadsheets (.xlsx), calendar invites, contact cards, wallet passes, forwarded emails and text files as their content. Get the attachmentId from listAttachments.",
+  inputSchema: z.object(attachmentTarget),
+  execute: async ({ mailboxId, id, attachmentId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = getWorkspaceCtx(requestContext);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      const { image, ...rest } = await previewAttachment(r.mailbox, id, attachmentId);
+      return image ? { ...rest, note: "An image; it is shown to the user, not to you." } : rest;
     }),
 });
 
@@ -589,6 +624,7 @@ export const workspaceMailTools = {
   setLabel: setLabelTool,
   clearLabel: clearLabelTool,
   listAttachments: listAttachmentsTool,
+  getAttachment: getAttachmentTool,
   getAttachmentText: getAttachmentTextTool,
   createLabel: createLabelTool,
   deleteLabel: deleteLabelTool,

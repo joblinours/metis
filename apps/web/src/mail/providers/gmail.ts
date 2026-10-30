@@ -56,6 +56,7 @@ export function gmailMail(accessToken: string): MailAdapter {
       listProviderTags,
       setProviderTags,
       getProviderTags,
+      draftMessageId,
       createProviderTag,
       renameProviderTag,
       deleteProviderTag,
@@ -1022,4 +1023,13 @@ async function getProviderTags(accessToken: string, id: string): Promise<string[
     format: "minimal",
   });
   return res.data.labelIds ?? [];
+}
+
+async function draftMessageId(accessToken: string, draftId: string): Promise<string> {
+  const res = await getGmailClient(accessToken).users.drafts.get({
+    userId: "me",
+    id: draftId,
+    format: "minimal",
+  });
+  return res.data.message?.id ?? draftId;
 }

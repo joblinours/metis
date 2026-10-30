@@ -112,6 +112,7 @@ import {
   setLabels,
 } from "./tools/labels";
 import {
+  getAttachment,
   getAttachmentText,
   getRawEmail,
   listAttachments,
@@ -231,6 +232,7 @@ const MCP_TOOLS = {
   retryScheduled,
   listAttachments,
   getAttachmentText,
+  getAttachment,
   muteThread,
   unmuteThread,
   listMuted,

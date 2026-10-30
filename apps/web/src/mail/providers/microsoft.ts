@@ -260,7 +260,33 @@ async function updateDraft(
       ccRecipients: toRecipientList(payload.cc),
       bccRecipients: toRecipientList(payload.bcc),
     });
+  if (payload.attachments) await replaceDraftAttachments(accessToken, draftId, payload);
   return { id: draftId };
+}
+
+async function replaceDraftAttachments(
+  accessToken: string,
+  draftId: string,
+  payload: DraftPayload,
+): Promise<void> {
+  const client = getGraphClient(accessToken);
+  const existing: { value?: { id?: string }[] } = await client
+    .api(`/me/messages/${draftId}/attachments`)
+    .select("id")
+    .get();
+  for (const old of existing.value ?? []) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- Graph throttles concurrent writes per mailbox, so attachments are replaced one at a time
+    if (old.id) await client.api(`/me/messages/${draftId}/attachments/${old.id}`).delete();
+  }
+  for (const attachment of payload.attachments ?? []) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- Graph throttles concurrent writes per mailbox, so attachments are replaced one at a time
+    await client.api(`/me/messages/${draftId}/attachments`).post({
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: attachment.filename,
+      contentType: attachment.mimeType,
+      contentBytes: attachment.contentBase64,
+    });
+  }
 }
 
 async function deleteDraft(accessToken: string, draftId: string): Promise<void> {

@@ -455,6 +455,8 @@ async function createDraft(accessToken: string, payload: DraftPayload): Promise<
   };
   if (payload.cc?.length) body.ccAddress = payload.cc.join(",");
   if (payload.bcc?.length) body.bccAddress = payload.bcc.join(",");
+  const attachmentRefs = await uploadAttachments(accessToken, acc.accountId, payload.attachments);
+  if (attachmentRefs.length > 0) body.attachments = attachmentRefs;
 
   const res = await zohoFetch(accessToken, `/accounts/${acc.accountId}/messages`, {
     method: "POST",
@@ -481,21 +483,20 @@ async function deleteDraft(accessToken: string, draftId: string): Promise<void> 
   await modifyMessages(accessToken, [draftId], "trashMessages");
 }
 
-async function sendMessage(
+async function uploadAttachments(
   accessToken: string,
-  payload: DraftPayload,
-): Promise<{ id: string | null }> {
-  const acc = await loadAccount(accessToken);
-
+  accountId: string,
+  attachments: DraftPayload["attachments"],
+): Promise<{ storeName: string; attachmentName: string }[]> {
   const base = await zohoBaseUrl(accessToken);
   const uploads = await Promise.all(
-    (payload.attachments ?? []).map(async (att) => {
+    (attachments ?? []).map(async (att) => {
       const buffer = Buffer.from(att.contentBase64, "base64");
       const form = new FormData();
       form.append("file", new Blob([new Uint8Array(buffer)], { type: att.mimeType }), att.filename);
 
       const uploadRes = await fetch(
-        `${base}/accounts/${acc.accountId}/messages/attachments?fileName=${encodeURIComponent(att.filename)}&isInline=false`,
+        `${base}/accounts/${accountId}/messages/attachments?fileName=${encodeURIComponent(att.filename)}&isInline=false`,
         {
           method: "POST",
           headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
@@ -515,7 +516,16 @@ async function sendMessage(
         : null;
     }),
   );
-  const attachmentRefs = uploads.filter((ref) => ref !== null);
+  return uploads.filter((ref) => ref !== null);
+}
+
+async function sendMessage(
+  accessToken: string,
+  payload: DraftPayload,
+): Promise<{ id: string | null }> {
+  const acc = await loadAccount(accessToken);
+
+  const attachmentRefs = await uploadAttachments(accessToken, acc.accountId, payload.attachments);
 
   const body: Record<string, unknown> = {
     fromAddress: acc.fromAddress,

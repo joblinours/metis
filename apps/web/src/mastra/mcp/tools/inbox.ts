@@ -1,6 +1,7 @@
 import "server-only";
 import { createTool } from "@mastra/core/tools";
 
+import { draftAttachments } from "@/mastra/toolkit/attachments";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   mailboxTarget,
@@ -77,7 +78,7 @@ export const scheduleEmail = createTool({
     "Schedule a new email to send from a specific mailbox at scheduledFor. Nothing is sent now; it goes out at that time unless cancelled.",
   inputSchema: inWorkspace(scheduleFields),
   execute: async (
-    { workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml, scheduledFor },
+    { workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml, attachments, scheduledFor },
     { requestContext },
   ) =>
     withToolErrors(async () => {
@@ -85,7 +86,14 @@ export const scheduleEmail = createTool({
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
       return inbox.scheduleEmail(ctx, r.mailbox, {
-        payload: { to, cc, bcc, subject, bodyHtml },
+        payload: {
+          to,
+          cc,
+          bcc,
+          subject,
+          bodyHtml,
+          attachments: await draftAttachments(ctx, r.mailbox, attachments),
+        },
         scheduledFor,
       });
     }),

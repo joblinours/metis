@@ -332,6 +332,12 @@ export const MCP_TOOL_MANIFEST = [
     group: "Messages",
   },
   {
+    key: "getAttachment",
+    label: "See attachment",
+    description: "See an attachment: images as images, documents and spreadsheets as their content",
+    group: "Messages",
+  },
+  {
     key: "getRawEmail",
     label: "Get raw email",
     description: "Read an email's full source and headers",

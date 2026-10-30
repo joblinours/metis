@@ -1,5 +1,9 @@
+import { Readable } from "node:stream";
+
+import ExcelJS from "exceljs";
 import { unzipSync } from "fflate";
 import ICAL from "ical.js";
+import mammoth from "mammoth";
 import PostalMime, { type Address } from "postal-mime";
 import { extractText } from "unpdf";
 import { z } from "zod";
@@ -24,6 +28,10 @@ const EML_ANCHORS = 20;
 const MAX_FORWARD_DEPTH = 2;
 const MAX_IMAGE_BYTES = 4 * MB;
 const MIN_IMAGE_BYTES = 30 * KB;
+const DOC_TEXT_CHARS = 15_000;
+const SHEET_ROWS = 200;
+const SHEET_COLS = 30;
+const SHEET_CHARS = 15_000;
 
 export interface AttachmentMeta {
   filename: string;
@@ -289,6 +297,58 @@ export async function parseForwardedEmail(bytes: Buffer): Promise<Json[]> {
   }
 }
 
+async function parseWordDocument(bytes: Buffer): Promise<Json[]> {
+  try {
+    const { value } = await mammoth.extractRawText({ buffer: bytes });
+    const text = value.replace(/\n{3,}/g, "\n\n").trim();
+    return text ? [{ text: truncate(text, DOC_TEXT_CHARS) }] : [];
+  } catch {
+    return [];
+  }
+}
+
+function cellText(value: ExcelJS.CellValue): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "object") {
+    if ("result" in value) return cellText(value.result);
+    if ("richText" in value) return value.richText.map((r) => r.text).join("");
+    if ("text" in value) return value.text;
+    if ("error" in value) return value.error;
+    return "";
+  }
+  return String(value);
+}
+
+async function parseSpreadsheet(bytes: Buffer): Promise<Json[]> {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.read(Readable.from(bytes));
+    let budget = SHEET_CHARS;
+    const sheets: Json[] = [];
+    for (const sheet of workbook.worksheets) {
+      if (budget <= 0) break;
+      const rows: string[] = [];
+      sheet.eachRow({ includeEmpty: false }, (row) => {
+        if (rows.length >= SHEET_ROWS) return;
+        const values = Array.isArray(row.values) ? row.values.slice(1, SHEET_COLS + 1) : [];
+        rows.push(values.map((v) => cellText(v)).join("\t"));
+      });
+      const table = truncate(rows.join("\n"), budget);
+      budget -= table.length;
+      sheets.push({
+        sheet: sheet.name,
+        rows: sheet.actualRowCount,
+        ...(sheet.actualRowCount > SHEET_ROWS ? { shownRows: SHEET_ROWS } : {}),
+        table,
+      });
+    }
+    return sheets;
+  } catch {
+    return [];
+  }
+}
+
 const ATTACHMENT_PARSERS: AttachmentParser[] = [
   {
     label: "Calendar invite",
@@ -317,6 +377,20 @@ const ATTACHMENT_PARSERS: AttachmentParser[] = [
     extensions: [".pdf"],
     maxBytes: 5 * MB,
     parse: parsePdfText,
+  },
+  {
+    label: "Word document",
+    mimeTypes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    extensions: [".docx"],
+    maxBytes: 10 * MB,
+    parse: parseWordDocument,
+  },
+  {
+    label: "Spreadsheet",
+    mimeTypes: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    extensions: [".xlsx"],
+    maxBytes: 10 * MB,
+    parse: parseSpreadsheet,
   },
   {
     label: "Forwarded email",
