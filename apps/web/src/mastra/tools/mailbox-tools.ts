@@ -70,12 +70,12 @@ const starEmailTool = createTool({
 const setLabelTool = createTool({
   id: "setLabel",
   description:
-    "Set or change the label/category on an email. The label must be one of the user's existing built-in or custom label keys — never invent keys. If no id is supplied and a current email is in context, use that id.",
-  inputSchema: z.object({ id: z.string(), label: z.string() }),
-  execute: async ({ id, label }, { requestContext }) =>
+    "Add one of the account's own labels (Gmail label, Zoho tag, Outlook category) to an email. labelId must come from the user's labels as listed by the provider; never invent one. If no id is supplied and a current email is in context, use that id.",
+  inputSchema: z.object({ id: z.string(), labelId: z.string() }),
+  execute: async ({ id, labelId }, { requestContext }) =>
     withToolErrors(async () => {
       const ctx = getMailboxCtx(requestContext);
-      return labels.setLabel({ userId: ctx.userId, mailbox: ctx, id, label });
+      return labels.setLabel(ctx, id, labelId);
     }),
 });
 

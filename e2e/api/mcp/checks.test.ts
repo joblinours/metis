@@ -12,8 +12,6 @@ const SENSITIVE = [
   "deleteEmails",
   "sendEmail",
   "deleteDraft",
-  "deleteLabel",
-  "createMailFolder",
   "scheduleEmail",
   "cancelScheduled",
   "retryScheduled",

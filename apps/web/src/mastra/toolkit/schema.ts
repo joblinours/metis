@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { THEME_BRAND_IDS } from "@/theme/brand";
 import { WRITABLE_ATTENDEE_RESPONSES } from "@/types/calendar";
-import { CUSTOM_LABEL_COLORS, MAIL_FOLDERS } from "@/types/mail";
+import { MAIL_FOLDERS } from "@/types/mail";
 import { nodeSchema } from "@/workflow/schema";
 
 export const folderEnum = z.enum(MAIL_FOLDERS);
@@ -74,22 +74,31 @@ export const unsubscribeFields = {
     .max(25),
 };
 
-export const createLabelFields = {
-  ...mailboxTarget,
-  name: z.string().trim().min(1).max(40),
-  color: z.enum(CUSTOM_LABEL_COLORS).optional(),
+const labelId = z.string().min(1).describe("A labelId from listLabels");
+const providerName = z.string().trim().min(1).max(200);
+
+export const listLabelsFields = {
+  mailboxId: z.string().optional().describe("Only this mailbox; every mailbox when left out"),
 };
 
-export const labelKeyTarget = {
-  ...mailboxTarget,
-  label: z.string().describe("A custom label key from listLabels"),
-};
+export const labelIdTarget = { ...mailboxTarget, labelId };
+
+export const setLabelFields = { ...messageTarget, labelId };
 
 export const setLabelsFields = {
   ...mailboxTarget,
   ids: z.array(z.string().min(1)).min(1).max(200),
-  label: z.string().min(1),
+  labelId,
 };
+
+export const clearLabelFields = {
+  ...messageTarget,
+  labelId: labelId.optional().describe("The labelId to remove; every label when left out"),
+};
+
+export const createLabelFields = { ...mailboxTarget, name: providerName };
+
+export const renameLabelFields = { ...labelIdTarget, name: providerName };
 
 export const folderIdTarget = {
   folderId: z.string().min(1).describe("A folderId from listMailFolders"),
@@ -118,6 +127,20 @@ export const applyProviderLabelsFields = {
     .default([])
     .describe("labelIds from listMailFolders to remove"),
 };
+
+export const renameMailFolderFields = { ...mailboxTarget, ...folderIdTarget, name: providerName };
+
+export const moveMailFolderFields = {
+  ...mailboxTarget,
+  ...folderIdTarget,
+  parentFolderId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("A folderId from listMailFolders to move it into; the top level when left out"),
+};
+
+export const deleteMailFolderFields = { ...mailboxTarget, ...folderIdTarget };
 
 export const createMailFolderFields = {
   ...mailboxTarget,

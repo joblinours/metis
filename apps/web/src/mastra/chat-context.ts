@@ -1,15 +1,13 @@
 import type { CalendarSession } from "@/calendar/session";
 import type { DriveSession } from "@/drive/session";
-import { BUILT_IN_LABELS } from "@/server/schema";
+import type { MailboxFolders } from "@/mail/provider-folders";
 
-export function mailboxLabelDirectory(customLabels: { key: string; name: string }[]): string {
-  return (
-    "AVAILABLE LABELS (use exactly these keys for setLabel):\n" +
-    `- Built-in: ${BUILT_IN_LABELS.join(", ")}\n` +
-    (customLabels.length
-      ? `- Custom: ${customLabels.map((l) => `${l.key} (${l.name})`).join(", ")}`
-      : "- Custom: (none)")
-  );
+export function mailboxLabelDirectory(groups: MailboxFolders[]): string {
+  const lines = groups.map((group) => {
+    const labels = group.tags.map((t) => `${t.ref} (${t.name})`).join(", ");
+    return `- ${group.mailboxEmail}: ${labels || "(none)"}`;
+  });
+  return `AVAILABLE LABELS (labelId (name) for setLabel):\n${lines.join("\n") || "- (none)"}`;
 }
 
 export function calendarAccountScope(session: CalendarSession): string {

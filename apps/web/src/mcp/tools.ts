@@ -285,19 +285,19 @@ export const MCP_TOOL_MANIFEST = [
   {
     key: "listLabels",
     label: "List labels",
-    description: "List the built-in and custom labels",
+    description: "List a mailbox's labels at the provider",
     group: "Labels",
   },
   {
     key: "setLabel",
-    label: "Set label",
-    description: "Apply a label to an email",
+    label: "Add label",
+    description: "Add a provider label to an email",
     group: "Labels",
   },
   {
     key: "clearLabel",
-    label: "Clear label",
-    description: "Remove the label from an email",
+    label: "Remove label",
+    description: "Remove provider labels from an email",
     group: "Labels",
   },
   {
@@ -351,22 +351,21 @@ export const MCP_TOOL_MANIFEST = [
   },
   {
     key: "setLabels",
-    label: "Set labels",
-    description: "Apply one label to several emails",
+    label: "Add label to many",
+    description: "Add a provider label to several emails",
     group: "Labels",
   },
   {
     key: "createLabel",
     label: "Create label",
-    description: "Create a custom label in a mailbox",
+    description: "Create a label at the provider",
     group: "Labels",
   },
   {
     key: "deleteLabel",
     label: "Delete label",
-    description: "Delete a custom label from a mailbox",
+    description: "Delete a label at the provider",
     group: "Labels",
-    sensitive: true,
   },
   {
     key: "listMailFolders",
@@ -397,7 +396,30 @@ export const MCP_TOOL_MANIFEST = [
     label: "Create mail folder",
     description: "Create a folder or label at the provider",
     group: "Mail folders",
-    sensitive: true,
+  },
+  {
+    key: "renameMailFolder",
+    label: "Rename mail folder",
+    description: "Rename a folder at the provider",
+    group: "Mail folders",
+  },
+  {
+    key: "moveMailFolder",
+    label: "Move mail folder",
+    description: "Move a folder inside another one at the provider",
+    group: "Mail folders",
+  },
+  {
+    key: "deleteMailFolder",
+    label: "Delete mail folder",
+    description: "Delete a folder at the provider",
+    group: "Mail folders",
+  },
+  {
+    key: "renameLabel",
+    label: "Rename label",
+    description: "Rename a label at the provider",
+    group: "Labels",
   },
   {
     key: "snoozeEmail",

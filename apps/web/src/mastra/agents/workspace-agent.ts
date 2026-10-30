@@ -24,7 +24,7 @@ CAPABILITIES YOU CAN SEARCH FOR
 - Mail actions: star, mark read or unread, archive, restore
 - Mail writing: send a message, create or update a draft. Drafts write to the provider's Drafts folder and send nothing — use a draft when the user has not asked for it to go out
 - Deleting mail
-- Labels: list every valid label key, apply one, clear one. The key must come from the listing tool${workspacePhishingCapability}
+- Labels and folders: the account's own labels (Gmail labels, Zoho tags, Outlook categories) and folders; list, add, remove, create, rename, move and delete them. Ids must come from the listing tools${workspacePhishingCapability}
 - Workflows, workspace graphs of steps over mail, calendars, drives and AI: read the catalog of triggers and steps, list them, review their runs and open one run's detail, create, update, toggle, delete (owners and admins only), queue a manual run now, cancel one queued or running run, or retry the failed or blocked steps of one finished run without repeating what completed. A workflow is a STANDING instruction that acts on all future mail — state its conditions and actions precisely
 - Calendar events: list them in an ISO-8601 window across every visible calendar, open one, create, update, delete, or respond to an invitation
 - People: list workspace members, find mail exchanged with one, find what they organise or are invited to in a window, list and search the drives they connected. The member event tool reads only the calendars this workspace can see; say that when you report availability

@@ -55,9 +55,12 @@ import {
 import {
   applyProviderLabels,
   createMailFolder,
+  deleteMailFolder,
   listEmailsInFolder,
   listMailFolders,
+  moveMailFolder,
   moveToFolder,
+  renameMailFolder,
 } from "./tools/folders";
 import {
   addReadLater,
@@ -104,6 +107,7 @@ import {
   createLabel,
   deleteLabel,
   listLabels,
+  renameLabel,
   setLabel,
   setLabels,
 } from "./tools/labels";
@@ -243,6 +247,10 @@ const MCP_TOOLS = {
   moveToFolder,
   applyProviderLabels,
   createMailFolder,
+  renameMailFolder,
+  moveMailFolder,
+  deleteMailFolder,
+  renameLabel,
   searchContacts,
   deleteDraft,
   getRawEmail,

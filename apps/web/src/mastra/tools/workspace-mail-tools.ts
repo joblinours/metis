@@ -8,21 +8,29 @@ import * as mail from "@/ops/mail";
 import { analyzePhishing } from "@/ops/phishing";
 
 import { actorHeaders, getWorkspaceCtx } from "../runtime-context";
+import { LABEL_TOOL_TEXT } from "../toolkit/label-text";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
   applyProviderLabelsFields,
   attachmentTarget,
+  clearLabelFields,
   contactSearchFields,
   createLabelFields,
   createMailFolderFields,
+  deleteMailFolderFields,
   draftFields,
   draftTarget,
-  labelKeyTarget,
+  labelIdTarget,
   listEmailsFields,
   listEmailsInFolderFields,
+  listLabelsFields,
   mailboxTarget,
   messageTarget,
+  moveMailFolderFields,
   moveToFolderFields,
+  renameLabelFields,
+  renameMailFolderFields,
+  setLabelFields,
   setLabelsFields,
   summarizeThreadFields,
 } from "../toolkit/schema";
@@ -252,50 +260,6 @@ const updateDraftTool = createTool({
     }),
 });
 
-const listLabelsTool = createTool({
-  id: "listLabels",
-  description:
-    "List every label key available in this workspace: the built-in labels plus custom labels. Use these exact keys with setLabel.",
-  inputSchema: z.object({}),
-  execute: async (_input, { requestContext }) =>
-    withToolErrors(async () => {
-      const ctx = getWorkspaceCtx(requestContext);
-      return labels.listLabels(ctx.mailboxes.map((m) => m.mailboxId));
-    }),
-});
-
-const setLabelTool = createTool({
-  id: "setLabel",
-  description:
-    "Set or change an email's label in a specific mailbox. The label must be an existing built-in or custom label key — never invent keys.",
-  inputSchema: z.object({ ...messageTarget, label: z.string() }),
-  execute: async ({ mailboxId, id, label }, { requestContext }) =>
-    withToolErrors(async () => {
-      const ctx = getWorkspaceCtx(requestContext);
-      const r = requireMailbox(ctx, mailboxId);
-      if ("error" in r) return r;
-      return labels.setLabel({
-        userId: ctx.userId,
-        mailbox: r.mailbox,
-        id,
-        label,
-      });
-    }),
-});
-
-const clearLabelTool = createTool({
-  id: "clearLabel",
-  description: "Remove the label from an email in a specific mailbox.",
-  inputSchema: z.object(messageTarget),
-  execute: async ({ mailboxId, id }, { requestContext }) =>
-    withToolErrors(async () => {
-      const ctx = getWorkspaceCtx(requestContext);
-      const r = requireMailbox(ctx, mailboxId);
-      if ("error" in r) return r;
-      return labels.clearLabel(r.mailbox, id);
-    }),
-});
-
 const analyzePhishingTool = createTool({
   id: "analyzePhishing",
   description:
@@ -340,61 +304,6 @@ const getAttachmentTextTool = createTool({
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
       return mail.getAttachmentText(r.mailbox, id, attachmentId);
-    }),
-});
-
-const createLabelTool = createTool({
-  id: "createLabel",
-  description:
-    "Create a custom label in a specific mailbox. Returns its key for setLabel and setLabels.",
-  inputSchema: z.object(createLabelFields),
-  execute: async ({ mailboxId, name, color }, { requestContext }) =>
-    withToolErrors(async () => {
-      const ctx = getWorkspaceCtx(requestContext);
-      const r = requireMailbox(ctx, mailboxId);
-      if ("error" in r) return r;
-      return labels.createLabel({
-        userId: ctx.userId,
-        mailbox: r.mailbox,
-        name,
-        color,
-      });
-    }),
-});
-
-const deleteLabelTool = createTool({
-  id: "deleteLabel",
-  description: "Delete a custom label from a specific mailbox. Built-in labels cannot be deleted.",
-  inputSchema: z.object({
-    ...labelKeyTarget,
-    summary: z.string().describe("Short description of the label being deleted and where"),
-  }),
-  requireApproval: true,
-  execute: async ({ mailboxId, label }, { requestContext }) =>
-    withToolErrors(async () => {
-      const ctx = getWorkspaceCtx(requestContext);
-      const r = requireMailbox(ctx, mailboxId);
-      if ("error" in r) return r;
-      return labels.deleteLabel(r.mailbox, label);
-    }),
-});
-
-const setLabelsTool = createTool({
-  id: "setLabels",
-  description:
-    "Set the same label on several emails in a specific mailbox at once. The label must be an existing key from listLabels. Returns each email's previous label.",
-  inputSchema: z.object(setLabelsFields),
-  execute: async ({ mailboxId, ids, label }, { requestContext }) =>
-    withToolErrors(async () => {
-      const ctx = getWorkspaceCtx(requestContext);
-      const r = requireMailbox(ctx, mailboxId);
-      if ("error" in r) return r;
-      return labels.setLabels({
-        userId: ctx.userId,
-        mailbox: r.mailbox,
-        ids,
-        label,
-      });
     }),
 });
 
@@ -451,24 +360,6 @@ const applyProviderLabelsTool = createTool({
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
       return folders.applyProviderLabels(r.mailbox, { ids, add, remove });
-    }),
-});
-
-const createMailFolderTool = createTool({
-  id: "createMailFolder",
-  description:
-    "Create a folder (optionally inside another one) or a label in a mailbox, at the provider.",
-  inputSchema: z.object({
-    ...createMailFolderFields,
-    summary: z.string().describe("Short description of the folder or label and where it goes"),
-  }),
-  requireApproval: true,
-  execute: async ({ mailboxId, kind, name, parentFolderId }, { requestContext }) =>
-    withToolErrors(async () => {
-      const ctx = getWorkspaceCtx(requestContext);
-      const r = requireMailbox(ctx, mailboxId);
-      if ("error" in r) return r;
-      return folders.createMailFolder(r.mailbox, { kind, name, parentFolderId });
     }),
 });
 
@@ -531,6 +422,153 @@ const summarizeThreadTool = createTool({
     }),
 });
 
+function wsMailbox(requestContext: Parameters<typeof getWorkspaceCtx>[0], mailboxId: string) {
+  return requireMailbox(getWorkspaceCtx(requestContext), mailboxId);
+}
+
+const listLabelsTool = createTool({
+  id: "listLabels",
+  description: LABEL_TOOL_TEXT.listLabels,
+  inputSchema: z.object(listLabelsFields),
+  execute: async ({ mailboxId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = getWorkspaceCtx(requestContext);
+      if (!mailboxId) return labels.listLabels(ctx.mailboxes);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return labels.listLabels([r.mailbox]);
+    }),
+});
+
+const setLabelTool = createTool({
+  id: "setLabel",
+  description: LABEL_TOOL_TEXT.setLabel,
+  inputSchema: z.object(setLabelFields),
+  execute: async ({ mailboxId, id, labelId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return labels.setLabel(r.mailbox, id, labelId);
+    }),
+});
+
+const setLabelsTool = createTool({
+  id: "setLabels",
+  description: LABEL_TOOL_TEXT.setLabels,
+  inputSchema: z.object(setLabelsFields),
+  execute: async ({ mailboxId, ids, labelId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return labels.setLabels(r.mailbox, ids, labelId);
+    }),
+});
+
+const clearLabelTool = createTool({
+  id: "clearLabel",
+  description: LABEL_TOOL_TEXT.clearLabel,
+  inputSchema: z.object(clearLabelFields),
+  execute: async ({ mailboxId, id, labelId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return labels.clearLabel(r.mailbox, id, labelId);
+    }),
+});
+
+const createLabelTool = createTool({
+  id: "createLabel",
+  description: LABEL_TOOL_TEXT.createLabel,
+  inputSchema: z.object(createLabelFields),
+  execute: async ({ mailboxId, name }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return labels.createLabel(r.mailbox, name);
+    }),
+});
+
+const renameLabelTool = createTool({
+  id: "renameLabel",
+  description: LABEL_TOOL_TEXT.renameLabel,
+  inputSchema: z.object(renameLabelFields),
+  execute: async ({ mailboxId, labelId, name }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return labels.renameLabel(r.mailbox, labelId, name);
+    }),
+});
+
+const deleteLabelTool = createTool({
+  id: "deleteLabel",
+  description: LABEL_TOOL_TEXT.deleteLabel,
+  inputSchema: z.object({
+    ...labelIdTarget,
+    summary: z.string().describe("Short description of the label being deleted and where"),
+  }),
+  requireApproval: true,
+  execute: async ({ mailboxId, labelId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return labels.deleteLabel(r.mailbox, labelId);
+    }),
+});
+
+const createMailFolderTool = createTool({
+  id: "createMailFolder",
+  description:
+    "Create a folder (optionally inside another one) or a label in a mailbox, at the provider.",
+  inputSchema: z.object(createMailFolderFields),
+  execute: async ({ mailboxId, kind, name, parentFolderId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return folders.createMailFolder(r.mailbox, { kind, name, parentFolderId });
+    }),
+});
+
+const renameMailFolderTool = createTool({
+  id: "renameMailFolder",
+  description: LABEL_TOOL_TEXT.renameMailFolder,
+  inputSchema: z.object(renameMailFolderFields),
+  execute: async ({ mailboxId, folderId, name }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return folders.renameMailFolder(r.mailbox, folderId, name);
+    }),
+});
+
+const moveMailFolderTool = createTool({
+  id: "moveMailFolder",
+  description: LABEL_TOOL_TEXT.moveMailFolder,
+  inputSchema: z.object(moveMailFolderFields),
+  execute: async ({ mailboxId, folderId, parentFolderId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return folders.moveMailFolder(r.mailbox, folderId, parentFolderId);
+    }),
+});
+
+const deleteMailFolderTool = createTool({
+  id: "deleteMailFolder",
+  description: LABEL_TOOL_TEXT.deleteMailFolder,
+  inputSchema: z.object({
+    ...deleteMailFolderFields,
+    summary: z.string().describe("Short description of the folder being deleted and what it holds"),
+  }),
+  requireApproval: true,
+  execute: async ({ mailboxId, folderId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const r = wsMailbox(requestContext, mailboxId);
+      if ("error" in r) return r;
+      return folders.deleteMailFolder(r.mailbox, folderId);
+    }),
+});
+
 export const workspaceMailTools = {
   listMailboxes: listMailboxesTool,
   aggregateInbox: aggregateInboxTool,
@@ -560,6 +598,10 @@ export const workspaceMailTools = {
   moveToFolder: moveToFolderTool,
   applyProviderLabels: applyProviderLabelsTool,
   createMailFolder: createMailFolderTool,
+  renameMailFolder: renameMailFolderTool,
+  moveMailFolder: moveMailFolderTool,
+  deleteMailFolder: deleteMailFolderTool,
+  renameLabel: renameLabelTool,
   searchContacts: searchContactsTool,
   deleteDraft: deleteDraftTool,
   getRawEmail: getRawEmailTool,
