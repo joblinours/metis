@@ -15,7 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@metis/ui/components/dropdown-menu";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@metis/ui/components/hover-card";
@@ -55,7 +54,6 @@ import {
   ShieldCheck,
   ShieldX,
   Star,
-  Tag as TagIcon,
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -65,7 +63,6 @@ import { type DrivePick, DrivePickerDialog } from "@/components/drive-picker-dia
 import { useScopePolicy } from "@/components/scope-policy-context";
 import { base64ToBlob, uploadToDrive } from "@/drive/upload-client";
 import { useCurrentEmails } from "@/hooks/use-current-emails";
-import { useCustomLabels } from "@/hooks/use-custom-labels";
 import {
   bodyAsHtml,
   type MessageBody,
@@ -86,16 +83,7 @@ import { useMailboxScope } from "@/hooks/use-workspace-path";
 import { inOrder } from "@/lib/in-order";
 import { orpc } from "@/lib/orpc";
 import { formatBytes, formatRelativeDate } from "@/lib/utils";
-import { customLabelMark, LABEL_OPTIONS } from "@/mail/label-meta";
-import { showLabelUndo } from "@/mail/label-undo";
-import {
-  mutedThreads,
-  readLater,
-  setCachedLabels,
-  useMailLabels,
-  useMutedThreadIds,
-  useReadLaterIds,
-} from "@/mail/mail-cache";
+import { mutedThreads, readLater, useMutedThreadIds, useReadLaterIds } from "@/mail/mail-cache";
 import { printEmail, viewOriginalEmail } from "@/mail/popup";
 import { cleanUrl as cleanTrackedUrl, renderEmailHtml } from "@/mail/render/pipeline";
 import type { RemoteImages } from "@/mail/render/types";
@@ -195,12 +183,8 @@ export function EmailDetail() {
     visibleEmailIds,
   } = useMailStore();
   const emails = useCurrentEmails();
-  const { labels } = useMailLabels(scope);
-  const customLabels = useCustomLabels();
   const mutedThreadIds = useMutedThreadIds(scope);
   const readLaterIds = useReadLaterIds(scope);
-  const setLabelFor = (messageId: string, label: string) =>
-    setCachedLabels(scope, (current) => ({ ...current, [messageId]: { label, confidence: 100 } }));
   const muteThreadLocal = (threadId: string) => mutedThreads.add(scope, threadId);
   const unmuteThreadLocal = (threadId: string) => mutedThreads.remove(scope, threadId);
   const addReadLaterLocal = (id: string) => readLater.add(scope, id);
@@ -397,21 +381,6 @@ export function EmailDetail() {
     return () => observer.disconnect();
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- the overlay node mounts/unmounts with hasReplyFooter — the observer must re-attach when it appears.
   }, [hasReplyFooter]);
-
-  async function changeLabel(newLabel: string, newLabelName: string) {
-    if (!selectedEmail) return;
-    const previousLabel = labels[selectedEmail.id]?.label ?? null;
-    const messageId = selectedEmail.id;
-    setLabelFor(messageId, newLabel);
-    try {
-      await orpc.mail.labels.setOnMessage({
-        ...scope,
-        id: messageId,
-        label: newLabel,
-      });
-      showLabelUndo(newLabelName, [{ id: messageId, previousLabel }], scope);
-    } catch {}
-  }
 
   async function handleDelete() {
     if (!selectedEmail) return;
@@ -778,13 +747,6 @@ export function EmailDetail() {
     selectedEmail.ccRecipients ??
     (selectedEmail.cc ?? []).map((email) => ({ email, name: undefined }));
 
-  const activeLabelKey = labels[selectedEmail.id]?.label;
-  const activeLabelName = activeLabelKey
-    ? (LABEL_OPTIONS.find((o) => o.key === activeLabelKey)?.name ??
-      customLabels.find((c) => c.key === activeLabelKey)?.name ??
-      "Label")
-    : "Label";
-
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b px-4 py-3 scrollbar-none md:flex-wrap md:gap-2 md:overflow-x-visible md:px-6 border-border-soft [&::-webkit-scrollbar]:hidden">
@@ -828,52 +790,6 @@ export function EmailDetail() {
 
         <MoveToFolderMenu email={selectedEmail} />
         <ProviderTagsMenu email={selectedEmail} />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label="Change label"
-                className="bg-transparent text-muted-foreground dark:bg-transparent"
-              >
-                <TagIcon className="size-3.25" strokeWidth={2} />
-                {activeLabelName}
-                <ChevronDown className="size-2.75" />
-              </Button>
-            }
-          />
-          <DropdownMenuContent align="end" className="w-56">
-            <div className="px-2 py-1.5 text-[10px] uppercase tracking-[1.5px] text-faint">
-              Built-in
-            </div>
-            {LABEL_OPTIONS.map((opt) => (
-              <DropdownMenuItem key={opt.key} onClick={() => changeLabel(opt.key, opt.name)}>
-                <TagIcon className="mr-2 h-3 w-3" strokeWidth={2} style={{ color: opt.mark }} />
-                {opt.name}
-              </DropdownMenuItem>
-            ))}
-            {customLabels.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-[10px] uppercase tracking-[1.5px] text-faint">
-                  Custom
-                </div>
-                {customLabels.map((c) => (
-                  <DropdownMenuItem key={c.id} onClick={() => changeLabel(c.key, c.name)}>
-                    <TagIcon
-                      className="mr-2 h-3 w-3"
-                      strokeWidth={2}
-                      style={{ color: customLabelMark(c.color) }}
-                    />
-                    {c.name}
-                  </DropdownMenuItem>
-                ))}
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
 
         <ToolBtn onClick={handleStar}>
           <Star

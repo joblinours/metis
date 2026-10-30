@@ -23,7 +23,6 @@ function renderMessage(m: ConvMsg, index: number): string {
     m.from ? `From: ${m.from}` : null,
     m.date ? `Date: ${m.date}` : null,
     m.subject ? `Subject: ${m.subject}` : null,
-    m.label ? `Label: ${m.label}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -141,7 +140,7 @@ function cardLine(type: DetailCardType): string {
 }
 
 const CARD_RULES = [
-  "Each message comes with its headers, body text, its label, mailing headers for the latest message and, when present: schema.org structured data (JSON-LD or microdata) embedded by the sender, the email's links, and parsed attachments — calendar invites, contact cards, wallet passes, PDF text, forwarded emails — and images. Structured data and parsed attachments are authoritative for codes, numbers, IDs, amounts and dates; prefer them over the prose.",
+  "Each message comes with its headers, body text, mailing headers for the latest message and, when present: schema.org structured data (JSON-LD or microdata) embedded by the sender, the email's links, and parsed attachments — calendar invites, contact cards, wallet passes, PDF text, forwarded emails — and images. Structured data and parsed attachments are authoritative for codes, numbers, IDs, amounts and dates; prefer them over the prose.",
   "Mailing headers such as auto-submitted, precedence: bulk, list-id or list-unsubscribe mean the email is automated.",
   "Card types:",
   ...keysOf(CARD_DEFINITIONS).map(cardLine),

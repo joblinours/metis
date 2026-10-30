@@ -1,14 +1,30 @@
 "use client";
 
 import { useDndMonitor, useDroppable } from "@dnd-kit/core";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@metis/ui/components/alert-dialog";
 import { Button } from "@metis/ui/components/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@metis/ui/components/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@metis/ui/components/dropdown-menu";
 import { cn } from "@metis/ui/lib/utils";
-import { ChevronRight, Folder, Plus, Tag, X } from "lucide-react";
+import { ChevronRight, Folder, MoreHorizontal, Pencil, Plus, Tag, Trash2, X } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
@@ -172,25 +188,49 @@ function GroupBody({
   return (
     <div className="space-y-px">
       {group.folders.map((folder) => (
-        <FolderRow
+        <ManagedRow
           key={folder.ref}
-          folder={folder}
-          mailboxId={group.mailboxId}
-          depth={depths.get(folder.ref) ?? 0}
-          active={activeFolderRef === folder.ref}
-          href={folderHref(folder.ref)}
-        />
+          kind="folder"
+          itemRef={folder.ref}
+          name={folder.name}
+          canRename
+          deleteNote={
+            group.provider === "google"
+              ? "The label is removed from every email that has it; the emails stay in All Mail."
+              : "The folder and the emails in it are deleted at the provider."
+          }
+        >
+          <FolderRow
+            folder={folder}
+            mailboxId={group.mailboxId}
+            depth={depths.get(folder.ref) ?? 0}
+            active={activeFolderRef === folder.ref}
+            href={folderHref(folder.ref)}
+          />
+        </ManagedRow>
       ))}
       {!tagsAreFolders &&
         group.tags.map((tag) => (
-          <div
+          <ManagedRow
             key={tag.ref}
-            className="flex items-center gap-2.5 px-2.5 py-1.5 text-[12px] text-muted-foreground"
-            title="Provider label"
+            kind="tag"
+            itemRef={tag.ref}
+            name={tag.name}
+            canRename={group.provider !== "microsoft"}
+            deleteNote="The label is removed from every email that has it; the emails stay."
           >
-            <Tag className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} style={{ color: tag.color }} />
-            <span className="truncate">{tag.name}</span>
-          </div>
+            <div
+              className="flex items-center gap-2.5 px-2.5 py-1.5 text-[12px] text-muted-foreground"
+              title="Provider label"
+            >
+              <Tag
+                className="h-3.5 w-3.5 shrink-0"
+                strokeWidth={1.8}
+                style={{ color: tag.color }}
+              />
+              <span className="truncate">{tag.name}</span>
+            </div>
+          </ManagedRow>
         ))}
       {group.tagsNeedReconnect && (
         <p className="px-2.5 py-1 text-[11px] text-faint">
@@ -342,6 +382,127 @@ function CreateFolderForm({ group, onDone }: { group: MailboxFolderGroup; onDone
       <Button size="xs" className="w-full" onClick={submit} disabled={!name.trim() || saving}>
         Create
       </Button>
+    </div>
+  );
+}
+
+function ManagedRow({
+  kind,
+  itemRef,
+  name,
+  canRename,
+  deleteNote,
+  children,
+}: {
+  kind: "folder" | "tag";
+  itemRef: string;
+  name: string;
+  canRename: boolean;
+  deleteNote: string;
+  children: React.ReactNode;
+}) {
+  const scope = useMailboxScope();
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(name);
+  const [confirming, setConfirming] = useState(false);
+  const what = kind === "folder" ? "folder" : "label";
+
+  async function rename() {
+    const next = draft.trim();
+    setRenaming(false);
+    if (!next || next === name) return;
+    try {
+      if (kind === "folder") {
+        await orpc.mail.folders.rename({ ...scope, folderRef: itemRef, name: next });
+      } else {
+        await orpc.mail.folders.renameTag({ ...scope, tagRef: itemRef, name: next });
+      }
+      refreshProviderFolders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Could not rename the ${what}`);
+    }
+  }
+
+  async function remove() {
+    setConfirming(false);
+    try {
+      if (kind === "folder") {
+        await orpc.mail.folders.delete({ ...scope, folderRef: itemRef });
+      } else {
+        await orpc.mail.folders.deleteTag({ ...scope, tagRef: itemRef });
+      }
+      refreshProviderFolders();
+      toast.success(`Deleted ${name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Could not delete the ${what}`);
+    }
+  }
+
+  if (renaming) {
+    return (
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void rename()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void rename();
+          if (e.key === "Escape") setRenaming(false);
+        }}
+        autoFocus
+        aria-label={`New name for ${name}`}
+        className="w-full rounded border border-border bg-panel px-2 py-1 text-[12px] text-foreground outline-none"
+      />
+    );
+  }
+
+  return (
+    <div className="group relative">
+      {children}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              aria-label={`Actions for ${name}`}
+              className="absolute right-1 top-1/2 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-faint transition-colors hover:bg-hover group-hover:flex aria-expanded:flex pointer-coarse:flex"
+            />
+          }
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          {canRename && (
+            <DropdownMenuItem
+              onClick={() => {
+                setDraft(name);
+                setRenaming(true);
+              }}
+            >
+              <Pencil className="h-3 w-3" /> Rename
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => setConfirming(true)}>
+            <Trash2 className="h-3 w-3" /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
+            <AlertDialogDescription>{deleteNote}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void remove()}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

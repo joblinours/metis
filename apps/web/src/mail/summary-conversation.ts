@@ -13,7 +13,6 @@ import {
 } from "./attachment-data";
 import { cacheMessage, getCachedMessage } from "./cache";
 import type { MessageHeaders } from "./headers";
-import { messageLabels } from "./labels";
 import { type MailScope, scopeMessage } from "./session";
 import {
   extractMessageExtras,
@@ -51,7 +50,6 @@ export interface ConvMsg {
   from?: string;
   date?: string;
   subject?: string;
-  label?: string;
   text: string;
   structuredData: Json[];
   attachments: ParsedAttachment[];
@@ -176,10 +174,6 @@ export async function loadConversation(
   const scopedAnchor = scopeMessage(session, metas.at(-1)?.id ?? messageId);
   const owner =
     session.mailboxes.find((m) => m.mailboxId === scopedAnchor.mailboxId)?.mailboxEmail ?? null;
-  const labels = await messageLabels(
-    scopedAnchor.mailboxId,
-    metas.map((m) => scopeMessage(session, m.id).messageId),
-  ).catch(() => new Map<string, string>());
 
   const messages = await Promise.all(
     metas.map(async (meta, i) => {
@@ -205,7 +199,6 @@ export async function loadConversation(
         from: resolved.from,
         date: resolved.date,
         subject: resolved.subject,
-        label: labels.get(bareId),
         text: truncate(stripQuotedText(raw), PER_MESSAGE_CHARS),
         structuredData: extras.structuredData,
         attachments,

@@ -32,7 +32,6 @@ import {
   Shield,
   Sparkles,
   Star,
-  Tag,
   Trash2,
   Unplug,
   UserMinus,
@@ -46,10 +45,8 @@ import { stashCalendarHandoff } from "@/calendar/pending-open";
 import { setPendingDraft } from "@/components/assistant/pending";
 import { downloadDriveFile } from "@/components/drive-preview/use-drive-preview";
 import type { MemberAdmin } from "@/components/members/member-admin";
-import { customLabelsQuery } from "@/hooks/use-custom-labels";
 import { orpc, rpc } from "@/lib/orpc";
-import { getQueryClient, refreshQueries } from "@/lib/query-client";
-import { LABEL_OPTIONS } from "@/mail/label-meta";
+import { refreshQueries } from "@/lib/query-client";
 import type {
   EventSearchHitDto,
   FileSearchHitDto,
@@ -322,32 +319,6 @@ function mailActions(ctx: ActionContext, hit: MailSearchHitDto): SearchAction[] 
             orpc.mail.messages.snooze({ ...scope, id, folder: hit.folder, wakeAt: nextMonday() }),
           "Snoozed until next week",
         ),
-      { keepOpen: true },
-    ),
-    act(
-      "label",
-      "Add a label",
-      Tag,
-      async () => {
-        const custom = await getQueryClient()
-          .fetchQuery({ ...customLabelsQuery(scope), staleTime: 60_000 })
-          .then((res) => res.labels)
-          .catch(() => []);
-        const label = await ctx.prompts.askChoice({
-          title: "Add a label",
-          options: [...LABEL_OPTIONS, ...custom].map((l) => ({
-            value: l.key,
-            label: l.name,
-          })),
-          confirm: "Add label",
-        });
-        if (!label) return;
-        await attempt(
-          ctx,
-          () => orpc.mail.labels.setOnMessage({ ...scope, id, label }),
-          "Label added",
-        );
-      },
       { keepOpen: true },
     ),
   );

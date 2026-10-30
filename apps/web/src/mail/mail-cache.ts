@@ -21,7 +21,6 @@ const HEAD_FRESH_MS = 30_000;
 type ListPage = Awaited<ReturnType<typeof orpc.mail.messages.list>>;
 type SearchResult = Awaited<ReturnType<typeof orpc.mail.messages.search>>;
 type SavedEmails = Awaited<ReturnType<typeof orpc.mail.readLater.listEmails>>;
-type LabelMap = Awaited<ReturnType<typeof orpc.mail.labels.getMap>>["labels"];
 
 const NO_EMAILS: Email[] = [];
 const NO_ERRORS: NonNullable<ListPage["mailboxErrors"]> = [];
@@ -29,7 +28,6 @@ const NO_ERRORS: NonNullable<ListPage["mailboxErrors"]> = [];
 const removals = new Map<string, number | null>();
 
 function refreshMessageRows() {
-  void refreshQueries(rpc.mail.labels.getMap.key());
   void refreshQueries(rpc.mail.readLater.key());
 }
 
@@ -162,20 +160,6 @@ function stateListOptions(scope: MailboxScope, folder: MailFolder, state: MailLi
   };
 }
 
-function labelListOptions(scope: MailboxScope, label: string) {
-  return {
-    ...rpc.mail.labels.listEmails.infiniteOptions({
-      input: (pageToken: string | undefined) => ({ ...scope, label, pageToken }),
-      initialPageParam: undefined,
-      getNextPageParam: (last) => last.nextPageToken ?? undefined,
-      staleTime: Infinity,
-    }),
-    queryFn: pagedQueryFn((pageToken, signal) =>
-      orpc.mail.labels.listEmails({ ...scope, label, pageToken }, { signal }),
-    ),
-  };
-}
-
 function providerFolderListOptions(scope: MailboxScope, folderRef: string) {
   return {
     ...rpc.mail.folders.listEmails.infiniteOptions({
@@ -218,19 +202,16 @@ function usePagedEmails(list: {
 export type ListSource =
   | { kind: "folder" }
   | { kind: "read-later" }
-  | { kind: "label"; label: string }
   | { kind: "provider"; folderRef: string }
   | { kind: "state"; state: MailListState };
 
 export function listSource(
   readLater: boolean,
-  label: string | null,
   tab: string | undefined,
   folderRef: string | null = null,
 ): ListSource {
   if (readLater) return { kind: "read-later" };
   if (folderRef) return { kind: "provider", folderRef };
-  if (label) return { kind: "label", label };
   if (tab === "unread" || tab === "starred") return { kind: "state", state: tab };
   return { kind: "folder" };
 }
@@ -244,11 +225,9 @@ export function refreshListOnSwitch(scope: MailboxScope, folder: MailFolder, sou
   const queryKey =
     source.kind === "state"
       ? stateListOptions(scope, folder, source.state).queryKey
-      : source.kind === "label"
-        ? labelListOptions(scope, source.label).queryKey
-        : source.kind === "provider"
-          ? providerFolderListOptions(scope, source.folderRef).queryKey
-          : null;
+      : source.kind === "provider"
+        ? providerFolderListOptions(scope, source.folderRef).queryKey
+        : null;
   if (!queryKey || !getQueryClient().getQueryData(queryKey)) return;
   void refreshQuery(queryKey);
 }
@@ -260,8 +239,7 @@ export function useEmailSource(
   search: string,
   fetching = true,
 ) {
-  const paged =
-    !search && (source.kind === "label" || source.kind === "state" || source.kind === "provider");
+  const paged = !search && (source.kind === "state" || source.kind === "provider");
   const folderList = useMailList(
     scope,
     folder,
@@ -269,12 +247,6 @@ export function useEmailSource(
     fetching && source.kind !== "read-later" && !paged,
   );
   const savedList = useReadLaterList(scope, search, fetching && source.kind === "read-later");
-  const labelList = usePagedEmails(
-    useInfiniteQuery({
-      ...labelListOptions(scope, source.kind === "label" ? source.label : ""),
-      enabled: fetching && paged && source.kind === "label",
-    }),
-  );
   const providerList = usePagedEmails(
     useInfiniteQuery({
       ...providerFolderListOptions(scope, source.kind === "provider" ? source.folderRef : ""),
@@ -288,7 +260,6 @@ export function useEmailSource(
     }),
   );
   if (source.kind === "read-later") return savedList;
-  if (paged && source.kind === "label") return labelList;
   if (paged && source.kind === "provider") return providerList;
   if (paged && source.kind === "state") return stateList;
   return folderList;
@@ -336,7 +307,6 @@ function mapCachedEmails(map: (emails: Email[]) => Email[]) {
   for (const pagedKey of [
     rpc.mail.messages.list.key({ type: "infinite" }),
     rpc.mail.messages.listInState.key({ type: "infinite" }),
-    rpc.mail.labels.listEmails.key({ type: "infinite" }),
     rpc.mail.folders.listEmails.key({ type: "infinite" }),
   ]) {
     for (const [queryKey, data] of client.getQueriesData<InfiniteData<ListPage>>({
@@ -377,8 +347,6 @@ export function dropCachedEmails(ids: string[]) {
   mapCachedEmails((emails) => emails.filter((e) => !gone.has(e.id)));
 }
 
-const NO_LABELS: LabelMap = {};
-
 const editedAt = new Map<string, number>();
 
 function markEdited(queryKey: QueryKey) {
@@ -393,26 +361,6 @@ function keepingEdits<T>(queryKey: QueryKey, fetch: (signal: AbortSignal) => Pro
     if (edited === undefined || edited < startedAt) return data;
     return getQueryClient().getQueryData<T>(queryKey) ?? data;
   };
-}
-
-function labelsOptions(scope: MailboxScope) {
-  const options = rpc.mail.labels.getMap.queryOptions({ input: scope, staleTime: Infinity });
-  return {
-    ...options,
-    queryFn: keepingEdits(options.queryKey, (signal) => orpc.mail.labels.getMap(scope, { signal })),
-  };
-}
-
-export function useMailLabels(scope: MailboxScope) {
-  const query = useQuery(labelsOptions(scope));
-  return { labels: query.data?.labels ?? NO_LABELS, ready: !query.isPending };
-}
-
-export function setCachedLabels(scope: MailboxScope, update: (labels: LabelMap) => LabelMap) {
-  const client = getQueryClient();
-  const { queryKey } = labelsOptions(scope);
-  markEdited(queryKey);
-  client.setQueryData(queryKey, (old) => ({ ...old, labels: update(old?.labels ?? {}) }));
 }
 
 function idSetCache<T>(

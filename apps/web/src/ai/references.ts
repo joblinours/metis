@@ -43,7 +43,6 @@ export const WORKSPACE_REFERENCE_TYPES: readonly ReferenceType[] = [
   "member",
   "email",
   "event",
-  "label",
   "folder",
   "file",
 ];
