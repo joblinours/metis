@@ -70,6 +70,7 @@ See also [AGENTS.md](../AGENTS.md), [workflow-runtime.md](workflow-runtime.md), 
   - Whole-graph rules: a trigger exists, no cycles, every step reachable, one incoming connection except Merge and Wait for all (one per `in:<n>` input), a before-send trigger alone in its graph.
   - Per step: required params, bindable params, binding types, resources in the workspace (`allowedResources`), AI on for every resource an AI step or its ancestors read (`aiResources`), and the step's own `check`.
 - **The scope of a step decides where it may appear.** `scope: "builtin"` steps (`trigger.once`, `mail.sendScheduled`) save only on built-in workflows, `scope: "system"` steps only on system ones.
+- **A `hidden` step stays valid but is not offered.** `src/workflow/steps/types.ts` → `StepDef.hidden`: the palette and `listWorkflowSteps` skip it, while validation and the executor accept it, so stored graphs keep running.
 
 ### Items, merges and aggregates
 

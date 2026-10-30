@@ -158,7 +158,7 @@ const label = {
       ];
     },
   ),
-  scope: "builtin" as const,
+  hidden: true,
 };
 
 const mute = messageAction(

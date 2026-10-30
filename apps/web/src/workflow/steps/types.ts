@@ -158,6 +158,7 @@ export interface StepDef {
   ai?: boolean;
   beforeSend?: boolean;
   scope?: "any" | "builtin" | "system";
+  hidden?: boolean;
   check?(ctx: CheckContext): string[];
   card?(node: GraphNode, ctx: CardContext): CardEntry[];
 }

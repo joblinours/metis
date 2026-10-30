@@ -338,7 +338,12 @@ const getAttachmentTool = createTool({
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
       const { image, ...rest } = await previewAttachment(r.mailbox, id, attachmentId);
-      return image ? { ...rest, note: "An image; it is shown to the user, not to you." } : rest;
+      return image
+        ? {
+            ...rest,
+            note: "An image. Its pixels are not available here; tell the user to open the email to see it.",
+          }
+        : rest;
     }),
 });
 

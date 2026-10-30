@@ -23,7 +23,7 @@ export default function workflowSpecs() {
     await list.getByRole("button", { name: "New workflow", exact: true }).click();
     await page
       .getByRole("menu", { name: "New workflow" })
-      .getByRole("menuitem", { name: "Label mail from a sender", exact: true })
+      .getByRole("menuitem", { name: "Star mail from a sender", exact: true })
       .click();
     try {
       await workflowName.fill(name);

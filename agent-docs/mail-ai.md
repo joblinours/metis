@@ -38,7 +38,7 @@ See also [AGENTS.md](../AGENTS.md), [ai-agents.md](ai-agents.md), [mail.md](mail
 
 ### Labels
 
-- **This fork turns Metis labels off.** Nothing calls the classifier, the `mail.labels` procedures are unmounted, Gmail categories are no longer seeded, and the summarizer no longer reads a label; the label workflow step and its two triggers are `scope: "builtin"`, so stored graphs still load but new ones cannot use them. The rules below describe the code that remains for the e2e recorder and old rows. The labels users see are the provider's ([mail.md](mail.md)).
+- **This fork turns Metis labels off.** Nothing calls the classifier, the `mail.labels` procedures are unmounted, Gmail categories are no longer seeded, and the summarizer no longer reads a label; the label workflow step and its two triggers are `hidden`, so stored graphs still load and run but the palette and `listWorkflowSteps` no longer offer them. The rules below describe the code that remains for the e2e recorder and old rows. The labels users see are the provider's ([mail.md](mail.md)).
 - **The classifier prompt uses short ref tokens (`e1`, `e2`…) in place of provider ids**, because long Microsoft and Zoho ids get mangled by the model.
 - **One label per message per mailbox**, with `source` = `provider | ai | user`.
   - Classification runs once per mailbox ([workspaces.md](workspaces.md) has the scope rule).

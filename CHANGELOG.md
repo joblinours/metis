@@ -23,7 +23,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Whi
 
 ### Changed
 
-- Mail: Metis's own labels (Work, Newsletter, custom labels, AI sorting) are gone from the app and from MCP; only the account's own labels remain. The inbox tabs are All, Unread and Starred. Existing workflows that used the Label step still run but can no longer be edited to add one.
+- Mail: Metis's own labels (Work, Newsletter, custom labels, AI sorting) are gone from the app and from MCP; only the account's own labels remain. The inbox tabs are All, Unread and Starred. Existing workflows that use the Label step or the label triggers keep running, but these are no longer offered, and the "Label mail from a sender" template is now "Star mail from a sender".
 - Mail: Outlook drafts keep the attachments given on update, and Zoho drafts keep their attachments.
 
 - Mail: mailboxes open much faster. Gmail reads at most 10 messages at a time instead of a whole page at once, the first page holds 50 messages, and the unified inbox asks each account for its share of a page instead of a full page each.
