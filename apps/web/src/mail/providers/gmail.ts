@@ -465,11 +465,12 @@ function mimeToBase64Url(mime: string): string {
 
 async function createDraft(accessToken: string, payload: DraftPayload): Promise<{ id: string }> {
   const gmail = getGmailClient(accessToken);
-  const raw = mimeToBase64Url(buildGmailMime(payload));
-  const res = await gmail.users.drafts.create({
-    userId: "me",
-    requestBody: { message: { raw } },
-  });
+  const mime = buildGmailMime(payload);
+  const res = await gmail.users.drafts.create(
+    payload.attachments?.length
+      ? { userId: "me", requestBody: {}, media: { mimeType: "message/rfc822", body: mime } }
+      : { userId: "me", requestBody: { message: { raw: mimeToBase64Url(mime) } } },
+  );
   if (!res.data.id) throw new Error("Gmail returned no draft id");
   return { id: res.data.id };
 }
@@ -480,12 +481,17 @@ async function updateDraft(
   payload: DraftPayload,
 ): Promise<{ id: string }> {
   const gmail = getGmailClient(accessToken);
-  const raw = mimeToBase64Url(buildGmailMime(payload));
-  await gmail.users.drafts.update({
-    userId: "me",
-    id: draftId,
-    requestBody: { message: { raw } },
-  });
+  const mime = buildGmailMime(payload);
+  await gmail.users.drafts.update(
+    payload.attachments?.length
+      ? {
+          userId: "me",
+          id: draftId,
+          requestBody: { id: draftId },
+          media: { mimeType: "message/rfc822", body: mime },
+        }
+      : { userId: "me", id: draftId, requestBody: { message: { raw: mimeToBase64Url(mime) } } },
+  );
   return { id: draftId };
 }
 
@@ -545,16 +551,11 @@ async function sendMessage(
     mime = `${headers}\r\n\r\n${parts.join("\r\n")}`;
   }
 
-  const raw = Buffer.from(mime)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-
-  const res = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: { raw },
-  });
+  const res = await gmail.users.messages.send(
+    hasAttachments
+      ? { userId: "me", requestBody: {}, media: { mimeType: "message/rfc822", body: mime } }
+      : { userId: "me", requestBody: { raw: mimeToBase64Url(mime) } },
+  );
   return { id: res.data.id ?? null };
 }
 
@@ -770,16 +771,19 @@ async function batchMarkRead(accessToken: string, ids: string[], read: boolean):
 }
 
 type GmailMessagePart = {
+  partId?: string | null;
   mimeType?: string | null;
   filename?: string | null;
-  body?: { attachmentId?: string | null; size?: number | null } | null;
+  body?: { attachmentId?: string | null; size?: number | null; data?: string | null } | null;
   parts?: GmailMessagePart[] | null;
 };
+
+const PART_ID = /^\d+(\.\d+)*$/;
 
 function collectAttachments(part: GmailMessagePart, out: Attachment[]) {
   if (part.filename && part.body?.attachmentId) {
     out.push({
-      id: part.body.attachmentId,
+      id: part.partId && PART_ID.test(part.partId) ? part.partId : part.body.attachmentId,
       filename: part.filename,
       mimeType: part.mimeType ?? "application/octet-stream",
       size: part.body.size ?? 0,
@@ -801,20 +805,43 @@ async function listAttachments(accessToken: string, id: string): Promise<Attachm
   return attachments;
 }
 
+function findPart(part: GmailMessagePart, partId: string): GmailMessagePart | null {
+  if (part.partId === partId) return part;
+  for (const p of part.parts ?? []) {
+    const found = findPart(p, partId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function fromBase64Url(data: string): Buffer {
+  return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
+
 async function downloadAttachment(
   accessToken: string,
   messageId: string,
   attachmentId: string,
-): Promise<{ buffer: Buffer; mimeType?: string }> {
-  const att = await getGmailClient(accessToken).users.messages.attachments.get({
+): Promise<{ buffer: Buffer; mimeType?: string } | null> {
+  const gmail = getGmailClient(accessToken);
+  let providerId = attachmentId;
+  let mimeType: string | undefined;
+  if (PART_ID.test(attachmentId)) {
+    const msg = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
+    const part = msg.data.payload ? findPart(msg.data.payload, attachmentId) : null;
+    if (!part) return null;
+    mimeType = part.mimeType ?? undefined;
+    if (!part.body?.attachmentId) {
+      return part.body?.data ? { buffer: fromBase64Url(part.body.data), mimeType } : null;
+    }
+    providerId = part.body.attachmentId;
+  }
+  const att = await gmail.users.messages.attachments.get({
     userId: "me",
     messageId,
-    id: attachmentId,
+    id: providerId,
   });
-  const data = att.data.data ?? "";
-  return {
-    buffer: Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64"),
-  };
+  return { buffer: fromBase64Url(att.data.data ?? ""), ...(mimeType ? { mimeType } : {}) };
 }
 
 const LABELS_TTL_MS = 30_000;

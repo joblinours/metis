@@ -82,11 +82,14 @@ See also [AGENTS.md](../AGENTS.md), [gateways.md](gateways.md), [mail-ai.md](mai
 ### Attachments for agents and MCP
 
 - **`getAttachment` shows an attachment the way a person would** (`src/ops/attachments.ts` → `getAttachment`): images (png, jpeg, webp, gif up to `MAX_PREVIEW_IMAGE_BYTES`) are shrunk with `sharp` to `PREVIEW_IMAGE_SIDE` and sent as an image; everything the parsers read comes back as text, the rest as metadata.
+- **A PDF is read page by page, up to `MAX_PREVIEW_PDF_BYTES`** (`previewPdf`): pages with text come back as text until `TEXT_LIMIT`, a page with almost no text is a scan and comes back as its largest embedded image (`extractImages` from `unpdf`), at most `MAX_PDF_PAGE_IMAGES` per call; `nextPage` is the `fromPage` of the next call.
+- **Gmail attachment ids are MIME part ids** (`1`, `0.2`): Gmail's own `attachmentId` changes on every read, so `downloadAttachment` resolves the part to the current one; an id that is not a part id is passed through.
+- **Large attachments go through each provider's upload path**: Gmail drafts and sends with attachments use the media upload (`message/rfc822`), and Outlook adds a file over `INLINE_ATTACHMENT_BYTES` through an upload session, sending a draft when the message has attachments, because Graph rejects requests over 4 MB.
 - **Word (.docx, `mammoth`) and Excel (.xlsx, `exceljs`) are attachment parsers** in `src/mail/attachment-data.ts`, beside PDF and ics, so `getAttachmentText`, `getAttachment` and the thread summary all read them; a sheet keeps at most `SHEET_ROWS` rows of `SHEET_COLS` cells.
 - **Draft, send and schedule tools take `attachments`** (`draftFields` → `draftAttachmentInput`): an attachment of another email (`source: "email"`) or a file the model writes (`source: "inline"`, text or base64).
   - `resolveDraftAttachments` reads them server-side, with `MAX_INLINE_ATTACHMENT_BYTES` per written file and `MAX_DRAFT_ATTACHMENT_BYTES` in all; a refusal reaches the model as a `ToolRefusal` (`mastra/toolkit/attachments.ts`).
   - `updateDraft` replaces the attachments when given and keeps them when left out: Gmail and Zoho rebuild the draft, so the op re-reads them first (`currentDraftAttachments`, through `draftMessageId` on Gmail, whose draft id is not its message id); Outlook patches in place and replaces them only when given.
-  - Zoho uploads draft attachments like it does on send (`uploadAttachments`).
+  - Zoho uploads draft attachments like it does on send (`uploadAttachments`), as the raw file with its name in `fileName`.
 
 ### Personal state and the list
 
