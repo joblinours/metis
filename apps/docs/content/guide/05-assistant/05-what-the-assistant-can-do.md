@@ -12,24 +12,26 @@ The Workspace Assistant can do everything below, across all the mailboxes, calen
 ### Mail
 
 - See your mailboxes and a combined inbox across them
-- List the emails in a folder, and search one mailbox or all of them
+- List the emails in a standard folder, such as Inbox, Sent or Drafts, and search one mailbox or all of them
 - Read an email or a whole conversation, including its headers and original source
-- List an email's attachments and read the text inside them (for example a PDF, a calendar invitation, a contact card or a forwarded email)
+- List an email's attachments and read them: PDFs (page by page), Word documents (.docx), spreadsheets (.xlsx), calendar invitations, contact cards, wallet passes, forwarded emails and text files. It cannot see images or scanned PDF pages. For an image, it sees only the file name and size.
 - Summarize a conversation
 - Look up contacts
 - Check an email for phishing (when phishing detection is on)
 - Mark as read or unread, star, archive and restore
 - Delete emails **(approval)**
-- List labels, set or clear a label on one or many emails, and create a label
-- Delete a label **(approval)**
-- For Gmail, Outlook and Zoho Mail mailboxes: list the account's folders and labels, list the emails in a folder, and move an email to a folder
-- Add or remove provider labels (Gmail labels, Outlook categories, Zoho tags) on up to 200 emails at a time
-- Create a folder, optionally inside another one, or a provider label **(approval)**. The approval card names the folder and the mailbox, for example: Approve creating the folder "Clients" in you@example.com.
-- Create and update drafts
+- For Gmail, Outlook and Zoho Mail mailboxes:
+  - List the account's folders and labels (Gmail labels, Outlook categories, Zoho tags), and list the emails in one of those folders
+  - Move an email to a folder
+  - Add or remove labels on one email, or on up to 200 emails at a time
+  - Create a folder (optionally inside another one) or a label, rename a folder or a label, and move a folder. Outlook categories cannot be renamed.
+  - Delete a label or a folder **(approval)**. On Outlook and Zoho Mail, deleting a folder also deletes the emails in it. See [Folders and provider labels](/guide/mail/folders-and-provider-labels).
+- Create and update drafts, with up to 10 attachments: files from other emails, or files the assistant writes (up to 5 MB each). All attachments together can be up to 25 MB.
 - Delete a draft **(approval)**
-- Send an email **(approval)**
+- Send an email **(approval)**, with attachments up to the same limits as drafts
 - Snooze, unsnooze and cancel a snooze, and list snoozed emails
-- Schedule an email to send later **(approval)**, list scheduled emails, call one back **(approval)** or retry one **(approval)**
+- Schedule an email to send later **(approval)**, with attachments up to the same limits as drafts
+- List scheduled emails, and call one back **(approval)** or retry one **(approval)**
 - Mute or unmute a conversation, and list muted conversations
 - Add to, remove from and list Read later
 - Find newsletters you receive, and unsubscribe from them **(approval)**
@@ -81,11 +83,11 @@ Only for workspace owners and admins:
 
 The side panels can do less than the Workspace Assistant. Each one works only with the mailbox, calendar or drive you have open.
 
-| Panel           | Can read                                                                                           | Can change                                                                     |
-| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **Mail AI**     | List and search emails, read an email, check an email for phishing (when phishing detection is on) | Star or unstar, set a label that already exists, delete emails **(approval)**  |
-| **Calendar AI** | List calendars and events, read an event                                                           | Add, change and delete events, reply to invitations (all **approval**)         |
-| **Drive AI**    | List drives, browse folders, search files, read file details and plain text files                  | Create a folder, rename, move within the same drive, delete (all **approval**) |
+| Panel           | Can read                                                                                           | Can change                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Mail AI**     | List and search emails, read an email, check an email for phishing (when phishing detection is on) | Star or unstar, add one of the account's own labels, delete emails **(approval)** |
+| **Calendar AI** | List calendars and events, read an event                                                           | Add, change and delete events, reply to invitations (all **approval**)            |
+| **Drive AI**    | List drives, browse folders, search files, read file details and plain text files                  | Create a folder, rename, move within the same drive, delete (all **approval**)    |
 
 Mail AI cannot send email or save drafts. When you ask it to draft a reply, it writes the text in the chat.
 

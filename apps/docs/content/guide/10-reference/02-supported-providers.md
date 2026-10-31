@@ -29,14 +29,12 @@ Some things to know:
 
 ## Mail
 
-| Feature                             | Gmail                          | Outlook                                                        | Zoho Mail                                                | IMAP, Cloudflare Email, Resend |
-| ----------------------------------- | ------------------------------ | -------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------ |
-| When Trash is emptied               | After 30 days (Gmail's policy) | After 30 days (Outlook's policy)                               | After 30 days (Zoho Mail's policy)                       | Your mail server decides       |
-| Gmail categories turned into labels | Yes                            | No                                                             | No                                                       | No                             |
-| Provider folders and labels         | Labels, shown as folders       | Folders, and categories (after a reconnect for older accounts) | Folders, and tags (after a reconnect for older accounts) | No                             |
+| Feature                     | Gmail                          | Outlook                                                        | Zoho Mail                                                | IMAP, Cloudflare Email, Resend |
+| --------------------------- | ------------------------------ | -------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------ |
+| When Trash is emptied       | After 30 days (Gmail's policy) | After 30 days (Outlook's policy)                               | After 30 days (Zoho Mail's policy)                       | Your mail server decides       |
+| Provider folders and labels | Labels, shown as folders       | Folders, and categories (after a reconnect for older accounts) | Folders, and tags (after a reconnect for older accounts) | No                             |
 
 - **Trash.** When you open a message in Trash, a banner tells you when messages there are deleted for good, as in the table above.
-- **Gmail categories.** Messages in Gmail's Promotions, Updates, Social and Forums categories get the Metis Suite labels Promotional, Updates, Social and Newsletter.
 - **Provider folders and labels.** The **Folders** section, **Move** and the **Labels** button use your account's own folders and labels at the provider. Some older Outlook and Zoho Mail connections must be reconnected to use categories or tags. See [Folders and provider labels](/guide/mail/folders-and-provider-labels).
 - **Search on IMAP mailboxes** is a plain text match across Inbox, Archive and Sent, with no ranking.
 - **Drafts on Zoho Mail.** Each time a draft is saved, Zoho replaces it with a new draft.

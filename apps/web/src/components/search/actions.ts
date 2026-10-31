@@ -918,53 +918,6 @@ function localActions(ctx: ActionContext, hit: LocalSearchHit): SearchAction[] {
         ),
       ];
 
-    case "label": {
-      const actions: SearchAction[] = [
-        go(
-          mailPath(
-            ws,
-            hit.mailboxSlug ?? ALL_MAILBOXES_SLUG,
-            "inbox",
-            `?label=${encodeURIComponent(hit.key)}`,
-          ),
-        ),
-        filterBy(ctx, qualifier("label", hit.key), "Filter by this label"),
-      ];
-      const labelId = hit.labelId;
-      const mailboxSlug = hit.mailboxSlug;
-      if (hit.custom && labelId && mailboxSlug) {
-        actions.push(
-          act(
-            "delete",
-            "Delete the label",
-            Trash2,
-            async () => {
-              if (
-                await ctx.prompts.confirm({
-                  title: `Delete the label ${hit.name}?`,
-                  body: "Messages keep their content; the label is removed from them.",
-                  confirm: "Delete label",
-                })
-              ) {
-                await attempt(
-                  ctx,
-                  () =>
-                    orpc.mail.customLabels.delete({
-                      workspaceSlug: ws,
-                      mailboxSlug,
-                      id: labelId,
-                    }),
-                  "Label deleted",
-                );
-              }
-            },
-            { destructive: true, keepOpen: true },
-          ),
-        );
-      }
-      return actions;
-    }
-
     case "connection":
       return [
         go("/settings/connections", "Open connections", Settings),

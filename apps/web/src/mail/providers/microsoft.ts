@@ -21,6 +21,7 @@ import {
 import { type AstSearch, SEARCH_PAGE_SIZE } from "@/search/types";
 import {
   type Attachment,
+  type DraftAttachment,
   type DraftPayload,
   type Email,
   isMailFolder,
@@ -220,21 +221,71 @@ function toRecipientList(addresses: string[] | undefined) {
 }
 
 function msMessageBody(payload: DraftPayload) {
-  const attachments = (payload.attachments ?? []).map((a) => ({
-    "@odata.type": "#microsoft.graph.fileAttachment",
-    name: a.filename,
-    contentType: a.mimeType,
-    contentBytes: a.contentBase64,
-  }));
-
   return {
     subject: payload.subject,
     body: { contentType: "HTML", content: payload.bodyHtml },
     toRecipients: toRecipientList(payload.to),
     ccRecipients: toRecipientList(payload.cc),
     bccRecipients: toRecipientList(payload.bcc),
-    ...(attachments.length > 0 ? { attachments } : {}),
   };
+}
+
+const INLINE_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+const UPLOAD_CHUNK_BYTES = 320 * 1024 * 12;
+
+async function addDraftAttachment(
+  accessToken: string,
+  draftId: string,
+  attachment: DraftAttachment,
+): Promise<void> {
+  const client = getGraphClient(accessToken);
+  const bytes = Buffer.from(attachment.contentBase64, "base64");
+  if (bytes.length < INLINE_ATTACHMENT_BYTES) {
+    await client.api(`/me/messages/${draftId}/attachments`).post({
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: attachment.filename,
+      contentType: attachment.mimeType,
+      contentBytes: attachment.contentBase64,
+    });
+    return;
+  }
+  const session: { uploadUrl?: string } = await client
+    .api(`/me/messages/${draftId}/attachments/createUploadSession`)
+    .post({
+      AttachmentItem: {
+        attachmentType: "file",
+        name: attachment.filename,
+        size: bytes.length,
+        contentType: attachment.mimeType,
+      },
+    });
+  if (!session.uploadUrl) throw new Error("Microsoft Graph returned no upload URL");
+  for (let start = 0; start < bytes.length; start += UPLOAD_CHUNK_BYTES) {
+    const chunk = bytes.subarray(start, Math.min(start + UPLOAD_CHUNK_BYTES, bytes.length));
+    // oxlint-disable-next-line eslint/no-await-in-loop -- an upload session takes its byte ranges in order
+    const res = await fetch(session.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Range": `bytes ${start}-${start + chunk.length - 1}/${bytes.length}`,
+      },
+      body: new Uint8Array(chunk),
+    });
+    if (!res.ok) {
+      throw new Error(`Outlook refused the attachment upload (${res.status})`);
+    }
+  }
+}
+
+async function addDraftAttachments(
+  accessToken: string,
+  draftId: string,
+  attachments: DraftAttachment[],
+): Promise<void> {
+  for (const attachment of attachments) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- Graph throttles concurrent writes per mailbox, so attachments are added one at a time
+    await addDraftAttachment(accessToken, draftId, attachment);
+  }
 }
 
 async function createDraft(accessToken: string, payload: DraftPayload): Promise<{ id: string }> {
@@ -243,6 +294,17 @@ async function createDraft(accessToken: string, payload: DraftPayload): Promise<
     .post(msMessageBody(payload));
 
   if (!data.id) throw new Error("Microsoft Graph returned no draft id");
+  if (payload.attachments?.length) {
+    try {
+      await addDraftAttachments(accessToken, data.id, payload.attachments);
+    } catch (err) {
+      await getGraphClient(accessToken)
+        .api(`/me/messages/${data.id}`)
+        .delete()
+        .catch(() => {});
+      throw err;
+    }
+  }
   return { id: data.id };
 }
 
@@ -278,15 +340,7 @@ async function replaceDraftAttachments(
     // oxlint-disable-next-line eslint/no-await-in-loop -- Graph throttles concurrent writes per mailbox, so attachments are replaced one at a time
     if (old.id) await client.api(`/me/messages/${draftId}/attachments/${old.id}`).delete();
   }
-  for (const attachment of payload.attachments ?? []) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- Graph throttles concurrent writes per mailbox, so attachments are replaced one at a time
-    await client.api(`/me/messages/${draftId}/attachments`).post({
-      "@odata.type": "#microsoft.graph.fileAttachment",
-      name: attachment.filename,
-      contentType: attachment.mimeType,
-      contentBytes: attachment.contentBase64,
-    });
-  }
+  await addDraftAttachments(accessToken, draftId, payload.attachments ?? []);
 }
 
 async function deleteDraft(accessToken: string, draftId: string): Promise<void> {
@@ -297,6 +351,11 @@ async function sendMessage(
   accessToken: string,
   payload: DraftPayload,
 ): Promise<{ id: string | null }> {
+  if (payload.attachments?.length) {
+    const { id } = await createDraft(accessToken, payload);
+    await getGraphClient(accessToken).api(`/me/messages/${id}/send`).post({});
+    return { id: null };
+  }
   await getGraphClient(accessToken)
     .api("/me/sendMail")
     .post({ message: msMessageBody(payload) });

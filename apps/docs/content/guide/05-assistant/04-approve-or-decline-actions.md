@@ -41,7 +41,8 @@ The Workspace Assistant asks before every action in this table. The side panels 
 | Mail      | Call back a scheduled email  | "Approve calling back this scheduled email"                                                         |
 | Mail      | Retry a scheduled email      | Asks to retry the scheduled email, and notes that a send that already went out won't repeat         |
 | Mail      | Unsubscribe from newsletters | "Approve unsubscribing from 2 senders for you@example.com"                                          |
-| Mail      | Delete a label               | "Approve deleting the label "Receipts""                                                             |
+| Mail      | Delete a label               | "Approve deleting" and a short description of the label                                             |
+| Mail      | Delete a mail folder         | "Approve deleting" and a short description of the folder                                            |
 | Mail      | Delete a draft               | "Approve deleting this draft from you@example.com"                                                  |
 | Calendar  | Add an event                 | "Approve adding "Team lunch" to your calendar"                                                      |
 | Calendar  | Change an event              | "Approve changing "Team lunch""                                                                     |
@@ -73,7 +74,9 @@ The Workspace Assistant does these things straight away, because they are easy t
 
 - Read, search and summarize anything it is allowed to read
 - Mark as read or unread, star, archive and restore emails
-- Set or clear labels, and create a new label
+- Add or remove labels on emails
+- Move an email to a folder
+- Create or rename labels and folders, and move folders
 - Create or update a draft (the assistant says "Saved a draft", and nothing is sent)
 - Snooze, unsnooze or cancel a snooze
 - Mute or unmute a thread
@@ -81,4 +84,4 @@ The Workspace Assistant does these things straight away, because they are easy t
 
 ## Approvals and MCP clients
 
-Outside AI apps that you connect through MCP never show an approval card. Instead, sensitive actions are turned off for each client until you switch them on yourself. See [What an MCP client can do](/guide/assistant/what-an-mcp-client-can-do).
+Outside AI apps that you connect through MCP never show an approval card. Instead, sensitive actions are turned off for each client until you switch them on yourself. Some actions that need your approval in the app are on for a new MCP client, such as deleting a label or a mail folder. See [What an MCP client can do](/guide/assistant/what-an-mcp-client-can-do).

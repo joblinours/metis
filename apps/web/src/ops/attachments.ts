@@ -1,5 +1,6 @@
 import "server-only";
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
+import { extractImages, extractText, getDocumentProxy } from "unpdf";
 import { z } from "zod";
 
 import { BadRequestError } from "@/lib/errors/bad-request";
@@ -15,7 +16,11 @@ const MAX_PREVIEW_IMAGE_BYTES = 10 * MB;
 const PREVIEW_IMAGE_SIDE = 1568;
 const PREVIEW_JPEG_QUALITY = 80;
 const MAX_INLINE_ATTACHMENT_BYTES = 5 * MB;
-const MAX_DRAFT_ATTACHMENT_BYTES = 15 * MB;
+const MAX_DRAFT_ATTACHMENT_BYTES = 25 * MB;
+const MAX_PREVIEW_PDF_BYTES = 40 * MB;
+const MAX_PDF_PAGE_IMAGES = 4;
+const MIN_PAGE_TEXT_CHARS = 40;
+const MIN_PAGE_IMAGE_SIDE = 200;
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 export const getAttachmentOutput = z.object({
@@ -26,7 +31,14 @@ export const getAttachmentOutput = z.object({
   kind: z.string().optional(),
   truncated: z.boolean().optional(),
   text: z.string().optional(),
-  image: z.object({ data: z.string(), mimeType: z.string() }).optional(),
+  pages: z.number().optional(),
+  fromPage: z.number().optional(),
+  toPage: z.number().optional(),
+  nextPage: z.number().optional(),
+  scannedPages: z.array(z.number()).optional(),
+  images: z
+    .array(z.object({ page: z.number().optional(), data: z.string(), mimeType: z.string() }))
+    .optional(),
   error: z.string().optional(),
 });
 
@@ -40,8 +52,12 @@ function isPreviewImage(filename: string, mimeType: string): boolean {
   return IMAGE_TYPES.has(baseType(mimeType)) || /\.(png|jpe?g|webp|gif)$/i.test(filename);
 }
 
-async function previewImage(buffer: Buffer): Promise<{ data: string; mimeType: string }> {
-  const jpeg = await sharp(buffer, { animated: false })
+function isPdf(filename: string, mimeType: string): boolean {
+  return baseType(mimeType) === "application/pdf" || /\.pdf$/i.test(filename);
+}
+
+async function toJpeg(image: Sharp): Promise<{ data: string; mimeType: string }> {
+  const jpeg = await image
     .rotate()
     .resize({
       width: PREVIEW_IMAGE_SIDE,
@@ -55,10 +71,80 @@ async function previewImage(buffer: Buffer): Promise<{ data: string; mimeType: s
   return { data: jpeg.toString("base64"), mimeType: "image/jpeg" };
 }
 
+function previewImage(buffer: Buffer): Promise<{ data: string; mimeType: string }> {
+  return toJpeg(sharp(buffer, { animated: false }));
+}
+
+async function pageImage(
+  pdf: Awaited<ReturnType<typeof getDocumentProxy>>,
+  page: number,
+): Promise<{ data: string; mimeType: string } | null> {
+  const images = await extractImages(pdf, page).catch(() => []);
+  const largest = images
+    .filter((i) => Math.max(i.width, i.height) >= MIN_PAGE_IMAGE_SIDE)
+    .toSorted((a, b) => b.width * b.height - a.width * a.height)[0];
+  if (!largest) return null;
+  return toJpeg(
+    sharp(Buffer.from(largest.data.buffer, largest.data.byteOffset, largest.data.byteLength), {
+      raw: { width: largest.width, height: largest.height, channels: largest.channels },
+    }),
+  ).catch(() => null);
+}
+
+async function previewPdf(
+  bytes: Buffer,
+  fromPage: number,
+): Promise<Omit<AttachmentPreview, "attachmentId" | "filename" | "mimeType" | "size">> {
+  const pdf = await getDocumentProxy(new Uint8Array(bytes));
+  const pages = pdf.numPages;
+  if (fromPage > pages) {
+    return { kind: "PDF", pages, error: `This PDF has ${pages} pages` };
+  }
+  const { text: pageTexts } = await extractText(pdf, { mergePages: false });
+  const chunks: string[] = [];
+  const images: { page: number; data: string; mimeType: string }[] = [];
+  const scannedPages: number[] = [];
+  let used = 0;
+  let page = fromPage;
+  for (; page <= pages; page++) {
+    const text = (pageTexts[page - 1] ?? "").replace(/[ \t]+/g, " ").trim();
+    if (text.length >= MIN_PAGE_TEXT_CHARS) {
+      const block = `--- Page ${page} ---\n${text}`;
+      if (used > 0 && used + block.length > TEXT_LIMIT) break;
+      chunks.push(truncate(block, TEXT_LIMIT));
+      used += block.length;
+      continue;
+    }
+    if (images.length >= MAX_PDF_PAGE_IMAGES) break;
+    // oxlint-disable-next-line eslint/no-await-in-loop -- pages are rendered in order until the image budget is spent
+    const image = await pageImage(pdf, page);
+    if (image) {
+      scannedPages.push(page);
+      images.push({ page, ...image });
+      chunks.push(`--- Page ${page} ---\n(scanned page, see image)`);
+    } else {
+      chunks.push(`--- Page ${page} ---\n${text || "(no text)"}`);
+    }
+  }
+  const toPage = page - 1;
+  return {
+    kind: "PDF",
+    pages,
+    fromPage,
+    toPage,
+    ...(toPage < pages ? { nextPage: toPage + 1 } : {}),
+    ...(scannedPages.length > 0 ? { scannedPages } : {}),
+    truncated: toPage < pages,
+    text: chunks.join("\n\n"),
+    ...(images.length > 0 ? { images } : {}),
+  };
+}
+
 export async function getAttachment(
   mailbox: AgentMailbox,
   id: string,
   attachmentId: string,
+  fromPage = 1,
 ): Promise<AttachmentPreview> {
   const attachments = await mailbox.adapter.listAttachments(id);
   const meta = attachments.find((a) => a.id === attachmentId);
@@ -77,12 +163,16 @@ export async function getAttachment(
   };
 
   const image = isPreviewImage(meta.filename, meta.mimeType);
+  const pdf = isPdf(meta.filename, meta.mimeType);
   const parsable = isParsableAttachment(meta);
   const textual = looksTextual(meta.filename, meta.mimeType);
   if (image && meta.size > MAX_PREVIEW_IMAGE_BYTES) {
     return { ...base, kind: "image", error: "That image is too large to preview (over 10 MB)" };
   }
-  if (!image && !parsable && !textual) {
+  if (pdf && meta.size > MAX_PREVIEW_PDF_BYTES) {
+    return { ...base, kind: "PDF", error: "That PDF is too large to preview (over 40 MB)" };
+  }
+  if (!image && !pdf && !parsable && !textual) {
     return {
       ...base,
       kind: "file",
@@ -96,9 +186,17 @@ export async function getAttachment(
 
   if (image) {
     try {
-      return { ...base, kind: "image", image: await previewImage(downloaded.buffer) };
+      return { ...base, kind: "image", images: [await previewImage(downloaded.buffer)] };
     } catch {
       return { ...base, kind: "image", error: "That image could not be read" };
+    }
+  }
+
+  if (pdf) {
+    try {
+      return { ...base, ...(await previewPdf(downloaded.buffer, fromPage)) };
+    } catch {
+      return { ...base, kind: "PDF", error: "That PDF could not be read" };
     }
   }
 
@@ -169,7 +267,7 @@ export async function resolveDraftAttachments(
   const add = (attachment: DraftAttachment, bytes: number) => {
     total += bytes;
     if (total > MAX_DRAFT_ATTACHMENT_BYTES) {
-      throw new BadRequestError("Attachments are limited to 15 MB in total");
+      throw new BadRequestError("Attachments are limited to 25 MB in total");
     }
     out.push(attachment);
   };

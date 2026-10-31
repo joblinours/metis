@@ -19,7 +19,7 @@
       { "waitFor": "role=button[name=\"New workflow\"s]" },
       { "click": "role=button[name=\"New workflow\"s]" },
       {
-        "waitFor": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Label mail from a sender\"s]"
+        "waitFor": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Star mail from a sender\"s]"
       }
     ],
     "element": ["role=button[name=\"New workflow\"s]", "role=menu[name=\"New workflow\"s]"]
@@ -32,7 +32,7 @@
       { "waitFor": "role=button[name=\"New workflow\"s]" },
       { "click": "role=button[name=\"New workflow\"s]" },
       {
-        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Label mail from a sender\"s]"
+        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Star mail from a sender\"s]"
       },
       { "waitFor": "role=button[name=\"Create workflow\"s]" },
       { "waitFor": "role=application >> role=group[name=\"If\"s]" },
@@ -41,10 +41,8 @@
         "fill": "role=region[name=\"Inspector\"s] >> role=textbox[name=\"Condition\"s]",
         "value": "item.from.contains(\"news@example.com\")"
       },
-      { "click": "role=application >> role=group[name=\"Label\"s]" },
-      { "click": "role=region[name=\"Inspector\"s] >> role=combobox[name=\"Label\"s]" },
-      { "click": "role=option[name=\"Newsletter\"s]" },
-      { "fill": "role=textbox[name=\"Workflow name\"s]", "value": "Label newsletters" },
+      { "click": "role=application >> role=group[name=\"Star\"s]" },
+      { "fill": "role=textbox[name=\"Workflow name\"s]", "value": "Star newsletters" },
       { "click": "role=application >> role=button[name=\"Fit View\"]" },
       { "wait": 600 }
     ]
@@ -56,7 +54,7 @@
       { "waitFor": "role=button[name=\"New workflow\"s]" },
       { "click": "role=button[name=\"New workflow\"s]" },
       {
-        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Label mail from a sender\"s]"
+        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Star mail from a sender\"s]"
       },
       { "waitFor": "role=button[name=\"Create workflow\"s]" },
       { "waitFor": "role=application >> role=group[name=\"If\"s]" },
@@ -228,11 +226,11 @@
       { "waitFor": "role=button[name=\"New workflow\"s]" },
       { "click": "role=button[name=\"New workflow\"s]" },
       {
-        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Label mail from a sender\"s]"
+        "click": "role=menu[name=\"New workflow\"s] >> role=menuitem[name=\"Star mail from a sender\"s]"
       },
       { "waitFor": "role=button[name=\"Create workflow\"s]" },
       { "waitFor": "role=application >> role=group[name=\"If\"s]" },
-      { "click": "role=application >> role=group[name=\"Label\"s]" },
+      { "click": "role=application >> role=group[name=\"Star\"s]" },
       { "click": "role=region[name=\"Inspector\"s] >> role=button[name=\"Delete\"s]" },
       { "click": "role=application >> role=group[name=\"If\"s]" },
       { "click": "role=region[name=\"Inspector\"s] >> role=button[name=\"Delete\"s]" },

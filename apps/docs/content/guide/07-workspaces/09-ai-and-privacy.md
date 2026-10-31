@@ -16,7 +16,7 @@ The section appears only when your instance has AI or phishing detection set up.
 
 ## AI features
 
-This covers summaries, smart replies, labelling, the assistants and MCP clients. Choose one:
+This covers summaries, smart replies, the assistants and MCP clients. Choose one:
 
 - **Allowed** (each mailbox, calendar and drive decides). This is the default. AI works only on the resources whose own AI setting is on. See [Turn AI on or off for a resource](/guide/workspaces/add-resources#turn-ai-on-or-off-for-a-resource).
 - **Off** (no AI anywhere in this workspace). The assistants stop working here, and no MCP client can reach this workspace.

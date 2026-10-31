@@ -77,44 +77,6 @@
     ]
   },
   {
-    "name": "mail/change-label-menu",
-    "viewport": { "width": 1440, "height": 440 },
-    "element": "div:has(> div > button[title=\"Previous message\"])",
-    "path": "{workspace}/m/{mailbox}/inbox",
-    "steps": [
-      {
-        "click": "role=tab[name=/^All$/]"
-      },
-      {
-        "click": "main [aria-roledescription=\"draggable\"] >> text=\"Rebrand kickoff\""
-      },
-      {
-        "waitFor": "main h2:has-text(\"Rebrand kickoff\")"
-      },
-      {
-        "click": "div:has(> button[title=\"Previous message\"]) >> role=button[name=\"Change label\"]"
-      },
-      {
-        "waitFor": "role=menu[name=\"Change label\"]"
-      }
-    ]
-  },
-  {
-    "name": "mail/add-label",
-    "viewport": { "width": 1440, "height": 1040 },
-    "clip": { "x": 0, "y": 520, "width": 300, "height": 520 },
-    "path": "{workspace}/m/{mailbox}/inbox",
-    "steps": [
-      {
-        "click": "role=complementary[name=\"Folders\"] >> role=button[name=\"Add custom label\"]"
-      },
-      {
-        "fill": "role=complementary[name=\"Folders\"] >> role=textbox[name=\"Label name\"]",
-        "value": "Invoices"
-      }
-    ]
-  },
-  {
     "name": "mail/composer",
     "path": "{workspace}/m/{mailbox}/inbox",
     "steps": [

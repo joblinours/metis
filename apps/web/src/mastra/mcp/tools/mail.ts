@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
+  attachmentPreviewTarget,
   attachmentTarget,
   contactSearchFields,
   messageTarget,
@@ -43,7 +44,7 @@ export const getAttachmentText = createTool({
     }),
 });
 
-const previewOutput = getAttachmentOutput.omit({ image: true }).strict();
+const previewOutput = getAttachmentOutput.omit({ images: true }).strict();
 
 const previewContent = z.array(
   z.union([
@@ -60,17 +61,18 @@ const previewSchema = previewOutput.extend({
 export const getAttachment = createTool({
   id: "getAttachment",
   description:
-    "See an email attachment: images come back as the image itself, PDFs, Word documents (.docx), spreadsheets (.xlsx), calendar invites, contact cards, wallet passes, forwarded emails and text files as their content. Get the attachmentId from listAttachments.",
-  inputSchema: inWorkspace(attachmentTarget),
+    "See an email attachment: images come back as the image itself; PDFs page by page, as text, with scanned pages as images (a few pages per call: pass nextPage as fromPage to read on); Word documents (.docx), spreadsheets (.xlsx), calendar invites, contact cards, wallet passes, forwarded emails and text files as their content. Get the attachmentId from listAttachments; it stays valid between calls.",
+  inputSchema: inWorkspace(attachmentPreviewTarget),
   outputSchema: previewSchema,
-  execute: async ({ workspaceId, mailboxId, id, attachmentId }, { requestContext }) => {
+  execute: async ({ workspaceId, mailboxId, id, attachmentId, fromPage }, { requestContext }) => {
     const result = await withToolErrors(async () => {
       const ctx = await mcpScopeFromCall(requestContext, workspaceId);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return previewAttachment(r.mailbox, id, attachmentId);
+      return previewAttachment(r.mailbox, id, attachmentId, fromPage);
     });
-    const { image, ...structured } = "image" in result ? result : { ...result, image: undefined };
+    const { images, ...structured } =
+      "images" in result ? result : { ...result, images: undefined };
     const parsed = previewOutput.safeParse(structured);
     const structuredContent = parsed.success
       ? parsed.data
@@ -88,7 +90,9 @@ export const getAttachment = createTool({
             : header,
       },
     ];
-    if (image) content.push({ type: "image", data: image.data, mimeType: image.mimeType });
+    for (const image of images ?? []) {
+      content.push({ type: "image", data: image.data, mimeType: image.mimeType });
+    }
     return { structuredContent, content };
   },
 });

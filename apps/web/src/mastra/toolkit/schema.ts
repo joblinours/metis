@@ -61,6 +61,16 @@ export const attachmentTarget = {
   attachmentId: z.string().describe("An attachmentId from listAttachments"),
 };
 
+export const attachmentPreviewTarget = {
+  ...attachmentTarget,
+  fromPage: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("For a PDF, the page to start at; pass nextPage from the last call to read on"),
+};
+
 export const subscriptionScanFields = {
   ...mailboxTarget,
   scanLimit: z.number().int().min(10).max(200).default(100),

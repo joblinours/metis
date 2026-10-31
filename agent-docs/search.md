@@ -82,7 +82,7 @@ See also [AGENTS.md](../AGENTS.md), [mail.md](mail.md), [calendar.md](calendar.m
   - A good parse becomes one decoration per token location.
   - A failed parse keeps the previous decorations mapped through the edit and marks only the text from the error offset.
   - A separate decoration marks the parenthesis matching the caret.
-- **Autocomplete.** `caretContext` parses the text again with a marker at the caret to learn whether a key or a value is being typed, falling back to the word before the caret. Keys come from `SEARCH_FIELDS`, enum values from the field, and resources, labels, workflows and people from `search.suggest`.
+- **Autocomplete.** `caretContext` parses the text again with a marker at the caret to learn whether a key or a value is being typed, falling back to the word before the caret. Keys come from `SEARCH_FIELDS`, enum values from the field, and resources, workflows and people from `search.suggest`.
 - **Results.** The list groups results by kind, and the preview pane shows the highlighted result; the keys are in [shortcuts.md](shortcuts.md). On phones the dialog is a full-height bottom sheet with no preview pane.
 - **The search box keeps focus.**
   - The kind chips prevent focus on mousedown, and the "In a resource" menu's `finalFocus` returns to the box, so typing after a click lands in the query; a focused chip would toggle itself off at the next typed space.

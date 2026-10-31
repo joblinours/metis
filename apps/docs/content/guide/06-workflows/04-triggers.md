@@ -11,11 +11,13 @@ A workflow can have more than one trigger. For example, to watch two mailboxes f
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [By hand or on a timetable](#by-hand-or-on-a-timetable)                 | **Run by hand**, **On a schedule**                                                                                                                  |
 | [From other workflows and services](#from-other-workflows-and-services) | **When called**, **Webhook**                                                                                                                        |
-| [Mail](#mail-triggers)                                                  | **Mail arrives**, **Mail is sent**, **Mail is starred**, **Mail is labelled**                                                                       |
+| [Mail](#mail-triggers)                                                  | **Mail arrives**, **Mail is sent**, **Mail is starred**                                                                                             |
 | [Calendar](#calendar-triggers)                                          | **Event created**, **Event changed**, **Event cancelled**, **Invitation received**, **Event ended**, **Reply to an invitation**, **Event starting** |
 | [Drive](#drive-triggers)                                                | **File added**, **File changed**                                                                                                                    |
-| [Events in Metis Suite](#events-in-metis-suite)                         | **A run fails**, **Phishing detected**, **AI labels mail**, **Member joins**                                                                        |
+| [Events in Metis Suite](#events-in-metis-suite)                         | **A run fails**, **Phishing detected**, **Member joins**                                                                                            |
 | [Sending mail](#before-mail-is-sent)                                    | **Before mail is sent**                                                                                                                             |
+
+Some workflows made earlier use a trigger or step the palette does not offer. See [Triggers and steps not in the palette](#triggers-and-steps-not-in-the-palette).
 
 Each trigger passes on one item: the message, event, file or other details that started the run. Later steps read it as `trigger`, and the first step after the trigger also reads it as `item`. See [Expressions](/guide/workflows/expressions).
 
@@ -110,19 +112,16 @@ Once you save the workflow, the trigger shows a web address and a secret that th
 
 Each mail trigger passes on the message as its item.
 
-| Trigger              | Description on screen                                                              | Settings                                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Mail arrives**     | "Starts for each new message in a folder of a mailbox."                            | **Mailbox**, **Folder** (Inbox to start with; also Sent, Drafts, Starred, Trash, Archive or Spam), **Only when** |
-| **Mail is sent**     | "Starts for each new message in a mailbox's Sent folder, whoever sent it."         | **Mailbox**, **Only when**                                                                                       |
-| **Mail is starred**  | "Starts when a message in a mailbox gets a star."                                  | **Mailbox**, **Only when**                                                                                       |
-| **Mail is labelled** | "Starts when a label is put on a message in Metis, by a person, AI or a workflow." | **Mailbox**, **Label**                                                                                           |
+| Trigger             | Description on screen                                                      | Settings                                                                                                         |
+| ------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Mail arrives**    | "Starts for each new message in a folder of a mailbox."                    | **Mailbox**, **Folder** (Inbox to start with; also Sent, Drafts, Starred, Trash, Archive or Spam), **Only when** |
+| **Mail is sent**    | "Starts for each new message in a mailbox's Sent folder, whoever sent it." | **Mailbox**, **Only when**                                                                                       |
+| **Mail is starred** | "Starts when a message in a mailbox gets a star."                          | **Mailbox**, **Only when**                                                                                       |
 
 The **Mail arrives** card says "Watching" and the mailbox address. It adds the folder when it is not the inbox, and the **Only when** condition when there is one.
 
 <img src="/images/workflows/new-mail-trigger.png" alt="A Mail arrives card watching a mailbox address" class="dark:hidden" />
 <img src="/images/workflows/new-mail-trigger-dark.png" alt="A Mail arrives card watching a mailbox address" class="hidden dark:block" />
-
-**Mail is labelled** starts as soon as the label is put on, without waiting for a check.
 
 ## Calendar triggers
 
@@ -167,7 +166,6 @@ These triggers start when something happens inside Metis Suite. They start strai
 | --------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | **A run fails**       | "Starts when a run of another workflow in this workspace fails, so this one can handle it." | **Only for**: one workflow, or leave empty for every workflow | The workflow (`workflowId`, `workflow`), the run (`runId`), the error (`error`) and when it failed (`failedAt`) |
 | **Phishing detected** | "Starts when phishing detection flags a message."                                           | **Only in**: one mailbox, or leave empty for every mailbox    | The message (`message`), the verdict (`verdict`) and its score (`score`)                                        |
-| **AI labels mail**    | "Starts when AI classification puts a label on a message."                                  | **Only in** (a mailbox) and **Only label**                    | The message (`message`) and the label (`label`)                                                                 |
 | **Member joins**      | "Starts when someone joins this workspace."                                                 | None                                                          | The member (`member`, `userId`), their role (`role`) and when they joined (`joinedAt`)                          |
 
 The **A run fails** card says "When" and the workflow name, then "fails", or "When any workflow fails". It never starts for a failure of its own workflow.
@@ -205,3 +203,9 @@ Click a watching trigger to see how the watch is going. The Inspector shows one 
 After the first check, the line adds "Last checked" and how long ago that was. If the last check failed, the reason shows below in red.
 
 You cannot use **Run now** with a workflow that only has watching triggers. You can still try it with **Test**, which runs it on one of the newest items. See [Test a workflow](/guide/workflows/test-a-workflow).
+
+## Triggers and steps not in the palette
+
+Some workflows made earlier use a trigger or step the palette does not offer, such as **Mail is labelled**, **AI labels mail** or **Label**. You cannot add these to a workflow. A workflow that has one still opens and saves, and it runs.
+
+The exception is **AI labels mail**. A workflow that starts with **AI labels mail** does not start, because Metis Suite does not label mail with AI.

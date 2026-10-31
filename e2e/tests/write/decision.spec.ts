@@ -6,7 +6,7 @@ import { ask, chatResponse, conversation, failure } from "../chat";
 import { expect, type Rpc, test } from "../fixtures";
 import { type Account, harness, mailPath, workspacePath } from "../harness";
 import { mailList, mailRow, openMail, showTab } from "../mail";
-import { labelMap, nodeOf, restoreLabels, runWorkflow, waitForRun, workspace } from "../workflow";
+import { starredIds, nodeOf, restoreStars, runWorkflow, waitForRun, workspace } from "../workflow";
 
 const TRIAGE = "Triage with the decision model";
 const GATED = ["jsonld-50-blocks", "jsonld-hostile-urls"];
@@ -56,7 +56,7 @@ export default function decisionSpecs() {
     rpc,
     account,
   }) => {
-    const before = await labelMap(rpc, account);
+    const before = await starredIds(rpc, account);
     try {
       const run = await runWorkflow(rpc, account, TRIAGE);
       expect(run.status).toBe("completed");
@@ -74,7 +74,7 @@ export default function decisionSpecs() {
       await page.goto(workspacePath(account, `/workflow/history/${run.id}`));
       await expect(page.getByText("Path taken")).toBeVisible();
     } finally {
-      await restoreLabels(rpc, account, before);
+      await restoreStars(rpc, account, before);
     }
   });
 
@@ -180,7 +180,7 @@ export default function decisionSpecs() {
     rpc,
     account,
   }) => {
-    const before = await labelMap(rpc, account);
+    const before = await starredIds(rpc, account);
     await setMailboxAi(rpc, account, false);
     let runId = "";
     try {
@@ -200,7 +200,7 @@ export default function decisionSpecs() {
       const done = await waitForRun(rpc, account, runId);
       expect(done.status).toBe("completed");
     } finally {
-      await restoreLabels(rpc, account, before);
+      await restoreStars(rpc, account, before);
     }
   });
 

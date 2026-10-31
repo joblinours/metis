@@ -492,15 +492,15 @@ async function uploadAttachments(
   const uploads = await Promise.all(
     (attachments ?? []).map(async (att) => {
       const buffer = Buffer.from(att.contentBase64, "base64");
-      const form = new FormData();
-      form.append("file", new Blob([new Uint8Array(buffer)], { type: att.mimeType }), att.filename);
-
       const uploadRes = await fetch(
         `${base}/accounts/${accountId}/messages/attachments?fileName=${encodeURIComponent(att.filename)}&isInline=false`,
         {
           method: "POST",
-          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-          body: form,
+          headers: {
+            Authorization: `Zoho-oauthtoken ${accessToken}`,
+            "Content-Type": "application/octet-stream",
+          },
+          body: new Uint8Array(buffer),
         },
       );
       if (!uploadRes.ok) {

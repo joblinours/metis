@@ -63,28 +63,19 @@ test("the palette groups steps by category and filters them by search", async ({
   const option = (name: string) =>
     page.getByRole("option").filter({ has: page.getByText(name, { exact: true }) });
   await expect(option("Archive")).toBeVisible();
-  await page.getByPlaceholder("Search steps").fill("label");
-  await expect(option("Label")).toBeVisible();
+  await page.getByPlaceholder("Search steps").fill("star");
+  await expect(option("Star")).toBeVisible();
   await expect(option("Archive")).toHaveCount(0);
 });
 
-test("a template's cards summarize their settings and flag a missing label live", async ({
-  page,
-  account,
-}) => {
+test("a template's cards summarize their settings", async ({ page, account }) => {
   await fromTemplate(page, "Star mail from a sender");
   await expect(step(page, "Mail arrives")).toContainText(`Watching ${account.email}`);
-  await expect(step(page, "Label")).toContainText("Pick a label");
+  await expect(step(page, "Star")).toContainText("Add a star");
+  await expect(page.getByRole("button", { name: /^\d+ problems?$/ })).toHaveCount(0);
 
-  const problems = page.getByRole("button", { name: "1 problem", exact: true });
-  await expect(problems).toBeVisible();
-  await problems.click();
-  await expect(inspector(page).getByRole("heading", { name: "Label", exact: true })).toBeVisible();
-
-  await inspector(page).getByRole("combobox", { name: "Label" }).click();
-  await page.getByRole("option", { name: "Work", exact: true }).click();
-  await expect(problems).toHaveCount(0);
-  await expect(step(page, "Label")).toContainText("Add Work");
+  await step(page, "Star").click();
+  await expect(inspector(page).getByRole("heading", { name: "Star", exact: true })).toBeVisible();
 });
 
 test("an expression is type-checked as it is typed, and a value from an earlier step can be inserted", async ({
@@ -217,20 +208,20 @@ test("the schedule picker edits the schedule and lists its next runs", async ({ 
 
 test("skipping a step that changes something marks its card as skipped", async ({ page }) => {
   await fromTemplate(page, "Star mail from a sender");
-  await step(page, "Label").click();
+  await step(page, "Star").click();
   await inspector(page).getByRole("switch", { name: "Skip this step" }).click();
-  await expect(step(page, "Label")).toContainText("Skipped");
+  await expect(step(page, "Star")).toContainText("Skipped");
 });
 
 test("routing a step's errors adds an Error output to its card", async ({ page }) => {
   await fromTemplate(page, "Star mail from a sender");
-  await step(page, "Label").click();
+  await step(page, "Star").click();
   await inspector(page).getByRole("combobox", { name: "When this step fails" }).click();
   await page
     .getByRole("option", { name: "Route the item to an Error output", exact: true })
     .click();
-  await expect(step(page, "Label")).toContainText("Error");
-  await expect(step(page, "Label")).toContainText("On error: branch");
+  await expect(step(page, "Star")).toContainText("Error");
+  await expect(step(page, "Star")).toContainText("On error: branch");
 });
 
 test("the workflow settings show when no step is selected", async ({ page }) => {
@@ -293,7 +284,7 @@ test("a test run of a seeded workflow shows each step's result and changes nothi
   await expect(result).toContainText("completed");
   await expect(page.getByText("Showing the test run on the canvas")).toBeVisible();
 
-  await step(page, "Label").click();
+  await step(page, "Star").click();
   const ran = inspector(page).getByRole("region", { name: "In the test run" });
   await expect(ran).toContainText("Rebrand kickoff");
   await expect(ran).toContainText("would change this message");
@@ -313,7 +304,7 @@ test("the runs dock lists the seeded run and draws it on the canvas", async ({ p
   await expect(page.getByText(/^Showing run \w{8} on the canvas$/)).toBeVisible();
   await expect(page.getByText("Showing a run on the canvas")).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "Filter to Label" }).locator("path.react-flow__edge-path"),
+    page.getByRole("group", { name: "Filter to Star" }).locator("path.react-flow__edge-path"),
   ).toHaveCSS("stroke-dasharray", "none");
 
   await page.getByRole("button", { name: "Replay in a test", exact: true }).click();

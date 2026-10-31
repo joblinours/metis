@@ -3240,16 +3240,6 @@ export const localSearchHitSchema = z.discriminatedUnion("kind", [
     mailboxEmail: z.string().nullable(),
   }),
   z.object({
-    kind: z.literal("label"),
-    ...localHitBase,
-    key: z.string(),
-    name: z.string(),
-    color: z.enum(CUSTOM_LABEL_COLORS).nullable(),
-    custom: z.boolean(),
-    labelId: z.string().nullable(),
-    mailboxSlug: z.string().nullable(),
-  }),
-  z.object({
     kind: z.literal("connection"),
     ...localHitBase,
     connectionId: z.string(),

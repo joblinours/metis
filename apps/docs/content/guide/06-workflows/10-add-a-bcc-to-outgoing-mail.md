@@ -48,7 +48,7 @@ The message being sent has these fields: `to`, `cc`, `bcc`, `subject`, `body` (t
 - **Only mail sent from the mail app.** Messages sent from the chosen mailboxes in the mail app get the BCC, including scheduled messages. For a scheduled message, the BCC is worked out when you schedule it. Mail sent by the AI assistant, a connected AI client or a workflow's **Send mail**, **Reply** or **Forward** step does not.
 - **Attachments are not visible here.** The message these workflows see has no attachments, so a condition on `item.attachments` never matches.
 - **An address is never added twice.** If the address is already on the message as a recipient, Cc or BCC, it is not added again.
-- **Only a few steps work here.** After **Before mail is sent**, you can use only **If**, **Switch**, **Filter**, **Stop** and **Add a Bcc**. Any other step shows a problem such as "Label cannot run before a message is sent", and the workflow cannot be saved. **Before mail is sent** must also be the workflow's only trigger.
+- **Only a few steps work here.** After **Before mail is sent**, you can use only **If**, **Switch**, **Filter**, **Stop** and **Add a Bcc**. Any other step shows a problem such as "Star cannot run before a message is sent", and the workflow cannot be saved. **Before mail is sent** must also be the workflow's only trigger.
 - **It follows the creator's access.** A workflow adds its address only to mail sent from mailboxes its creator can reach in the workspace.
 - **Several workflows can add addresses.** If more than one enabled workflow applies to a message, each one adds its address.
 - **No runs in the history.** These workflows run as part of sending, so they do not appear under **Activity**.

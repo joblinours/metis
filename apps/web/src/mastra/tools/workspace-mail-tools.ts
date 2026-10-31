@@ -14,6 +14,7 @@ import { LABEL_TOOL_TEXT } from "../toolkit/label-text";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
   applyProviderLabelsFields,
+  attachmentPreviewTarget,
   attachmentTarget,
   clearLabelFields,
   contactSearchFields,
@@ -330,18 +331,18 @@ const getAttachmentTextTool = createTool({
 const getAttachmentTool = createTool({
   id: "getAttachment",
   description:
-    "See an email attachment: images come back as the image itself, PDFs, Word documents (.docx), spreadsheets (.xlsx), calendar invites, contact cards, wallet passes, forwarded emails and text files as their content. Get the attachmentId from listAttachments.",
-  inputSchema: z.object(attachmentTarget),
-  execute: async ({ mailboxId, id, attachmentId }, { requestContext }) =>
+    "See an email attachment: PDFs page by page as text (pass nextPage as fromPage to read on), Word documents (.docx), spreadsheets (.xlsx), calendar invites, contact cards, wallet passes, forwarded emails and text files as their content. Images and scanned PDF pages are named but not shown here. Get the attachmentId from listAttachments.",
+  inputSchema: z.object(attachmentPreviewTarget),
+  execute: async ({ mailboxId, id, attachmentId, fromPage }, { requestContext }) =>
     withToolErrors(async () => {
       const ctx = getWorkspaceCtx(requestContext);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      const { image, ...rest } = await previewAttachment(r.mailbox, id, attachmentId);
-      return image
+      const { images, ...rest } = await previewAttachment(r.mailbox, id, attachmentId, fromPage);
+      return images
         ? {
             ...rest,
-            note: "An image. Its pixels are not available here; tell the user to open the email to see it.",
+            note: "Images are not visible here; tell the user to open the email to see them.",
           }
         : rest;
     }),

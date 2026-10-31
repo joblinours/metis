@@ -124,50 +124,22 @@ export function nodeOf(run: RunDetail, nodeId: string): RunNode {
   return node;
 }
 
-export type LabelMap = Record<string, { label: string }>;
-
-export async function labelMap(rpc: Rpc, account: Account): Promise<LabelMap> {
-  const { labels } = await rpc<{ labels: LabelMap }>("mail.labels.getMap", {
-    ...workspace(account),
-    mailboxSlug: account.mailboxSlug,
-  });
-  return labels;
+export async function starredIds(rpc: Rpc, account: Account): Promise<Set<string>> {
+  const { emails } = await rpc<{ emails: { id: string; isStarred: boolean }[] }>(
+    "mail.messages.list",
+    { ...workspace(account), mailboxSlug: account.mailboxSlug, folder: "inbox", limit: 100 },
+  );
+  return new Set(emails.filter((e) => e.isStarred).map((e) => e.id));
 }
 
-export async function restoreLabels(rpc: Rpc, account: Account, before: LabelMap): Promise<void> {
+export async function restoreStars(rpc: Rpc, account: Account, before: Set<string>): Promise<void> {
   const mailbox = { ...workspace(account), mailboxSlug: account.mailboxSlug };
-  const after = await labelMap(rpc, account);
-  const cleared: string[] = [];
-  for (const [id, info] of Object.entries(after)) {
-    if (before[id]?.label !== info.label) {
-      await rpc("mail.labels.clearOnMessage", { ...mailbox, id });
-      if (before[id]) cleared.push(id);
-    }
+  const after = await starredIds(rpc, account);
+  for (const id of after) {
+    if (!before.has(id)) await rpc("mail.messages.star", { ...mailbox, id, starred: false });
   }
-  if (cleared.length > 0) {
-    const { emails } = await rpc<{
-      emails: {
-        id: string;
-        from: string;
-        fromName?: string;
-        subject: string;
-        snippet: string;
-      }[];
-    }>("mail.messages.list", { ...mailbox, folder: "inbox", limit: 100 });
-    await rpc("mail.labels.classify", {
-      ...mailbox,
-      items: emails
-        .filter((e) => cleared.includes(e.id))
-        .map((e) => ({
-          id: e.id,
-          sender: e.fromName || e.from,
-          subject: e.subject,
-          snippet: e.snippet,
-        })),
-    });
+  for (const id of before) {
+    if (!after.has(id)) await rpc("mail.messages.star", { ...mailbox, id, starred: true });
   }
-  const restored = await labelMap(rpc, account);
-  for (const [id, info] of Object.entries(before)) {
-    expect(restored[id]?.label, id).toBe(info.label);
-  }
+  expect([...(await starredIds(rpc, account))].toSorted()).toEqual([...before].toSorted());
 }

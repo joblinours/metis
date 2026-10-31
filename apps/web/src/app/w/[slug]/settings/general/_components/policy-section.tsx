@@ -170,7 +170,7 @@ export function PolicySection({ canEdit }: { canEdit: boolean }) {
           <div className="rounded-xl border border-border bg-surface p-3">
             <div className="text-[13px] font-medium text-foreground">AI features</div>
             <p className="mt-1 mb-2.5 text-[12px] text-faint">
-              Summaries, smart replies, labelling, the assistants, and MCP clients.
+              Summaries, smart replies, the assistants, and MCP clients.
             </p>
             <Select
               disabled={!canEdit || saving}

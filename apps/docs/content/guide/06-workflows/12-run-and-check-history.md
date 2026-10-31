@@ -21,7 +21,7 @@ Keep in mind:
 - **Run now runs the saved version.** If you have unsaved changes, you see "Running the saved version. Save to run your latest changes." Click **Save** first to run your changes.
 - **The workflow needs a Run by hand or On a schedule trigger.** Otherwise you see "Add a Run by hand or a schedule trigger before running this workflow". A workflow that only watches mail, calendars or drives cannot be started by hand. Use **Test** instead.
 - **Rate limits apply.** If the workflow's **Rate limit** setting does not allow another run yet, you see "That run is already queued". See [Manage workflows](/guide/workflows/manage-workflows#change-the-workflow-settings).
-- **A run acts for real.** It sends, labels, moves, creates and deletes just as an automatic run would.
+- **A run acts for real.** It sends, stars, moves, creates and deletes just as an automatic run would.
 
 ## See the runs of one workflow
 
