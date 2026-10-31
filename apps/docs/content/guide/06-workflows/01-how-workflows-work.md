@@ -43,7 +43,7 @@ The palette groups the steps into seven categories:
 | Category           | What it does                                                    | Examples                                           |
 | ------------------ | --------------------------------------------------------------- | -------------------------------------------------- |
 | **Triggers**       | Decide when the workflow runs. Every workflow starts with one.  | **Mail arrives**, **On a schedule**, **Webhook**   |
-| **Mail**           | Read, change, file and send mail.                               | **List a folder**, **Label**, **Reply**            |
+| **Mail**           | Read, change, file and send mail.                               | **List a folder**, **Star**, **Reply**             |
 | **Calendar**       | Read, create and change events, and answer invitations.         | **List events**, **Create an event**               |
 | **Drive**          | Read, save, copy, move and delete files.                        | **Save attachment to a drive**, **Read a file**    |
 | **Logic**          | Choose a path for each item, split lists, and join branches.    | **If**, **Filter**, **Merge**                      |

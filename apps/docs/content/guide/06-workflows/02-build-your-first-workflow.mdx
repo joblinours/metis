@@ -1,11 +1,11 @@
 ---
 title: Build your first workflow
-description: Build, test and save a workflow that labels new mail from one sender shortly after it arrives.
+description: Build, test and save a workflow that stars new mail from one sender shortly after it arrives.
 ---
 
-In this tutorial you will build a workflow that puts the **Newsletter** label on new mail from one sender. You will start from a template, write a condition, pick a label, try the workflow on a real message, save it, and then see its runs in the history. It takes about five minutes.
+In this tutorial you will build a workflow that stars new mail from one sender. You will start from a template, write a condition, check the action, try the workflow on a real message, save it, and then see its runs in the history. It takes about five minutes.
 
-You need a workspace with at least one mailbox. Pick a sender whose mail you are happy to see labelled, such as a newsletter. A label only marks the message. It does not move or delete it.
+You need a workspace with at least one mailbox. Pick a sender whose mail you are happy to see starred, such as a newsletter. A star only marks the message. It does not move or delete it.
 
 <Steps>
   <Step title="Open the Workflows page">
@@ -15,7 +15,7 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
   <Step title="Start from a template">
     Click **New workflow** at the top of the list. A menu of templates opens. Each template is a ready-made set of connected steps that you can change.
 
-    Click **Label mail from a sender**.
+    Click **Star mail from a sender**.
 
     <img src="/images/workflows/new-workflow-menu.png" alt="The New workflow menu open with its list of templates" class="dark:hidden" />
     <img src="/images/workflows/new-workflow-menu-dark.png" alt="The New workflow menu open with its list of templates" class="hidden dark:block" />
@@ -24,18 +24,16 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
 
     1. **Mail arrives**: the trigger. It starts the workflow for each new message in your first mailbox's inbox.
     2. **If**: the condition each new message has to meet.
-    3. **Label**: the action, connected to the **Yes** output of **If**.
+    3. **Star**: the action, connected to the **Yes** output of **If**.
 
     Nothing is saved yet. The top bar says "Not saved yet", and the workflow only exists on your screen until you click **Create workflow**.
-
-    The top bar also shows a red **1 problem** button, and the **Label** card says "Pick a label". You fix that in a later step.
 
   </Step>
 
   <Step title="Name the workflow">
     Click the name field in the top bar. It shows "Untitled workflow" until you type.
 
-    Enter a name that says what the workflow does, such as `Label newsletters`. Names can be up to 80 characters.
+    Enter a name that says what the workflow does, such as `Star newsletters`. Names can be up to 80 characters.
 
   </Step>
 
@@ -49,7 +47,7 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
   </Step>
 
   <Step title="Write the condition">
-    The **If** step decides which messages go on to the label. Click the **If** card to open its settings in the Inspector.
+    The **If** step decides which messages go on to the star. Click the **If** card to open its settings in the Inspector.
 
     The **Condition** field holds a short expression: `item.from.contains("")`. Here `item` is the new message, and `item.from` is its sender's address. The expression is true when the sender contains the text between the quotes.
 
@@ -61,17 +59,15 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
 
     Below the field, the Inspector says "Gives yes / no", which means the condition is written correctly. It also says "This expression can't be shown as conditions; edit it as text." That is fine: this condition is meant to be edited as text. See [Expressions](/guide/workflows/expressions) for more you can write here.
 
-    Messages that match go out of the **Yes** output to **Label**. Messages that do not match go out of **No**, which is not connected here, so nothing happens to them.
+    Messages that match go out of the **Yes** output to **Star**. Messages that do not match go out of **No**, which is not connected here, so nothing happens to them.
 
   </Step>
 
-  <Step title="Pick the label">
-    Click the **Label** card. In the Inspector, open the **Label** list and pick **Newsletter**. Leave **Action** set to **Add**.
+  <Step title="Check the Star step">
+    Click the **Star** card. Its settings open in the Inspector. The **Starred** switch is on, and the card says "Add a star". Leave it as it is.
 
-    The problem goes away, and the **1 problem** button disappears.
-
-    <img src="/images/workflows/first-workflow-canvas.png" alt="The unsaved Label newsletters workflow: Mail arrives, an If step with a condition on the sender, and the selected Label step with Newsletter picked in the Inspector" class="dark:hidden" />
-    <img src="/images/workflows/first-workflow-canvas-dark.png" alt="The unsaved Label newsletters workflow: Mail arrives, an If step with a condition on the sender, and the selected Label step with Newsletter picked in the Inspector" class="hidden dark:block" />
+    <img src="/images/workflows/first-workflow-canvas.png" alt="The unsaved Star newsletters workflow: Mail arrives, an If step with a condition on the sender, and the selected Star step in the Inspector" class="dark:hidden" />
+    <img src="/images/workflows/first-workflow-canvas-dark.png" alt="The unsaved Star newsletters workflow: Mail arrives, an If step with a condition on the sender, and the selected Star step in the Inspector" class="hidden dark:block" />
 
     :::tip
     Start with a narrow condition, such as one exact sender address. Once it is on, a workflow acts on every message that matches.
@@ -84,7 +80,7 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
 
     **Test with** is set to "A recent item". Under **Sample**, pick one of the newest messages in the inbox, ideally one from your sender. Then click **Run test**.
 
-    The canvas shows which steps the message reached. Nothing in your mailbox changes: if the message matches, the **Label** step only reports that it "would change this message".
+    The canvas shows which steps the message reached. Nothing in your mailbox changes: if the message matches, the **Star** step only reports that it "would change this message".
 
     See [Test a workflow](/guide/workflows/test-a-workflow) for the details.
 
@@ -112,7 +108,7 @@ You need a workspace with at least one mailbox. Pick a sender whose mail you are
   </Step>
 
   <Step title="See it work">
-    Wait for a new message from the sender, or send yourself a test message that matches your condition. Shortly after it arrives, the workflow runs and the message gets the **Newsletter** label.
+    Wait for a new message from the sender, or send yourself a test message that matches your condition. Shortly after it arrives, the workflow runs and the message gets a star.
 
     To see what happened, click **Activity** at the bottom of the workflow list. Each run of your workflow appears with its status and the steps it ran. Click a run to open it and see which messages each step handled.
 

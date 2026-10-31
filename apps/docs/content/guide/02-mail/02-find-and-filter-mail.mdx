@@ -1,9 +1,9 @@
 ---
 title: Find and filter mail
-description: Search your mail, narrow the list with tabs and show only the messages with one label.
+description: Search your mail, narrow the list with tabs and open your provider's folders.
 ---
 
-Three tools help you find a message: the search box, the tabs above the list, and the labels in the sidebar. They work together, so a search only shows results from the tab you are on.
+Three tools help you find a message: the search box, the tabs above the list, and your provider's folders in the sidebar. The search box and the tabs work together, so a search only shows results from the tab you are on.
 
 ## Search
 
@@ -33,7 +33,7 @@ Three tools help you find a message: the search box, the tabs above the list, an
 />
 
 :::tip
-The tab you are on still filters your results. The Inbox opens on the **Primary** tab, which hides promotions, social mail, newsletters and transactions. If you cannot find a message, switch to the **All** tab.
+The tab you are on still filters your results. If you cannot find a message, switch to the **All** tab.
 :::
 
 A few things to know about search:
@@ -44,71 +44,52 @@ A few things to know about search:
 
 ## Search with filters
 
-To search with filters, such as the sender, a date, an attachment or a label, use workspace search. Click **Search** on the left rail, or press **Ctrl** + **K** (**⌘** + **K** on a Mac). If you open it from a mailbox, it starts with a filter for that mailbox.
+To search with filters, such as the sender, a date or an attachment, use workspace search. Click **Search** on the left rail, or press **Ctrl** + **K** (**⌘** + **K** on a Mac). If you open it from a mailbox, it starts with a filter for that mailbox.
 
 For example:
 
-| You type                    | Finds                                                |
-| --------------------------- | ---------------------------------------------------- |
-| `from:sam invoice`          | Mail from Sam that mentions "invoice"                |
-| `is:unread has:attachment`  | Unread mail with an attachment                       |
-| `mail-folder:sent after:7d` | Mail you sent in the last 7 days                     |
-| `label:work subject:report` | Mail with the Work label and "report" in the subject |
+| You type                    | Finds                                 |
+| --------------------------- | ------------------------------------- |
+| `from:sam invoice`          | Mail from Sam that mentions "invoice" |
+| `is:unread has:attachment`  | Unread mail with an attachment        |
+| `mail-folder:sent after:7d` | Mail you sent in the last 7 days      |
 
-From a result, you can reply, archive, star, snooze or label a message without opening it. See [Search your workspace](/guide/search/search-your-workspace) and, for every filter, [Search syntax](/guide/reference/search-syntax).
+From a result, you can reply, archive, star or snooze a message without opening it. See [Search your workspace](/guide/search/search-your-workspace) and, for every filter, [Search syntax](/guide/reference/search-syntax).
 
 ## Tabs
 
-The tabs above the list sort your mail by kind. In order, they are:
+The tabs above the list narrow what the folder shows. In order, they are:
 
-| Tab                                                                                                                | Shows                                                                           |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| **Primary**                                                                                                        | Everything except mail labelled Promotional, Social, Newsletter or Transactions |
-| **All**                                                                                                            | Every message in the folder                                                     |
-| **Unread**                                                                                                         | Every message in the folder that you have not read                              |
-| **Starred**                                                                                                        | Every message in the folder that you starred                                    |
-| **Action Required**, **Work**, **Personal**, **Updates**, **Transactions**, **Newsletter**, **Promos**, **Social** | Messages with that label                                                        |
+| Tab         | Shows                                              |
+| ----------- | -------------------------------------------------- |
+| **All**     | Every message in the folder                        |
+| **Unread**  | Every message in the folder that you have not read |
+| **Starred** | Every message in the folder that you starred       |
 
 The number at the right of the tab row counts the conversations (rows) the list shows, out of the mail loaded so far. It is not the total for the folder. In the Inbox, it leaves out muted conversations, because the Inbox hides them.
 
-- The Inbox opens on **Primary**. Every other folder opens on **All**.
+- Every folder opens on **All**.
 - Metis Suite remembers your tab for each mailbox and folder while you work, so opening and closing messages keeps you on the same tab.
 - On the **Unread** tab, a message you open stays in the list even though it is now read, so it does not jump away while you read it.
 
-**Unread** and **Starred** work differently from the other tabs:
+**Unread** and **Starred** ask your mail provider for every unread or starred message in the folder, not only the ones already loaded:
 
-- They ask your mail provider for every unread or starred message in the folder, not only the ones already loaded. More load as you scroll.
+- More load as you scroll.
 - In the **Starred** folder of a mailbox connected over IMAP, they look in your Inbox, Archive and Sent together and show at most the 50 newest matches. Scrolling does not load more there, and no **Load more** button shows. So the **Unread** tab in that folder can show only a few messages, or none.
 - In the **Starred** folder of an Outlook mailbox, they look only in your Inbox. So they can show fewer messages than the **All** tab there.
-- The automatic check for new mail does not update them. They refresh when you switch to them from another tab, folder, mailbox, label or **Read later**, and when you reload the page.
+- The automatic check for new mail does not update them. They refresh when you switch to them from another tab, folder, mailbox or **Read later**, and when you reload the page.
 - Opening or closing a message does not refresh them. Clicking the tab you are already on does not either.
 
-The other tabs filter only the messages the folder has loaded so far. Scroll down to load more.
-
-Sometimes a tab shows **No emails** and "Nothing in this filter", but the folder has more mail to check. A **Load more** button then shows under the note:
+Sometimes **Unread** or **Starred** shows **No emails** and "Nothing in this filter", but the folder has more mail to check. A **Load more** button then shows under the note:
 
 - Each click checks the next batch of messages. The button cannot be clicked again while it works.
-- On **Unread**, **Starred** or a label filter with nothing loaded yet, the note and the button make way for grey loading placeholders while it checks.
-- When the list has loaded messages but the tab hides them all, the button shows a spinning icon while it checks. This happens, for example, on **Primary**, on a label tab, on **Unread** after you read everything loaded, or on **Starred** after you unstar everything loaded.
+- With nothing loaded yet, the note and the button make way for grey loading placeholders while it checks.
+- When the list has loaded messages but the tab hides them all, the button shows a spinning icon while it checks. This happens, for example, on **Unread** after you read everything loaded, or on **Starred** after you unstar everything loaded.
 - If the next batch has no matches either, the note and the button show again. The button goes away when there is nothing left to check.
 - If a match turns up, it shows in the list. The list then keeps loading on its own ("Loading more…") until it fills the screen, and loads more as you scroll. The end of the list says "end of list".
 - Until a match turns up, the list never loads more on its own.
 
-You see this most on **Primary** and the label tabs. On **Unread** and **Starred**, a batch can come back with no matches only on **Outlook**, **Zoho Mail**, **Cloudflare Email** and **Resend** mailboxes, so you see it mainly there. Gmail and IMAP batches on these tabs always hold matches.
-
-To learn where the labels come from, see [Labels](/guide/mail/labels).
-
-## Filter by label
-
-Click any label in the **Labels** section of the sidebar. The list now shows every message in the mailbox that has that label, from every folder: Inbox, Sent, Archive, Trash and the rest. More load as you scroll. A banner at the top says **Filtered by:** with the label's name. The heading still says **Inbox**.
-
-- Messages in the same conversation are grouped into one row, and muted conversations are hidden.
-- The tabs stay on screen, and clicking one moves the underline, but the list does not change. Metis Suite remembers the tab you picked and uses it when you clear the filter.
-- The note on an empty list follows the underlined tab: "Your inbox is empty" on **All**, and "Nothing in this filter" on any other tab.
-
-The automatic check for new mail does not update this list. It refreshes when you switch to the label from another label, tab, folder, mailbox or **Read later**. Clicking the label you are already on does not refresh it, and neither does opening or closing a message. In rare cases the list is empty while more remains to check. Click **Load more** to check the next batch. Grey loading placeholders show while it checks.
-
-To go back to the whole Inbox, click the **X** in the banner (its tooltip says **Clear label filter**).
+A batch can come back with no matches only on **Outlook**, **Zoho Mail**, **Cloudflare Email** and **Resend** mailboxes, so you see this mainly there. Gmail and IMAP batches on these tabs always hold matches.
 
 ## Open a provider folder
 

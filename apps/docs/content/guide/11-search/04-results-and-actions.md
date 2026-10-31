@@ -5,7 +5,7 @@ description: What each kind of search result shows in its row and in the preview
 
 This page lists every kind of result workspace search can show, in the order the groups appear, with the actions for each one. The first action in each list is the one that runs when you click the row or press **Enter**. To open the full list, see [Open a result or act on it](/guide/search/search-your-workspace#open-a-result-or-act-on-it).
 
-Groups appear in this order: **Suggestions**, **Saved searches**, **Recent searches**, **Mail**, **Events**, **Files**, **Chats**, **Members**, **Contacts**, **Workflows**, **Workflow runs**, **Mailboxes**, **Calendars**, **Drives**, **Mail folders**, **Labels**, **Connections**, **Subscriptions**, **Commands**, **Settings** and **Workspaces**.
+Groups appear in this order: **Suggestions**, **Saved searches**, **Recent searches**, **Mail**, **Events**, **Files**, **Chats**, **Members**, **Contacts**, **Workflows**, **Workflow runs**, **Mailboxes**, **Calendars**, **Drives**, **Mail folders**, **Connections**, **Subscriptions**, **Commands**, **Settings** and **Workspaces**.
 
 Actions whose name starts with **Filter by** or **Search** replace what is in the box with a new search, such as `from:` and the sender, and keep search open.
 
@@ -26,7 +26,6 @@ The preview shows the subject, **From**, **To**, **Date** (**Sends** for a sched
 | **Mark read** or **Mark unread** | Marks the message read or unread.                                    |
 | **Snooze until tomorrow**        | Snoozes the message until 8:00 tomorrow.                             |
 | **Snooze until next week**       | Snoozes the message until 8:00 next Monday.                          |
-| **Add a label**                  | Lets you pick a label to add.                                        |
 | **Ask the assistant**            | Starts a Workspace AI message about this email.                      |
 | **Filter by sender**             | Searches for mail from the same sender.                              |
 
@@ -144,17 +143,9 @@ Search also finds each calendar inside a calendar account, if the workspace show
 | **Hide**                    | Opens the calendar and hides this one in the sidebar, in this browser.                      |
 | **Filter by this calendar** | Searches only this calendar.                                                                |
 
-## Mail folders and labels
+## Mail folders
 
-Search finds each folder of each mailbox. The actions are **Open** and **Filter by this folder**.
-
-For labels, search finds the built-in labels, shown as "Every mailbox", and the custom labels of each mailbox.
-
-| Action                   | What it does                                                                                                                                                                                                                                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open**                 | Opens the label filter, which lists mail with the label from every folder. A built-in label opens in **All inboxes**, across every mailbox, even when you have only one. A custom label opens in the Inbox of its own mailbox. Both show the **Filtered by:** banner. |
-| **Filter by this label** | Searches for mail with the label.                                                                                                                                                                                                                                     |
-| **Delete the label**     | Custom labels only. Asks you to confirm. Messages keep their content, and the label is removed from them.                                                                                                                                                             |
+Search finds the standard folders of each mailbox, such as Inbox and Sent. The actions are **Open** and **Filter by this folder**.
 
 ## Connections
 

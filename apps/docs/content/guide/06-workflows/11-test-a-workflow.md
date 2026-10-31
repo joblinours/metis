@@ -57,7 +57,7 @@ Pinning works once the workflow is saved. A sample can be up to 64 KB. A larger 
 
 Click the trigger to see its sample in the Inspector: "A pinned sample event is used by test runs." Click **Pinned event** to see it, or **Unpin** to remove it.
 
-**Before mail is sent**, **A run fails**, **Phishing detected**, **AI labels mail**, **Mail is labelled** and **Member joins** have no recent items. Until you pin a sample, their test starts with **An event I paste**. If you leave the box empty or the text is not valid JSON, the test says "Paste the event as JSON".
+**Before mail is sent**, **A run fails**, **Phishing detected** and **Member joins** have no recent items. Until you pin a sample, their test starts with **An event I paste**. If you leave the box empty or the text is not valid JSON, the test says "Paste the event as JSON".
 
 ## Replay an earlier run
 
