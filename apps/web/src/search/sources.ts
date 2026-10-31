@@ -9,8 +9,6 @@ import {
   listWorkspaceMailboxes,
 } from "@/connections";
 import { suggestContacts } from "@/mail/contacts";
-import { listCustomLabels } from "@/mail/custom-labels";
-import { LABEL_OPTIONS } from "@/mail/label-meta";
 import { mailSessionFor } from "@/mail/session";
 import { scanSubscriptions } from "@/mail/subscriptions";
 import { assistantThreadTexts, assistantThreadTitle, listAssistantThreads } from "@/mastra/memory";
@@ -394,55 +392,6 @@ async function mailFolders(ctx: LocalSearchContext) {
   );
 }
 
-async function labels(ctx: LocalSearchContext) {
-  const rows = await listWorkspaceMailboxes(ctx.appUser.workspaceId);
-  const builtIn = LABEL_OPTIONS.map((l): Candidate => ({
-    hit: {
-      kind: "label",
-      id: `label:${l.key}`,
-      title: l.name,
-      subtitle: "Every mailbox",
-      key: l.key,
-      name: l.name,
-      color: null,
-      custom: false,
-      labelId: null,
-      mailboxSlug: null,
-    },
-    doc: {
-      type: "label",
-      text: [l.name, l.key],
-      name: [l.name, l.key],
-      mailbox: [],
-    },
-  }));
-  const custom = await Promise.all(
-    rows.map(async (m) =>
-      (await listCustomLabels([m.id])).map((l): Candidate => ({
-        hit: {
-          kind: "label",
-          id: `label:${m.id}:${l.key}`,
-          title: l.name,
-          subtitle: m.email,
-          key: l.key,
-          name: l.name,
-          color: l.color,
-          custom: true,
-          labelId: l.id,
-          mailboxSlug: m.slug,
-        },
-        doc: {
-          type: "label",
-          text: [l.name, l.key],
-          name: [l.name, l.key],
-          mailbox: [m.slug, m.email],
-        },
-      })),
-    ),
-  );
-  return [...builtIn, ...custom.flat()];
-}
-
 async function connections(ctx: LocalSearchContext) {
   const rows = await listWorkspaceConnectionsOf(ctx.appUser.userId, ctx.appUser.workspaceId);
   return rows.map((c): Candidate => ({
@@ -526,7 +475,6 @@ const LOADERS: Partial<Record<SearchKind, Loader>> = {
   calendar: calendars,
   drive: drives,
   "mail-folder": mailFolders,
-  label: labels,
   connection: connections,
   subscription: subscriptions,
 };

@@ -4,23 +4,33 @@ import { ORPCError } from "@orpc/server";
 import {
   createFolder,
   createTag,
+  deleteFolder,
+  deleteTag,
   listFolderEmails,
   listMailboxFolders,
+  moveFolder,
   moveToFolder,
+  renameFolder,
+  renameTag,
   setMessageTags,
 } from "@/mail/provider-folders";
 import { mailSession } from "@/server/middlewares/mail-session";
 import {
   createProviderFolderInputSchema,
   createProviderTagInputSchema,
+  deleteProviderFolderInputSchema,
+  deleteProviderTagInputSchema,
   listFolderEmailsInputSchema,
   listMailFoldersOutputSchema,
   listMessagesOutputSchema,
   mailboxScopeSchema,
   moveToFolderInputSchema,
+  moveProviderFolderInputSchema,
   moveToFolderOutputSchema,
   providerFolderSchema,
   providerTagSchema,
+  renameProviderFolderInputSchema,
+  renameProviderTagInputSchema,
   setProviderTagsInputSchema,
   successSchema,
 } from "@/server/schema";
@@ -75,4 +85,36 @@ export const foldersRouter = {
     .handler(async ({ input, context }) =>
       atProvider(() => createTag(context.mail, { name: input.name, mailboxId: input.mailboxId })),
     ),
+
+  rename: mailSession(renameProviderFolderInputSchema)
+    .output(providerFolderSchema)
+    .handler(async ({ input, context }) =>
+      atProvider(() => renameFolder(context.mail, input.folderRef, input.name)),
+    ),
+
+  moveFolder: mailSession(moveProviderFolderInputSchema)
+    .output(providerFolderSchema)
+    .handler(async ({ input, context }) =>
+      atProvider(() => moveFolder(context.mail, input.folderRef, input.parentRef)),
+    ),
+
+  delete: mailSession(deleteProviderFolderInputSchema)
+    .output(successSchema)
+    .handler(async ({ input, context }) => {
+      await atProvider(() => deleteFolder(context.mail, input.folderRef));
+      return { success: true as const };
+    }),
+
+  renameTag: mailSession(renameProviderTagInputSchema)
+    .output(providerTagSchema)
+    .handler(async ({ input, context }) =>
+      atProvider(() => renameTag(context.mail, input.tagRef, input.name)),
+    ),
+
+  deleteTag: mailSession(deleteProviderTagInputSchema)
+    .output(successSchema)
+    .handler(async ({ input, context }) => {
+      await atProvider(() => deleteTag(context.mail, input.tagRef));
+      return { success: true as const };
+    }),
 };

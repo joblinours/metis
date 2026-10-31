@@ -1,13 +1,17 @@
 import "server-only";
 import { createTool } from "@mastra/core/tools";
 
+import { LABEL_TOOL_TEXT } from "@/mastra/toolkit/label-text";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import {
   applyProviderLabelsFields,
   createMailFolderFields,
+  deleteMailFolderFields,
   listEmailsInFolderFields,
   mailboxTarget,
+  moveMailFolderFields,
   moveToFolderFields,
+  renameMailFolderFields,
 } from "@/mastra/toolkit/schema";
 import * as folders from "@/ops/folders";
 
@@ -81,5 +85,44 @@ export const createMailFolder = createTool({
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
       return folders.createMailFolder(r.mailbox, { kind, name, parentFolderId });
+    }),
+});
+
+export const renameMailFolder = createTool({
+  id: "renameMailFolder",
+  description: LABEL_TOOL_TEXT.renameMailFolder,
+  inputSchema: inWorkspace(renameMailFolderFields),
+  execute: async ({ workspaceId, mailboxId, folderId, name }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = await mcpScopeFromCall(requestContext, workspaceId);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.renameMailFolder(r.mailbox, folderId, name);
+    }),
+});
+
+export const moveMailFolder = createTool({
+  id: "moveMailFolder",
+  description: LABEL_TOOL_TEXT.moveMailFolder,
+  inputSchema: inWorkspace(moveMailFolderFields),
+  execute: async ({ workspaceId, mailboxId, folderId, parentFolderId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = await mcpScopeFromCall(requestContext, workspaceId);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.moveMailFolder(r.mailbox, folderId, parentFolderId);
+    }),
+});
+
+export const deleteMailFolder = createTool({
+  id: "deleteMailFolder",
+  description: LABEL_TOOL_TEXT.deleteMailFolder,
+  inputSchema: inWorkspace(deleteMailFolderFields),
+  execute: async ({ workspaceId, mailboxId, folderId }, { requestContext }) =>
+    withToolErrors(async () => {
+      const ctx = await mcpScopeFromCall(requestContext, workspaceId);
+      const r = requireMailbox(ctx, mailboxId);
+      if ("error" in r) return r;
+      return folders.deleteMailFolder(r.mailbox, folderId);
     }),
 });

@@ -15,7 +15,7 @@ TOOLS
 - searchMail — search this mailbox
 - getEmail — the full plain-text body of one email by id
 - starEmail — star or unstar
-- setLabel — set an email's label. The key must already exist in this mailbox; never invent one
+- setLabel — add one of the account's own labels to an email. The labelId must come from AVAILABLE LABELS; never invent one
 - deleteEmails — move emails to the trash
 ${phishingCapability}
 

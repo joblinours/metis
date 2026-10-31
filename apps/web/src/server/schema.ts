@@ -2937,6 +2937,29 @@ export const createProviderTagInputSchema = mailboxScopeSchema.extend({
   mailboxId: z.string().min(1).optional(),
 });
 
+export const renameProviderFolderInputSchema = mailboxScopeSchema.extend({
+  folderRef: z.string().min(1),
+  name: providerFolderNameSchema,
+});
+
+export const moveProviderFolderInputSchema = mailboxScopeSchema.extend({
+  folderRef: z.string().min(1),
+  parentRef: z.string().min(1).optional(),
+});
+
+export const deleteProviderFolderInputSchema = mailboxScopeSchema.extend({
+  folderRef: z.string().min(1),
+});
+
+export const renameProviderTagInputSchema = mailboxScopeSchema.extend({
+  tagRef: z.string().min(1),
+  name: providerFolderNameSchema,
+});
+
+export const deleteProviderTagInputSchema = mailboxScopeSchema.extend({
+  tagRef: z.string().min(1),
+});
+
 export const getMessageInputSchema = mailboxScopeSchema.extend({
   id: z.string().min(1),
   folder: z.string().optional(),

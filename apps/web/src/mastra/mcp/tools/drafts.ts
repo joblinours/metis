@@ -2,6 +2,7 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
+import { draftAttachments } from "@/mastra/toolkit/attachments";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import { draftFields, draftTarget, mailboxTarget } from "@/mastra/toolkit/schema";
 import * as mail from "@/ops/mail";
@@ -14,12 +15,22 @@ export const createDraft = createTool({
   description:
     "Create a draft email in a specific mailbox. The draft is saved to the provider's Drafts folder — nothing is sent. Returns the draft id for later updates.",
   inputSchema: inWorkspace({ ...mailboxTarget, ...draftFields }),
-  execute: async ({ workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml }, { requestContext }) =>
+  execute: async (
+    { workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml, attachments },
+    { requestContext },
+  ) =>
     withToolErrors(async () => {
       const ctx = await mcpScopeFromCall(requestContext, workspaceId);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.createDraft(r.mailbox, { to, cc, bcc, subject, bodyHtml });
+      return mail.createDraft(r.mailbox, {
+        to,
+        cc,
+        bcc,
+        subject,
+        bodyHtml,
+        attachments: await draftAttachments(ctx, r.mailbox, attachments),
+      });
     }),
 });
 
@@ -32,7 +43,7 @@ export const updateDraft = createTool({
     ...draftFields,
   }),
   execute: async (
-    { workspaceId, mailboxId, draftId, to, cc, bcc, subject, bodyHtml },
+    { workspaceId, mailboxId, draftId, to, cc, bcc, subject, bodyHtml, attachments },
     { requestContext },
   ) =>
     withToolErrors(async () => {
@@ -45,6 +56,7 @@ export const updateDraft = createTool({
         bcc,
         subject,
         bodyHtml,
+        attachments: await draftAttachments(ctx, r.mailbox, attachments),
       });
     }),
 });

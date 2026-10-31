@@ -72,7 +72,7 @@ test("a template's cards summarize their settings and flag a missing label live"
   page,
   account,
 }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   await expect(step(page, "Mail arrives")).toContainText(`Watching ${account.email}`);
   await expect(step(page, "Label")).toContainText("Pick a label");
 
@@ -90,7 +90,7 @@ test("a template's cards summarize their settings and flag a missing label live"
 test("an expression is type-checked as it is typed, and a value from an earlier step can be inserted", async ({
   page,
 }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   await step(page, "If").click();
   const condition = inspector(page).getByRole("textbox", { name: "Condition" });
   await condition.fill("item.nonsense");
@@ -149,7 +149,7 @@ test("the revisions sheet lists saves and shows unsaved changes as a diff", asyn
 });
 
 test("clicking a palette step adds it to the canvas, and Delete removes it", async ({ page }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   const before = await canvas(page).getByRole("group").count();
   await page
     .getByRole("option")
@@ -165,7 +165,7 @@ test("clicking a palette step adds it to the canvas, and Delete removes it", asy
 });
 
 test("undo and redo step back and forth over a step's new name", async ({ page }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   await step(page, "If").click();
   const name = inspector(page).getByRole("textbox", { name: "Name", exact: true });
   await name.fill("Mail from Raj");
@@ -181,7 +181,7 @@ test("undo and redo step back and forth over a step's new name", async ({ page }
 });
 
 test("the w a chord opens quick add, and the picked step lands on the canvas", async ({ page }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   await page.keyboard.press("w");
   await page.keyboard.press("a");
   const dialog = page.getByRole("dialog", { name: "Add step" });
@@ -216,14 +216,14 @@ test("the schedule picker edits the schedule and lists its next runs", async ({ 
 });
 
 test("skipping a step that changes something marks its card as skipped", async ({ page }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   await step(page, "Label").click();
   await inspector(page).getByRole("switch", { name: "Skip this step" }).click();
   await expect(step(page, "Label")).toContainText("Skipped");
 });
 
 test("routing a step's errors adds an Error output to its card", async ({ page }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   await step(page, "Label").click();
   await inspector(page).getByRole("combobox", { name: "When this step fails" }).click();
   await page
@@ -234,7 +234,7 @@ test("routing a step's errors adds an Error output to its card", async ({ page }
 });
 
 test("the workflow settings show when no step is selected", async ({ page }) => {
-  await fromTemplate(page, "Label mail from a sender");
+  await fromTemplate(page, "Star mail from a sender");
   const settings = inspector(page).getByRole("region", { name: "Workflow settings" });
   await expect(settings.getByRole("spinbutton", { name: "Runs at the same time" })).toBeVisible();
   await settings.getByRole("combobox", { name: "Rate limit" }).click();

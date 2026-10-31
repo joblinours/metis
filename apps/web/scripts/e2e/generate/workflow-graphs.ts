@@ -97,11 +97,10 @@ function contains(id: string, field: "subject" | "from", value: string, row: num
   });
 }
 
-function label(id: string, key: string, row: number, lane = 0) {
-  return node(id, "mail.label", at(row, lane), {
+function label(id: string, _key: string, row: number, lane = 0) {
+  return node(id, "mail.star", at(row, lane), {
     message: cel("item"),
-    label: lit(key),
-    action: lit("add"),
+    starred: lit(true),
   });
 }
 

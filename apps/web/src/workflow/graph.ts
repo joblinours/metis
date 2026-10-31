@@ -163,7 +163,7 @@ const labelSender: Builder = (r) => {
   const nodes = [
     newNode("trigger.mail.received", ORIGIN, r),
     newNode("logic.if", ORIGIN, r, { condition: expr('item.from.contains("")') }),
-    newNode("mail.label", ORIGIN, r),
+    newNode("mail.star", ORIGIN, r),
   ];
   return graphOf(nodes, chain(nodes, { 1: "yes" }));
 };
@@ -270,15 +270,15 @@ function mergeBuilder(step: "logic.merge" | "logic.join"): Builder {
     const second = r.mailbox[1] ?? r.mailbox[0];
     const right = newNode("mail.list", ORIGIN, r, second ? { mailbox: literal(second.id) } : {});
     const merge = newNode(step, ORIGIN, r);
-    const label = newNode("mail.label", ORIGIN, r);
+    const star = newNode("mail.star", ORIGIN, r);
     return graphOf(
-      [trigger, left, right, merge, label],
+      [trigger, left, right, merge, star],
       [
         graphEdge(trigger.id, left.id),
         graphEdge(trigger.id, right.id),
         graphEdge(left.id, merge.id, "out", mergeInputHandle(0)),
         graphEdge(right.id, merge.id, "out", mergeInputHandle(1)),
-        graphEdge(merge.id, label.id),
+        graphEdge(merge.id, star.id),
       ],
     );
   };
@@ -302,7 +302,7 @@ export type GraphTemplate = (typeof GRAPH_TEMPLATES)[number];
 
 export const TEMPLATE_LABELS: Record<GraphTemplate, string> = {
   blank: "Start from a manual trigger",
-  labelSender: "Label mail from a sender",
+  labelSender: "Star mail from a sender",
   saveInvoices: "Save invoice PDFs to a drive",
   addInvitations: "Add mailed invitations to a calendar",
   approvedReply: "Draft a reply with AI, send once approved",

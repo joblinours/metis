@@ -5,11 +5,15 @@ import { BadRequestError } from "@/lib/errors/bad-request";
 import {
   createFolder,
   createTag,
+  deleteFolder,
   listFolderEmails,
   listMailboxFolders,
+  moveFolder,
   moveToFolder as moveMessageToFolder,
+  renameFolder,
   setMessageTags,
 } from "@/mail/provider-folders";
+import type { ProviderFolder } from "@/types/mail";
 
 import { emailSummary, emailSummaryOutput } from "./mail";
 import { orFailure, type Output } from "./output";
@@ -192,5 +196,58 @@ export async function createMailFolder(
         kind: folder.kind,
       },
     };
+  });
+}
+
+export const updatedMailFolderOutput = orFailure(
+  z.object({ success: z.literal(true), mailboxId: z.string(), folder: folderOutput }),
+);
+
+export const deleteMailFolderOutput = orFailure(
+  z.object({ deleted: z.literal(true), mailboxId: z.string(), folderId: z.string() }),
+);
+
+function asFolder(folder: ProviderFolder) {
+  return {
+    folderId: folder.ref,
+    name: folder.name,
+    path: folder.path,
+    ...(folder.parentRef ? { parentFolderId: folder.parentRef } : {}),
+    kind: folder.kind,
+    ...(folder.unread === undefined ? {} : { unread: folder.unread }),
+  };
+}
+
+export async function renameMailFolder(
+  mailbox: AgentMailbox,
+  folderId: string,
+  name: string,
+): Promise<Output<typeof updatedMailFolderOutput>> {
+  return refusing(async () => ({
+    success: true as const,
+    mailboxId: mailbox.mailboxId,
+    folder: asFolder(await renameFolder(mailbox, folderId, name)),
+  }));
+}
+
+export async function moveMailFolder(
+  mailbox: AgentMailbox,
+  folderId: string,
+  parentFolderId?: string,
+): Promise<Output<typeof updatedMailFolderOutput>> {
+  return refusing(async () => ({
+    success: true as const,
+    mailboxId: mailbox.mailboxId,
+    folder: asFolder(await moveFolder(mailbox, folderId, parentFolderId)),
+  }));
+}
+
+export async function deleteMailFolder(
+  mailbox: AgentMailbox,
+  folderId: string,
+): Promise<Output<typeof deleteMailFolderOutput>> {
+  return refusing(async () => {
+    await deleteFolder(mailbox, folderId);
+    return { deleted: true as const, mailboxId: mailbox.mailboxId, folderId };
   });
 }

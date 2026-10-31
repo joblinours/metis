@@ -55,9 +55,12 @@ import {
 import {
   applyProviderLabels,
   createMailFolder,
+  deleteMailFolder,
   listEmailsInFolder,
   listMailFolders,
+  moveMailFolder,
   moveToFolder,
+  renameMailFolder,
 } from "./tools/folders";
 import {
   addReadLater,
@@ -104,10 +107,12 @@ import {
   createLabel,
   deleteLabel,
   listLabels,
+  renameLabel,
   setLabel,
   setLabels,
 } from "./tools/labels";
 import {
+  getAttachment,
   getAttachmentText,
   getRawEmail,
   listAttachments,
@@ -227,6 +232,7 @@ const MCP_TOOLS = {
   retryScheduled,
   listAttachments,
   getAttachmentText,
+  getAttachment,
   muteThread,
   unmuteThread,
   listMuted,
@@ -243,6 +249,10 @@ const MCP_TOOLS = {
   moveToFolder,
   applyProviderLabels,
   createMailFolder,
+  renameMailFolder,
+  moveMailFolder,
+  deleteMailFolder,
+  renameLabel,
   searchContacts,
   deleteDraft,
   getRawEmail,

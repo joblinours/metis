@@ -63,7 +63,11 @@ See also [AGENTS.md](../AGENTS.md), [gateways.md](gateways.md), [mail-ai.md](mai
 ### Provider folders and labels
 
 - **The provider is the source of truth for its own folders and labels; Metis stores none of them.** Every list, move and label change is a provider call, so it shows at once in gmail.com, Zoho Mail and Outlook.
-  - They are separate from Metis labels (`mail_label`, one per message, [mail-ai.md](mail-ai.md)); a message carries any number of provider labels in `Email.labels`.
+  - They are the only labels this fork shows: Metis's own labels (`mail_label`, `mailbox_label`, the AI classifier) are off in the UI, the agent and MCP, and their tables stay unused ([mail-ai.md](mail-ai.md)). A message carries any number of provider labels in `Email.labels`.
+- **Every folder and label can be created, renamed, moved and deleted at the provider** (`renameProviderFolder`, `moveProviderFolder`, `deleteProviderFolder`, `renameProviderTag`, `deleteProviderTag`; `mail.folders.*`; the sidebar row menu; the MCP and agent tools).
+  - Gmail renames and moves by rewriting the label path, children first-by-parent, so `Parent/Child` keeps its hierarchy; deleting a label leaves its emails in All Mail.
+  - Zoho and Outlook delete a folder with its emails (Outlook to Deleted Items); Outlook cannot rename a category and the call refuses.
+  - `getProviderTags` reads one message's labels for `clearLabel` without a labelId.
 - **A folder or label is named by an opaque provider ref:** a Gmail label id, a Zoho `folderId` or tag `labelId`, a Graph folder id or an Outlook category name. `MAIL_FOLDERS` stays the seven standard folders.
 - **The adapter methods are optional, like `changes`.** Gmail, Zoho and Outlook implement them; IMAP and the gateways leave them out, so their mailboxes show no section and the tools answer "has no provider folders".
   - Gmail: user labels are both folders (`kind: "label"`, hierarchy from `/` in the name) and tags; a move adds the label and removes `INBOX`, so the id stays.
@@ -75,10 +79,19 @@ See also [AGENTS.md](../AGENTS.md), [gateways.md](gateways.md), [mail-ai.md](mai
   - A move to a folder of another mailbox is refused; the sidebar shows one collapsible group per mailbox and a click stays in `all`.
 - **A provider folder list is `?pfolder=<ref>` on the inbox route**, a `ListSource` of kind `provider` paged from `mail.folders.listEmails`; it has no tabs and no head refresh, and its key is in `mapCachedEmails` so star, read and remove show in it.
 
+### Attachments for agents and MCP
+
+- **`getAttachment` shows an attachment the way a person would** (`src/ops/attachments.ts` → `getAttachment`): images (png, jpeg, webp, gif up to `MAX_PREVIEW_IMAGE_BYTES`) are shrunk with `sharp` to `PREVIEW_IMAGE_SIDE` and sent as an image; everything the parsers read comes back as text, the rest as metadata.
+- **Word (.docx, `mammoth`) and Excel (.xlsx, `exceljs`) are attachment parsers** in `src/mail/attachment-data.ts`, beside PDF and ics, so `getAttachmentText`, `getAttachment` and the thread summary all read them; a sheet keeps at most `SHEET_ROWS` rows of `SHEET_COLS` cells.
+- **Draft, send and schedule tools take `attachments`** (`draftFields` → `draftAttachmentInput`): an attachment of another email (`source: "email"`) or a file the model writes (`source: "inline"`, text or base64).
+  - `resolveDraftAttachments` reads them server-side, with `MAX_INLINE_ATTACHMENT_BYTES` per written file and `MAX_DRAFT_ATTACHMENT_BYTES` in all; a refusal reaches the model as a `ToolRefusal` (`mastra/toolkit/attachments.ts`).
+  - `updateDraft` replaces the attachments when given and keeps them when left out: Gmail and Zoho rebuild the draft, so the op re-reads them first (`currentDraftAttachments`, through `draftMessageId` on Gmail, whose draft id is not its message id); Outlook patches in place and replaces them only when given.
+  - Zoho uploads draft attachments like it does on send (`uploadAttachments`).
+
 ### Personal state and the list
 
 - **Mute and read later are personal rows with no provider write**, keyed user × mailbox.
-- **The list's tab lives in `mail-store` (`listTabs`, keyed workspace/mailbox/folder).** `FolderView` mounts `EmailList` in a different tree with and without an open message, and the remount must keep the tab rather than fall back to Primary, which hides transactions.
+- **The list's tab lives in `mail-store` (`listTabs`, keyed workspace/mailbox/folder).** The tabs are All, Unread and Starred; `FolderView` mounts `EmailList` in a different tree with and without an open message, and the remount must keep the tab.
 - **The list, its search results, labels, mute and read later live in the TanStack Query cache** (`mail-cache.ts`); `mail-store` keeps only UI state and the `updateEmail` / `removeEmail(s)` actions, which write into every cached list and search result.
   - `useMailList` pages `messages.list` 50 at a time with `useInfiniteQuery` (staleTime `Infinity`); polling and re-entering a folder fetch a 25-message head and merge it in (`refreshMailListHead`), so loaded pages stay.
   - `refreshMailListHead` skips a list refreshed in the last 30 s, so the `EmailList` remount on opening a message costs no fetch; a head with no known message refetches the loaded pages instead of leaving a gap.
@@ -88,15 +101,13 @@ See also [AGENTS.md](../AGENTS.md), [gateways.md](gateways.md), [mail-ai.md](mai
   - A saved message shows wherever it was moved: `followMoves` re-keys its read-later row, and the list never pages the folder to find it.
   - The rows are filtered by the read-later id cache, so taking a message off the list hides its row at once and a refresh in flight cannot bring it back.
   - The page has no tab row; muted conversations stay hidden, as in the Inbox.
-- **The Unread and Starred tabs and the sidebar label filters list from the server, never by filtering the folder's loaded pages** (`useEmailSource`, `listSource`), so a match on a later page shows and a sparse filter never pages through the whole folder.
+- **The Unread and Starred tabs and the provider folder lists come from the server, never by filtering the folder's loaded pages** (`useEmailSource`, `listSource`), so a match on a later page shows and a sparse filter never pages through the whole folder.
   - Unread and Starred run the provider search for `mail-folder:<folder> is:unread|starred` (`mail.messages.listInState` → `listMailInState`), paged like search; IMAP pages a one-folder search by UID ([search.md](search.md)).
-  - These lists and the sidebar label list keep their pages (staleTime `Infinity`) and refresh only when the user switches to them (`refreshListOnSwitch` remembers the list last shown).
+  - These lists keep their pages (staleTime `Infinity`) and refresh only when the user switches to them (`refreshListOnSwitch` remembers the list last shown).
   - `FolderView` remounts `EmailList` when a message opens or closes; a refetch then would drop the message just opened from **Unread**.
-  - A sidebar label lists the mailbox's `mail_label` rows for that label from every folder, since a label row carries no folder (`mail.labels.listEmails` → `listLabelledEmails`); each page reads its messages from the provider (`readListedEmail`) and skips any that are gone.
-  - The other tabs (Primary and the label tabs) still filter the loaded pages.
   - **An empty filter with more pages shows a Load more button, never an automatic walk.** Outlook, Zoho and the gateways cannot push `is:unread` / `is:starred` down, so a page of 25 folder messages may hold no match; the button fetches the next page on click.
-- **A refresh in flight cannot undo a personal toggle.** The client sends each item's add/remove in order (`inOrder`), and every local edit of mute, read later or labels records its time (`markEdited`); a fetch that started before the edit keeps the edited cache instead of its response (`keepingEdits`), so no request is aborted and an older response never overwrites the edit.
-- **A move or delete refreshes the label map and the read-later queries once its request settles** (`refreshMessageRowsAfter` in `removeEmail(s)`), because `followMoves` may have re-keyed their rows to a new id.
+- **A refresh in flight cannot undo a personal toggle.** The client sends each item's add/remove in order (`inOrder`), and every local edit of mute or read later records its time (`markEdited`); a fetch that started before the edit keeps the edited cache instead of its response (`keepingEdits`), so no request is aborted and an older response never overwrites the edit.
+- **A move or delete refreshes the read-later queries once its request settles** (`refreshMessageRowsAfter` in `removeEmail(s)`), because `followMoves` may have re-keyed their rows to a new id.
 - **A list reload never brings back a row the user just removed.**
   - Archive, delete, restore, snooze and bulk delete remove the row first and pass their request to `removeEmail` / `removeEmails`, which hold the id (`holdRemoved`) until that request settles.
   - Every list and search fetch takes the time it started and drops a held id unless it started after the request settled; an earlier fetch may have read the folder before the provider moved the message.

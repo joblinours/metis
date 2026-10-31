@@ -3,7 +3,6 @@ import { attachmentsRouter } from "./attachments";
 import { customLabelsRouter } from "./custom-labels";
 import { draftsRouter } from "./drafts";
 import { foldersRouter } from "./folders";
-import { labelsRouter } from "./labels";
 import { messagesRouter } from "./messages";
 import { muteRouter } from "./mute";
 import { readLaterRouter } from "./read-later";
@@ -16,7 +15,6 @@ export const mailRouter = {
   drafts: draftsRouter,
   thread: threadRouter,
   attachments: attachmentsRouter,
-  labels: labelsRouter,
   folders: foldersRouter,
   customLabels: customLabelsRouter,
   mute: muteRouter,

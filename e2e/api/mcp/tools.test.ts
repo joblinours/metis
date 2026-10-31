@@ -744,6 +744,24 @@ const READS: Case[] = [
     },
   },
   {
+    tool: "getAttachment",
+    run: async (s, c) => {
+      const out = await s.call("getAttachment", {
+        ...box(c),
+        id: c.inviteId,
+        attachmentId: c.attachmentId,
+      });
+      expect(out.isError).toBe(false);
+      expect(out.text).toContain("Rebrand review");
+      const unknown = await s.call("getAttachment", {
+        ...box(c),
+        id: c.inviteId,
+        attachmentId: "no-such-attachment",
+      });
+      expect(unknown.text).toContain('Unknown attachmentId "no-such-attachment"');
+    },
+  },
+  {
     tool: "searchContacts",
     run: async (s, c) => {
       const out = await s.ok<{ count: number; contacts: { email: string }[] }>("searchContacts", {
@@ -769,12 +787,13 @@ const READS: Case[] = [
   {
     tool: "listLabels",
     run: async (s, c) => {
-      const out = await s.ok<{ labels: { key: string; builtIn: boolean }[] }>("listLabels", ws(c));
-      expect(out.labels).toContainEqual({
-        key: "custom:clients",
-        builtIn: false,
-      });
-      expect(out.labels).toContainEqual({ key: "work", builtIn: true });
+      const out = await s.ok<{ mailboxes: { mailboxId: string; supportsLabels: boolean }[] }>(
+        "listLabels",
+        ws(c),
+      );
+      expect(out.mailboxes).toContainEqual(
+        expect.objectContaining({ mailboxId: c.mailboxId, supportsLabels: false, labels: [] }),
+      );
     },
   },
   {
@@ -800,9 +819,7 @@ const READS: Case[] = [
       );
       expect(keys).not.toContain("trigger.once");
       expect(keys).not.toContain("system.workflowPrune");
-      expect(all.steps.find((step) => step.step === "mail.label")?.params.label?.kind).toBe(
-        "label",
-      );
+      expect(keys).not.toContain("mail.label");
       const ai = await s.ok<{ steps: { step: string }[] }>("listWorkflowSteps", {
         ...ws(c),
         category: "ai",
@@ -1474,45 +1491,24 @@ const LABELS: Case[] = [
   {
     tool: "createLabel",
     run: async (s, c) => {
-      const name = uniqueName();
-      const out = await s.ok<{ key: string; color: string }>("createLabel", {
-        ...box(c),
-        name,
-        color: "teal",
-      });
-      try {
-        expect(out).toMatchObject({
-          created: true,
-          key: `custom:${name}`,
-          color: "teal",
-        });
-        const keys = (await s.ok<{ labels: { key: string }[] }>("listLabels", ws(c))).labels.map(
-          (l) => l.key,
-        );
-        expect(keys).toContain(out.key);
-        expect(await s.refused("createLabel", { ...box(c), name })).toBe("Label already exists");
-      } finally {
-        await s.call("deleteLabel", { ...box(c), label: out.key });
-      }
+      expect(await s.refused("createLabel", { ...box(c), name: uniqueName() })).toContain(
+        "has no provider labels",
+      );
+    },
+  },
+  {
+    tool: "renameLabel",
+    run: async (s, c) => {
+      expect(
+        await s.refused("renameLabel", { ...box(c), labelId: "Label_1", name: uniqueName() }),
+      ).toContain("has no provider labels");
     },
   },
   {
     tool: "deleteLabel",
     run: async (s, c) => {
-      const { key } = await s.ok<{ key: string }>("createLabel", {
-        ...box(c),
-        name: uniqueName(),
-      });
-      expect(await s.ok("deleteLabel", { ...box(c), label: key })).toMatchObject({
-        deleted: true,
-        key,
-      });
-      const keys = (await s.ok<{ labels: { key: string }[] }>("listLabels", ws(c))).labels.map(
-        (l) => l.key,
-      );
-      expect(keys).not.toContain(key);
-      expect(await s.refused("deleteLabel", { ...box(c), label: "work" })).toContain(
-        "built-in labels cannot be deleted",
+      expect(await s.refused("deleteLabel", { ...box(c), labelId: "Label_1" })).toContain(
+        "has no provider labels",
       );
     },
   },
@@ -1520,58 +1516,55 @@ const LABELS: Case[] = [
     tool: "setLabel",
     run: async (s, c) => {
       const target = await must(s, c, "inbox", GITHUB);
-      try {
-        expect(
-          await s.ok("setLabel", {
-            ...box(c),
-            id: target.id,
-            label: "personal",
-          }),
-        ).toMatchObject({ success: true, id: target.id, label: "personal" });
-        expect(
-          await s.refused("setLabel", {
-            ...box(c),
-            id: target.id,
-            label: "no-such-label",
-          }),
-        ).toContain('Unknown label key "no-such-label"');
-      } finally {
-        await s.ok("clearLabel", { ...box(c), id: target.id });
-      }
+      expect(
+        await s.refused("setLabel", { ...box(c), id: target.id, labelId: "Label_1" }),
+      ).toContain("has no provider labels");
     },
   },
   {
     tool: "setLabels",
     run: async (s, c) => {
       const target = await must(s, c, "inbox", GITHUB);
-      try {
-        const out = await s.ok<{
-          count: number;
-          previous: Record<string, unknown>;
-        }>("setLabels", { ...box(c), ids: [target.id], label: "social" });
-        expect(out.count).toBe(1);
-        expect(Object.keys(out.previous)).toEqual([target.id]);
-      } finally {
-        await s.ok("clearLabel", { ...box(c), id: target.id });
-      }
+      expect(
+        await s.refused("setLabels", { ...box(c), ids: [target.id], labelId: "Label_1" }),
+      ).toContain("has no provider labels");
     },
   },
   {
     tool: "clearLabel",
     run: async (s, c) => {
       const target = await must(s, c, "inbox", GITHUB);
-      await s.ok("setLabel", { ...box(c), id: target.id, label: "updates" });
-      expect(await s.ok("clearLabel", { ...box(c), id: target.id })).toMatchObject({
-        success: true,
-        id: target.id,
-      });
-      const again = await s.ok<{ previous: Record<string, string | null> }>("setLabels", {
-        ...box(c),
-        ids: [target.id],
-        label: "updates",
-      });
-      expect(again.previous[target.id] ?? null).not.toBe("updates");
-      await s.ok("clearLabel", { ...box(c), id: target.id });
+      expect(await s.refused("clearLabel", { ...box(c), id: target.id })).toContain(
+        "has no provider labels",
+      );
+    },
+  },
+  {
+    tool: "renameMailFolder",
+    run: async (s, c) => {
+      expect(
+        await s.refused("renameMailFolder", {
+          ...box(c),
+          folderId: "Projects",
+          name: uniqueName(),
+        }),
+      ).toContain("has no provider folders");
+    },
+  },
+  {
+    tool: "moveMailFolder",
+    run: async (s, c) => {
+      expect(await s.refused("moveMailFolder", { ...box(c), folderId: "Projects" })).toContain(
+        "has no provider folders",
+      );
+    },
+  },
+  {
+    tool: "deleteMailFolder",
+    run: async (s, c) => {
+      expect(await s.refused("deleteMailFolder", { ...box(c), folderId: "Projects" })).toContain(
+        "has no provider folders",
+      );
     },
   },
 ];

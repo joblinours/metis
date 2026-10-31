@@ -157,6 +157,7 @@ export function listWorkflowSteps(args: {
   const steps = allSteps().filter(
     (def) =>
       (def.scope === undefined || def.scope === "any") &&
+      !def.hidden &&
       (!args.category || def.category === args.category) &&
       (args.decisionSteps || (def.key !== "ai.ask" && def.key !== "ai.branch")),
   );

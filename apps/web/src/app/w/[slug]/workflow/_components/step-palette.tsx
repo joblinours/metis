@@ -24,6 +24,7 @@ function usePaletteGroups() {
   const steps = allSteps().filter(
     (def) =>
       (def.scope === undefined || def.scope === "any") &&
+      !def.hidden &&
       (allowDecisionSteps || !DECISION_STEPS.has(def.key)),
   );
   return STEP_CATEGORIES.map((category) => ({

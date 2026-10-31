@@ -72,6 +72,10 @@ See also [AGENTS.md](../AGENTS.md), [ai-agents.md](ai-agents.md), [auth.md](auth
 
 ### The server
 
+- **A tool that returns an image sends an envelope `{ structuredContent, content }` and declares it in its `outputSchema`** (`getAttachment` in `src/mastra/mcp/tools/mail.ts`).
+  - Mastra returns the parsed output when it validates, so the schema must describe `content` or the image block is stripped; the MCP server then validates `structuredContent` against the same schema and sends `content` as is.
+  - The schema stays one object (fields optional, `strict`), because an MCP `outputSchema` must have `type: "object"` at its root.
+
 - **MCP exposes every operation the workspace agent has, plus MCP-only tools**; parity and the two switch-dependent tools are in [ai-agents.md](ai-agents.md). `src/mastra/mcp/tools/*` hold only ids, descriptions and MCP gating; every body is a call into `src/ops/`.
 - **Owner tools exist only for the owner.** `buildMcpServer` registers them only when the client's user is the owner (`isOwnerEmail`, read on each request), and each one checks again before running.
 - **Owner tools report a secret only as set or not set.** The System pages' `{ set, hint }` carries the last characters of the real value; `withoutSecretHints` in `src/ops/instance.ts` nulls the hint, so no part of a secret reaches a model.

@@ -42,7 +42,6 @@ function sendGraph(opts: { mailboxId: string; at: Date }): WorkflowGraph {
   const trigger = newNodeId();
   const send = newNodeId();
   const sent = newNodeId();
-  const tag = newNodeId();
   return {
     version: GRAPH_VERSION,
     nodes: [
@@ -64,17 +63,10 @@ function sendGraph(opts: { mailboxId: string; at: Date }): WorkflowGraph {
         position: { x: 704, y: 0 },
         params: { condition: expr('item.id != ""') },
       },
-      {
-        id: tag,
-        step: "mail.label",
-        position: { x: 1056, y: 0 },
-        params: { message: expr("item"), label: literal("scheduled"), action: literal("add") },
-      },
     ],
     edges: [
       { id: `${trigger}:out->${send}`, source: trigger, sourceHandle: "out", target: send },
       { id: `${send}:out->${sent}`, source: send, sourceHandle: "out", target: sent },
-      { id: `${sent}:out->${tag}`, source: sent, sourceHandle: "out", target: tag },
     ],
     settings: {},
   };

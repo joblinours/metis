@@ -1,16 +1,14 @@
 import "server-only";
 import { handleChatStream } from "@mastra/ai-sdk";
 import type { UIMessage } from "ai";
-import { inArray } from "drizzle-orm";
 
 import { WORKSPACE_REFERENCE_TYPES } from "@/ai/references";
 import { recordAiUsage } from "@/ai/usage";
 import type { AiUsageFeature } from "@/ai/usage-features";
 import type { CalendarSession } from "@/calendar/session";
-import { db } from "@/db";
-import { mailboxLabel } from "@/db/schema";
 import type { DriveSession } from "@/drive/session";
-import { type MailSession, mailboxIds } from "@/mail/session";
+import { listMailboxFolders } from "@/mail/provider-folders";
+import type { MailSession } from "@/mail/session";
 import { getLlm } from "@/services/llm";
 import type { WorkspaceRole } from "@/types/workspace";
 
@@ -70,10 +68,7 @@ export async function streamMailboxChat(
   const requestContext = mailboxRequestContext(session, headers);
   if (!requestContext) return null;
 
-  const customLabels = await db
-    .selectDistinct({ key: mailboxLabel.key, name: mailboxLabel.name })
-    .from(mailboxLabel)
-    .where(inArray(mailboxLabel.mailboxId, mailboxIds(session)));
+  const labelGroups = await listMailboxFolders(session).catch(() => []);
 
   return handleChatStream({
     mastra,
@@ -85,7 +80,7 @@ export async function streamMailboxChat(
     },
     defaultOptions: {
       requestContext,
-      context: [{ role: "system", content: mailboxLabelDirectory(customLabels) }],
+      context: [{ role: "system", content: mailboxLabelDirectory(labelGroups) }],
       onFinish: recordChatUsage(session, "mailbox-chat"),
     },
     onError: mapStreamError,

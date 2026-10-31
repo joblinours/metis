@@ -4,10 +4,9 @@ import { ORPCError } from "@orpc/server";
 import { adapterForMailbox } from "@/mail/aggregate";
 import { cacheMessage, deleteCachedMessage, getCachedMessage } from "@/mail/cache";
 import { suggestContacts } from "@/mail/contacts";
-import { seedProviderLabels } from "@/mail/labels";
 import { readRawMessage } from "@/mail/raw";
 import { listMailInState } from "@/mail/search";
-import { forSender, type MailSession, mailboxIds, scopeMessage } from "@/mail/session";
+import { forSender, mailboxIds, scopeMessage } from "@/mail/session";
 import { mailSession } from "@/server/middlewares/mail-session";
 import {
   bulkDeleteInputSchema,
@@ -34,7 +33,6 @@ import {
   successSchema,
 } from "@/server/schema";
 import { rateLimit } from "@/services/rate-limit";
-import type { Email } from "@/types/mail";
 import {
   cancelSnooze,
   listSnoozedEmails,
@@ -49,17 +47,6 @@ function adapterError(err: unknown): ORPCError<"BAD_GATEWAY", unknown> {
   return new ORPCError("BAD_GATEWAY", { cause: err });
 }
 
-function groupByMailbox(mail: MailSession, emails: Email[]): Map<string, Email[]> {
-  const out = new Map<string, Email[]>();
-  for (const email of emails) {
-    const { mailboxId } = scopeMessage(mail, email.id);
-    const bucket = out.get(mailboxId);
-    if (bucket) bucket.push(email);
-    else out.set(mailboxId, [email]);
-  }
-  return out;
-}
-
 export const messagesRouter = {
   list: mailSession(listMessagesInputSchema)
     .output(listMessagesOutputSchema)
@@ -69,16 +56,6 @@ export const messagesRouter = {
       try {
         const adapter = mail.adapter;
         const data = await adapter.listMessages(input.folder, input.pageToken, input.limit);
-
-        const byMailbox = groupByMailbox(mail, data.emails ?? []);
-
-        await Promise.all(
-          [...byMailbox].map(([mailboxId, emails]) =>
-            seedProviderLabels({ mailboxId, emails }).catch((err: unknown) => {
-              console.error("[mail/messages] provider label seed failed:", err);
-            }),
-          ),
-        );
 
         return {
           emails: data.emails ?? [],

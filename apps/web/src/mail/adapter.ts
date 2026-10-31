@@ -59,7 +59,14 @@ export interface MailAdapter {
   createProviderFolder?(name: string, parentRef?: string): Promise<ProviderFolder>;
   listProviderTags?(): Promise<ProviderTag[]>;
   setProviderTags?(ids: string[], add: string[], remove: string[]): Promise<void>;
+  getProviderTags?(id: string): Promise<string[]>;
+  draftMessageId?(draftId: string): Promise<string>;
   createProviderTag?(name: string): Promise<ProviderTag>;
+  renameProviderTag?(ref: string, name: string): Promise<ProviderTag>;
+  deleteProviderTag?(ref: string): Promise<void>;
+  renameProviderFolder?(ref: string, name: string): Promise<ProviderFolder>;
+  moveProviderFolder?(ref: string, parentRef?: string): Promise<ProviderFolder>;
+  deleteProviderFolder?(ref: string): Promise<void>;
 }
 
 function credentialEmail(auth: ConnectionAuth): string {

@@ -132,31 +132,34 @@ const star = messageAction(
   ],
 );
 
-const label = messageAction(
-  "mail.label",
-  "Label",
-  "Puts a label on a message, or takes one off.",
-  {
-    label: p.label("Label", { required: true, bindable: true }),
-    action: p.select(
-      "Action",
-      [
-        { value: "add", label: "Add" },
-        { value: "remove", label: "Remove" },
-      ],
-      { default: literal("add") },
-    ),
-  },
-  (node, ctx) => {
-    const key = literalString(node, "label");
-    const verb = literalString(node, "action") === "remove" ? "Remove" : "Add";
-    return [
-      key
-        ? line(`${verb} ${ctx.labelName(key)}`)
-        : (shown(node, "label", verb) ?? line("Pick a label", "warn")),
-    ];
-  },
-);
+const label = {
+  ...messageAction(
+    "mail.label",
+    "Label",
+    "Puts a label on a message, or takes one off.",
+    {
+      label: p.label("Label", { required: true, bindable: true }),
+      action: p.select(
+        "Action",
+        [
+          { value: "add", label: "Add" },
+          { value: "remove", label: "Remove" },
+        ],
+        { default: literal("add") },
+      ),
+    },
+    (node, ctx) => {
+      const key = literalString(node, "label");
+      const verb = literalString(node, "action") === "remove" ? "Remove" : "Add";
+      return [
+        key
+          ? line(`${verb} ${ctx.labelName(key)}`)
+          : (shown(node, "label", verb) ?? line("Pick a label", "warn")),
+      ];
+    },
+  ),
+  hidden: true,
+};
 
 const mute = messageAction(
   "mail.mute",

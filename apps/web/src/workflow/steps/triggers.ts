@@ -224,6 +224,7 @@ const labelled = step({
   key: "trigger.mail.labelled",
   label: "Mail is labelled",
   category: "trigger",
+  hidden: true,
   description: "Starts when a label is put on a message in Metis, by a person, AI or a workflow.",
   trigger: { kind: "app" },
   params: {
@@ -441,6 +442,7 @@ const aiLabel = step({
   key: "trigger.app.aiLabel",
   label: "AI labels mail",
   category: "trigger",
+  hidden: true,
   description: "Starts when AI classification puts a label on a message.",
   trigger: { kind: "app" },
   params: {

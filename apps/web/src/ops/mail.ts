@@ -12,6 +12,7 @@ import { summarizeThread as summarizeConversation } from "@/mail/thread-summary"
 import { contactSuggestionSchema } from "@/server/schema";
 import type { DraftPayload, Email, MailFolder } from "@/types/mail";
 
+import { currentDraftAttachments } from "./attachments";
 import type { Output } from "./output";
 import { type AgentMailbox, mailScopeFor, type WorkspaceCtx } from "./scope";
 
@@ -348,7 +349,12 @@ export async function updateDraft(
   draftId: string,
   payload: DraftPayload,
 ): Promise<Output<typeof draftOutput>> {
-  const updated = await mailbox.adapter.updateDraft(draftId, payload);
+  const attachments =
+    payload.attachments ??
+    (mailbox.provider === "microsoft"
+      ? undefined
+      : await currentDraftAttachments(mailbox, draftId));
+  const updated = await mailbox.adapter.updateDraft(draftId, { ...payload, attachments });
   return { success: true, mailboxId: mailbox.mailboxId, draftId: updated.id };
 }
 
@@ -397,7 +403,7 @@ export async function getAttachmentText(
   if (!parsable && !looksTextual(meta.filename, meta.mimeType)) {
     return {
       error:
-        "That attachment is not readable as text. PDFs, calendar invites, contact cards, wallet passes, forwarded emails and plain-text files can be read.",
+        "That attachment is not readable as text. PDFs, Word documents (.docx), spreadsheets (.xlsx), calendar invites, contact cards, wallet passes, forwarded emails and plain-text files can be read; use getAttachment to see an image.",
       filename: meta.filename,
       mimeType: meta.mimeType,
     };

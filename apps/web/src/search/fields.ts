@@ -139,7 +139,6 @@ export const SEARCH_FIELDS: readonly SearchField[] = [
     values: { mail: MAIL_FOLDERS },
     description: "In a mail folder",
   },
-  { key: "label", type: "text", kinds: ["mail"], description: "Has a label" },
   {
     key: "attendee",
     type: "text",

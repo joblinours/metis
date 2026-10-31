@@ -1,172 +1,177 @@
 import "server-only";
 import { z } from "zod";
 
-import { createCustomLabel, deleteCustomLabel, listCustomLabels } from "@/mail/custom-labels";
+import { BadRequestError } from "@/lib/errors/bad-request";
+import { clearUserLabel, mailboxLabelKeys, setUserLabel } from "@/mail/labels";
 import {
-  clearUserLabel,
-  labelTargets,
-  mailboxLabelKeys,
-  setLabelOnMessages,
-  setUserLabel,
-} from "@/mail/labels";
-import { BUILT_IN_LABELS, customLabelColorSchema } from "@/server/schema";
-import type { CustomLabelColor } from "@/types/mail";
+  createTag,
+  deleteTag,
+  listMailboxFolders,
+  messageTags,
+  renameTag,
+  setMessageTags,
+} from "@/mail/provider-folders";
 
 import { orFailure, type Output } from "./output";
 import type { AgentMailbox } from "./scope";
 
+const labelOutput = z.object({
+  labelId: z.string(),
+  name: z.string(),
+  color: z.string().optional(),
+});
+
 export const listLabelsOutput = z.object({
-  labels: z.array(z.object({ key: z.string(), builtIn: z.boolean() })),
+  mailboxes: z.array(
+    z.object({
+      mailboxId: z.string(),
+      mailbox: z.string(),
+      supportsLabels: z.boolean(),
+      labelsNeedReconnect: z.boolean(),
+      labels: z.array(labelOutput),
+      error: z.string().optional(),
+    }),
+  ),
 });
 
 export const setLabelOutput = orFailure(
-  z.object({ success: z.literal(true), mailboxId: z.string(), id: z.string(), label: z.string() }),
+  z.object({
+    success: z.literal(true),
+    mailboxId: z.string(),
+    id: z.string(),
+    labelId: z.string(),
+  }),
 );
 
 export const setLabelsOutput = orFailure(
   z.object({
     success: z.literal(true),
     mailboxId: z.string(),
-    label: z.string(),
+    labelId: z.string(),
     count: z.number(),
-    previous: z.record(z.string(), z.string().nullable()),
+  }),
+);
+
+export const clearLabelOutput = orFailure(
+  z.object({
+    success: z.literal(true),
+    mailboxId: z.string(),
+    id: z.string(),
+    removed: z.array(z.string()),
   }),
 );
 
 export const createLabelOutput = orFailure(
-  z.object({
-    created: z.literal(true),
-    mailboxId: z.string(),
-    key: z.string(),
-    name: z.string(),
-    color: customLabelColorSchema,
-  }),
+  z.object({ created: z.literal(true), mailboxId: z.string(), label: labelOutput }),
+);
+
+export const renameLabelOutput = orFailure(
+  z.object({ renamed: z.literal(true), mailboxId: z.string(), label: labelOutput }),
 );
 
 export const deleteLabelOutput = orFailure(
-  z.object({ deleted: z.literal(true), mailboxId: z.string(), key: z.string() }),
+  z.object({ deleted: z.literal(true), mailboxId: z.string(), labelId: z.string() }),
 );
 
-export const clearLabelOutput = z.object({
-  success: z.literal(true),
-  mailboxId: z.string(),
-  id: z.string(),
-});
-
-export async function listLabels(mailboxIds: string[]): Promise<Output<typeof listLabelsOutput>> {
-  const keys = await mailboxLabelKeys(mailboxIds);
-  const builtIn = new Set<string>(BUILT_IN_LABELS);
-  return {
-    labels: [...keys].map((key) => ({ key, builtIn: builtIn.has(key) })),
-  };
-}
-
-export async function setLabel(args: {
-  userId: string;
-  mailbox: AgentMailbox;
-  id: string;
-  label: string;
-}): Promise<Output<typeof setLabelOutput>> {
-  const target = args.mailbox.scope(args.id);
-  const keys = await mailboxLabelKeys([target.mailboxId]);
-  if (!keys.has(args.label)) {
-    return {
-      error: `Unknown label key "${args.label}". These are all of them: ${[...keys].join(", ")}`,
-    };
+async function refusing<T>(work: () => Promise<T>): Promise<T | { error: string }> {
+  try {
+    return await work();
+  } catch (err) {
+    if (err instanceof BadRequestError) return { error: err.message };
+    throw err;
   }
-  await setUserLabel({
-    userId: args.userId,
-    mailboxId: target.mailboxId,
-    messageId: target.messageId,
-    label: args.label,
-  });
+}
+
+function asLabel(tag: { ref: string; name: string; color?: string }) {
+  return { labelId: tag.ref, name: tag.name, ...(tag.color ? { color: tag.color } : {}) };
+}
+
+export async function listLabels(
+  mailboxes: AgentMailbox[],
+): Promise<Output<typeof listLabelsOutput>> {
+  const groups = await Promise.all(mailboxes.map((mailbox) => listMailboxFolders(mailbox)));
   return {
-    success: true,
-    mailboxId: target.mailboxId,
-    id: args.id,
-    label: args.label,
+    mailboxes: groups.flat().map((group) => ({
+      mailboxId: group.mailboxId,
+      mailbox: group.mailboxEmail,
+      supportsLabels: group.supportsTags,
+      labelsNeedReconnect: group.tagsNeedReconnect,
+      labels: group.tags.map(asLabel),
+      ...(group.error ? { error: group.error } : {}),
+    })),
   };
 }
 
-export async function setLabels(args: {
-  userId: string;
-  mailbox: AgentMailbox;
-  ids: string[];
-  label: string;
-}): Promise<Output<typeof setLabelsOutput>> {
-  const keys = await mailboxLabelKeys([args.mailbox.mailboxId]);
-  if (!keys.has(args.label)) {
-    return {
-      error: `Unknown label key "${args.label}". These are all of them: ${[...keys].join(", ")}`,
-    };
-  }
-  const previous = await setLabelOnMessages({
-    userId: args.userId,
-    targets: labelTargets(args.mailbox, args.ids),
-    label: args.label,
-  });
-  return {
-    success: true,
-    mailboxId: args.mailbox.mailboxId,
-    label: args.label,
-    count: args.ids.length,
-    previous,
-  };
-}
-
-export async function createLabel(args: {
-  userId: string;
-  mailbox: AgentMailbox;
-  name: string;
-  color?: CustomLabelColor;
-}): Promise<Output<typeof createLabelOutput>> {
-  const created = await createCustomLabel({
-    userId: args.userId,
-    mailboxIds: [args.mailbox.mailboxId],
-    name: args.name,
-    color: args.color,
-  });
-  if ("error" in created) return { error: created.error };
-  return {
-    created: true,
-    mailboxId: args.mailbox.mailboxId,
-    key: created.key,
-    name: created.name,
-    color: created.color,
-  };
-}
-
-export async function deleteLabel(
+export async function setLabel(
   mailbox: AgentMailbox,
-  key: string,
-): Promise<Output<typeof deleteLabelOutput>> {
-  const custom = await listCustomLabels([mailbox.mailboxId]);
-  const label = custom.find((l) => l.key === key);
-  if (!label) {
-    return {
-      error: `"${key}" is not a custom label in this mailbox — built-in labels cannot be deleted. Custom labels here: ${
-        custom.map((l) => l.key).join(", ") || "none"
-      }`,
-    };
-  }
-  const deleted = await deleteCustomLabel({
-    mailboxIds: [mailbox.mailboxId],
-    id: label.id,
+  id: string,
+  labelId: string,
+): Promise<Output<typeof setLabelOutput>> {
+  return refusing(async () => {
+    await setMessageTags(mailbox, [id], [labelId], []);
+    return { success: true as const, mailboxId: mailbox.mailboxId, id, labelId };
   });
-  if ("error" in deleted) return deleted;
-  return { deleted: true, mailboxId: mailbox.mailboxId, key };
+}
+
+export async function setLabels(
+  mailbox: AgentMailbox,
+  ids: string[],
+  labelId: string,
+): Promise<Output<typeof setLabelsOutput>> {
+  return refusing(async () => {
+    await setMessageTags(mailbox, ids, [labelId], []);
+    return {
+      success: true as const,
+      mailboxId: mailbox.mailboxId,
+      labelId,
+      count: ids.length,
+    };
+  });
 }
 
 export async function clearLabel(
   mailbox: AgentMailbox,
   id: string,
+  labelId?: string,
 ): Promise<Output<typeof clearLabelOutput>> {
-  const target = mailbox.scope(id);
-  await clearUserLabel({
-    mailboxId: target.mailboxId,
-    messageId: target.messageId,
+  return refusing(async () => {
+    const removed = labelId ? [labelId] : await messageTags(mailbox, id);
+    if (removed.length > 0) await setMessageTags(mailbox, [id], [], removed);
+    return { success: true as const, mailboxId: mailbox.mailboxId, id, removed };
   });
-  return { success: true, mailboxId: target.mailboxId, id };
+}
+
+export async function createLabel(
+  mailbox: AgentMailbox,
+  name: string,
+): Promise<Output<typeof createLabelOutput>> {
+  return refusing(async () => ({
+    created: true as const,
+    mailboxId: mailbox.mailboxId,
+    label: asLabel(await createTag(mailbox, { name, mailboxId: mailbox.mailboxId })),
+  }));
+}
+
+export async function renameLabel(
+  mailbox: AgentMailbox,
+  labelId: string,
+  name: string,
+): Promise<Output<typeof renameLabelOutput>> {
+  return refusing(async () => ({
+    renamed: true as const,
+    mailboxId: mailbox.mailboxId,
+    label: asLabel(await renameTag(mailbox, labelId, name)),
+  }));
+}
+
+export async function deleteLabel(
+  mailbox: AgentMailbox,
+  labelId: string,
+): Promise<Output<typeof deleteLabelOutput>> {
+  return refusing(async () => {
+    await deleteTag(mailbox, labelId);
+    return { deleted: true as const, mailboxId: mailbox.mailboxId, labelId };
+  });
 }
 
 export async function labelMessage(args: {

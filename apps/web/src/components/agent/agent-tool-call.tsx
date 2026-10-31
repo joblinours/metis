@@ -235,12 +235,10 @@ function toolCopy(part: AnyToolPart, mailboxEmails: MailboxEmailMap): ToolCopy {
       };
     }
     case "setLabel": {
-      const requestedLabel = asString(input?.label);
-      const confirmedLabel = asString(output?.label);
       return {
         icon: Tag,
-        loading: requestedLabel ? `Setting label to "${requestedLabel}"...` : "Setting label...",
-        success: confirmedLabel ? `Set label to "${confirmedLabel}"` : "Label update finished",
+        loading: "Adding the label...",
+        success: "Added the label",
       };
     }
     case "deleteEmails": {
@@ -438,12 +436,21 @@ function toolCopy(part: AnyToolPart, mailboxEmails: MailboxEmailMap): ToolCopy {
       };
     }
     case "deleteLabel": {
-      const label = asString(input?.label);
+      const what = asString(input?.summary);
       return {
         icon: Tag,
         loading: "Deleting the label...",
-        approval: label ? `Approve deleting the label "${label}"` : "Approve deleting this label",
-        success: label ? `Deleted the label "${label}"` : "Deleted the label",
+        approval: what ? `Approve deleting ${what}` : "Approve deleting this label",
+        success: "Deleted the label",
+      };
+    }
+    case "deleteMailFolder": {
+      const what = asString(input?.summary);
+      return {
+        icon: Trash2,
+        loading: "Deleting the folder...",
+        approval: what ? `Approve deleting ${what}` : "Approve deleting this folder",
+        success: "Deleted the folder",
       };
     }
     case "deleteDraft": {

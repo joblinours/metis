@@ -12,12 +12,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Whi
 
 ### Added
 
+- Mail: rename and delete folders and labels from the sidebar, at the provider.
+- Workspace AI and MCP: the label tools now work on the account's own labels (Gmail labels, Zoho tags, Outlook categories), plus `renameLabel`, `renameMailFolder`, `moveMailFolder` and `deleteMailFolder`. None of them needs to be turned on first.
+- Workspace AI and MCP: `getAttachment` shows an attachment, images as images and Word, Excel, PDF and text files as their content; drafts, sends and scheduled sends take attachments, from another email or written by the assistant.
+- Mail: Word (.docx) and Excel (.xlsx) attachments are read by the assistant and in thread summaries.
 - Mail: each account's own folders, sub-folders and labels in the sidebar (Gmail labels, Zoho folders and tags, Outlook folders and categories), with one group per account in All inboxes. Opening one lists its emails.
 - Mail: Move to a folder and add or remove labels from an email, by menu, by dragging an email onto a folder, or with `m o` and `m l`. Changes are made at the provider, so they show in Gmail, Zoho Mail and Outlook.
 - Mail: create folders, sub-folders and labels at the provider from the sidebar.
 - Workspace AI and MCP: `listMailFolders`, `listEmailsInFolder`, `moveToFolder`, `applyProviderLabels` and `createMailFolder` (off by default for MCP clients).
 
 ### Changed
+
+- Mail: Metis's own labels (Work, Newsletter, custom labels, AI sorting) are gone from the app and from MCP; only the account's own labels remain. The inbox tabs are All, Unread and Starred. Existing workflows that use the Label step or the label triggers keep running, but these are no longer offered, and the "Label mail from a sender" template is now "Star mail from a sender".
+- Mail: Outlook drafts keep the attachments given on update, and Zoho drafts keep their attachments.
 
 - Mail: mailboxes open much faster. Gmail reads at most 10 messages at a time instead of a whole page at once, the first page holds 50 messages, and the unified inbox asks each account for its share of a page instead of a full page each.
 - Mail: opening and closing a message no longer reloads the list or asks the AI to label the same messages again.

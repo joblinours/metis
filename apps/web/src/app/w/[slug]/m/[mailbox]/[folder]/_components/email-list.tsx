@@ -12,59 +12,29 @@ import {
   AlertDialogTitle,
 } from "@metis/ui/components/alert-dialog";
 import { Button } from "@metis/ui/components/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@metis/ui/components/dropdown-menu";
 import { ScrollArea } from "@metis/ui/components/scroll-area";
 import { cn } from "@metis/ui/lib/utils";
-import {
-  Bot,
-  Check,
-  ChevronDown,
-  Loader2,
-  MailOpen,
-  Search,
-  Star,
-  Tag as TagIcon,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Bot, Check, Loader2, MailOpen, Search, Star, Trash2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { MobileAsideTrigger } from "@/components/mobile-aside";
 import { usePlatformPolicy } from "@/components/platform-policy-context";
-import { useScopePolicy } from "@/components/scope-policy-context";
-import { useCustomLabels } from "@/hooks/use-custom-labels";
 import { usePollingRefresh } from "@/hooks/use-polling-refresh";
 import { folderByRef, useFolderGroups } from "@/hooks/use-provider-folders";
 import { useMailboxScope } from "@/hooks/use-workspace-path";
 import { orpc } from "@/lib/orpc";
 import { formatEmailDate, getInitials, groupByThread } from "@/lib/utils";
 import {
-  customLabelMark,
-  LABEL_OPTIONS,
-  resolveChipStyle,
-  resolveLabelName,
-} from "@/mail/label-meta";
-import { showLabelUndo } from "@/mail/label-undo";
-import {
   listSource,
   refreshListOnSwitch,
   refreshMailListHead,
   refreshReadLaterList,
-  setCachedLabels,
   useEmailSource,
-  useMailLabels,
   useMutedThreadIds,
 } from "@/mail/mail-cache";
 import { mailboxChipStyle } from "@/mail/mailbox-color";
-import type { MailboxScope } from "@/server/schema";
 import { type MailListView, useMailStore } from "@/store/mail-store";
 import type { Email, MailFolder } from "@/types/mail";
 import { ALL_MAILBOXES_SLUG, mailPath } from "@/workspace/path";
@@ -76,53 +46,13 @@ interface EmailListProps {
   view: MailListView;
 }
 
-type FilterTab =
-  | "primary"
-  | "all"
-  | "unread"
-  | "starred"
-  | "action_required"
-  | "work"
-  | "transactions"
-  | "updates"
-  | "newsletter"
-  | "personal"
-  | "promotional"
-  | "social";
+type FilterTab = "all" | "unread" | "starred";
 
 const TABS: { id: FilterTab; label: string }[] = [
-  { id: "primary", label: "Primary" },
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
   { id: "starred", label: "Starred" },
-  { id: "action_required", label: "Action Required" },
-  { id: "work", label: "Work" },
-  { id: "personal", label: "Personal" },
-  { id: "updates", label: "Updates" },
-  { id: "transactions", label: "Transactions" },
-  { id: "newsletter", label: "Newsletter" },
-  { id: "promotional", label: "Promos" },
-  { id: "social", label: "Social" },
 ];
-
-const PRIMARY_EXCLUDED_LABELS = new Set(["promotional", "social", "newsletter", "transactions"]);
-
-interface ClassifyAttempts {
-  attempted: Set<string>;
-  running: boolean;
-}
-
-const CLASSIFY_ATTEMPTS = new Map<string, ClassifyAttempts>();
-
-function classifyAttempts(scope: MailboxScope): ClassifyAttempts {
-  const key = `${scope.workspaceSlug}/${scope.mailboxSlug}`;
-  let attempts = CLASSIFY_ATTEMPTS.get(key);
-  if (!attempts) {
-    attempts = { attempted: new Set(), running: false };
-    CLASSIFY_ATTEMPTS.set(key, attempts);
-  }
-  return attempts;
-}
 
 export function EmailList({ folder, view }: EmailListProps) {
   const scope = useMailboxScope();
@@ -146,7 +76,6 @@ export function EmailList({ folder, view }: EmailListProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { workspaceSlug, mailboxSlug } = scope;
-  const urlLabel = searchParams.get("label");
   const providerFolderRef = searchParams.get("pfolder");
   const folderGroups = useFolderGroups(scope);
   const providerFolder = providerFolderRef ? folderByRef(folderGroups, providerFolderRef) : null;
@@ -155,11 +84,10 @@ export function EmailList({ folder, view }: EmailListProps) {
   const tabKey = `${workspaceSlug}/${mailboxSlug}/${folder}`;
   const storedTab = useMailStore((s) => s.listTabs[tabKey]);
   const setListTab = useMailStore((s) => s.setListTab);
-  const activeTab =
-    TABS.find((tab) => tab.id === storedTab)?.id ?? (folder === "inbox" ? "primary" : "all");
+  const activeTab = TABS.find((tab) => tab.id === storedTab)?.id ?? "all";
   const setActiveTab = (tab: FilterTab) => setListTab(tabKey, tab);
 
-  const source = listSource(readLaterMode, urlLabel, activeTab, providerFolderRef);
+  const source = listSource(readLaterMode, activeTab, providerFolderRef);
   const {
     emails,
     loading: isLoading,
@@ -169,11 +97,8 @@ export function EmailList({ folder, view }: EmailListProps) {
     error: listError,
     retry: retryList,
   } = useEmailSource(scope, folder, source, submittedSearch);
-  const { labels, ready: labelsReady } = useMailLabels(scope);
-  const customLabels = useCustomLabels();
   const mutedThreadIds = useMutedThreadIds(scope);
   const platformAi = usePlatformPolicy().ai;
-  const aiEnabled = useScopePolicy().ai;
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -183,12 +108,8 @@ export function EmailList({ folder, view }: EmailListProps) {
   }, [scope, folder, plainList]);
 
   useEffect(() => {
-    refreshListOnSwitch(
-      scope,
-      folder,
-      listSource(readLaterMode, urlLabel, activeTab, providerFolderRef),
-    );
-  }, [scope, folder, readLaterMode, urlLabel, activeTab, providerFolderRef]);
+    refreshListOnSwitch(scope, folder, listSource(readLaterMode, activeTab, providerFolderRef));
+  }, [scope, folder, readLaterMode, activeTab, providerFolderRef]);
 
   usePollingRefresh(async () => {
     if (listError) {
@@ -203,37 +124,6 @@ export function EmailList({ folder, view }: EmailListProps) {
   function runSearch(q: string) {
     submitSearch(q);
   }
-
-  useEffect(() => {
-    if (!aiEnabled || !labelsReady) return;
-    const attempts = classifyAttempts(scope);
-    if (attempts.running) return;
-    const { attempted } = attempts;
-    const batch = emails.filter((e) => !labels[e.id] && !attempted.has(e.id)).slice(0, 25);
-    if (batch.length === 0) return;
-
-    for (const e of batch) attempted.add(e.id);
-    const items = batch.map((e) => ({
-      id: e.id,
-      sender: e.fromName || e.from,
-      subject: e.subject,
-      snippet: e.snippet,
-    }));
-
-    attempts.running = true;
-    orpc.mail.labels.classify({ ...scope, items }).then(
-      (d: { labels?: Record<string, { label: string; confidence: number }> }) => {
-        attempts.running = false;
-        const classified = d.labels;
-        if (classified) {
-          setCachedLabels(scope, (current) => ({ ...current, ...classified }));
-        }
-      },
-      () => {
-        attempts.running = false;
-      },
-    );
-  }, [emails, labels, scope, aiEnabled, labelsReady]);
 
   useEffect(() => {
     const target = loadMoreRef.current;
@@ -253,35 +143,17 @@ export function EmailList({ folder, view }: EmailListProps) {
 
     if (plainList) {
       filtered = emails;
-    } else if (urlLabel) {
-      filtered = emails.filter((e) => labels[e.id]?.label === urlLabel);
     } else if (activeTab === "unread") {
       filtered = emails.filter((e) => !e.isRead || e.id === selectedEmail?.id);
     } else if (activeTab === "starred") {
       filtered = emails.filter((e) => e.isStarred);
-    } else if (activeTab === "primary") {
-      filtered = emails.filter((e) => {
-        const label = labels[e.id]?.label;
-        return !label || !PRIMARY_EXCLUDED_LABELS.has(label);
-      });
-    } else if (
-      activeTab === "action_required" ||
-      activeTab === "work" ||
-      activeTab === "transactions" ||
-      activeTab === "updates" ||
-      activeTab === "newsletter" ||
-      activeTab === "personal" ||
-      activeTab === "promotional" ||
-      activeTab === "social"
-    ) {
-      filtered = emails.filter((e) => labels[e.id]?.label === activeTab);
     }
 
     if (folder === "inbox" && !plainList && mutedThreadIds.size > 0) {
       filtered = filtered.filter((e) => !e.threadId || !mutedThreadIds.has(e.threadId));
     }
     return groupByThread(filtered);
-  }, [emails, activeTab, labels, urlLabel, folder, mutedThreadIds, plainList, selectedEmail]);
+  }, [emails, activeTab, folder, mutedThreadIds, plainList, selectedEmail]);
 
   const visibleEmails = useMemo(() => visibleThreads.map((g) => g.latest), [visibleThreads]);
 
@@ -323,28 +195,6 @@ export function EmailList({ folder, view }: EmailListProps) {
     const request = orpc.mail.messages.bulkDelete({ ...scope, ids });
     removeEmails(ids, request);
     await request;
-  }
-
-  async function bulkLabel(labelKey: string, labelName: string) {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-
-    const previous = ids.map((id) => ({
-      id,
-      previousLabel: labels[id]?.label ?? null,
-    }));
-
-    setCachedLabels(scope, (current) => {
-      const next = { ...current };
-      for (const id of ids) next[id] = { label: labelKey, confidence: 100 };
-      return next;
-    });
-    clearSelected();
-
-    try {
-      await orpc.mail.labels.setOnMessages({ ...scope, ids, label: labelKey });
-      showLabelUndo(labelName, previous, scope);
-    } catch {}
   }
 
   async function bulkMarkRead(read: boolean) {
@@ -449,24 +299,6 @@ export function EmailList({ folder, view }: EmailListProps) {
         </div>
       )}
 
-      {urlLabel && (
-        <div className="flex shrink-0 items-center gap-2 border-b px-4.5 py-2 bg-brand-soft border-border-soft">
-          <span className="text-xs text-brand-text">Filtered by:</span>
-          <span className="rounded-full px-2 py-0.5 text-[11px] font-medium bg-panel text-brand-text">
-            {resolveLabelName(urlLabel, customLabels)}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => router.push(mailPath(workspaceSlug, mailboxSlug, folder))}
-            className="ml-auto text-faint"
-            title="Clear label filter"
-          >
-            <X />
-          </Button>
-        </div>
-      )}
-
       {selectedIds.size > 0 ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-border-soft bg-brand-soft px-4.5 py-2">
           <span className="text-xs text-primary">{selectedIds.size} selected</span>
@@ -492,51 +324,6 @@ export function EmailList({ folder, view }: EmailListProps) {
             emails={emails.filter((e) => selectedIds.has(e.id))}
             onMoved={clearSelected}
           />
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="xs"
-                  title="Apply label"
-                  className="text-[11px] text-muted-foreground"
-                >
-                  <TagIcon className="h-3 w-3" />
-                  Label
-                  <ChevronDown className="h-2.5 w-2.5" />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="start" className="w-56">
-              <div className="px-2 py-1.5 text-[10px] uppercase tracking-[1.5px] text-faint">
-                Built-in
-              </div>
-              {LABEL_OPTIONS.map((opt) => (
-                <DropdownMenuItem key={opt.key} onClick={() => bulkLabel(opt.key, opt.name)}>
-                  <TagIcon className="mr-2 h-3 w-3" strokeWidth={2} style={{ color: opt.mark }} />
-                  {opt.name}
-                </DropdownMenuItem>
-              ))}
-              {customLabels.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <div className="px-2 py-1.5 text-[10px] uppercase tracking-[1.5px] text-faint">
-                    Custom
-                  </div>
-                  {customLabels.map((c) => (
-                    <DropdownMenuItem key={c.id} onClick={() => bulkLabel(c.key, c.name)}>
-                      <TagIcon
-                        className="mr-2 h-3 w-3"
-                        strokeWidth={2}
-                        style={{ color: customLabelMark(c.color) }}
-                      />
-                      {c.name}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button
             variant="outline"
             size="xs"
@@ -631,14 +418,11 @@ export function EmailList({ folder, view }: EmailListProps) {
         ) : (
           <div>
             {visibleThreads.map((group) => {
-              const labelKey = labels[group.latest.id]?.label;
-              const labelInfo = labelKey ? resolveChipStyle(labelKey, customLabels) : undefined;
               return (
                 <EmailRow
                   key={group.threadId}
                   email={group.latest}
                   threadCount={group.count}
-                  labelInfo={labelInfo}
                   isSelected={selectedEmail?.id === group.latest.id}
                   isChecked={selectedIds.has(group.latest.id)}
                   onSelect={handleSelect}
@@ -688,7 +472,6 @@ export function EmailList({ folder, view }: EmailListProps) {
 interface EmailRowProps {
   email: Email;
   threadCount?: number;
-  labelInfo?: { label: string; bg: string; fg: string };
   isSelected: boolean;
   isChecked: boolean;
   onSelect: (email: Email) => void;
@@ -699,7 +482,6 @@ interface EmailRowProps {
 function EmailRow({
   email,
   threadCount = 1,
-  labelInfo,
   isSelected,
   isChecked,
   onSelect,
@@ -803,7 +585,6 @@ function EmailRow({
         {mailboxChip && (
           <Tag label={mailboxChip.label} color={mailboxChip.bg} fg={mailboxChip.fg} />
         )}
-        {labelInfo && <Tag label={labelInfo.label} color={labelInfo.bg} fg={labelInfo.fg} />}
         <ProviderTagChips email={email} max={3} />
         <Tag
           label={

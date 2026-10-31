@@ -59,7 +59,13 @@ export function zohoMail(accessToken: string): MailAdapter {
       createProviderFolder,
       listProviderTags,
       setProviderTags,
+      getProviderTags,
       createProviderTag,
+      renameProviderTag,
+      deleteProviderTag,
+      renameProviderFolder,
+      moveProviderFolder,
+      deleteProviderFolder,
     },
     accessToken,
   );
@@ -449,6 +455,8 @@ async function createDraft(accessToken: string, payload: DraftPayload): Promise<
   };
   if (payload.cc?.length) body.ccAddress = payload.cc.join(",");
   if (payload.bcc?.length) body.bccAddress = payload.bcc.join(",");
+  const attachmentRefs = await uploadAttachments(accessToken, acc.accountId, payload.attachments);
+  if (attachmentRefs.length > 0) body.attachments = attachmentRefs;
 
   const res = await zohoFetch(accessToken, `/accounts/${acc.accountId}/messages`, {
     method: "POST",
@@ -475,21 +483,20 @@ async function deleteDraft(accessToken: string, draftId: string): Promise<void> 
   await modifyMessages(accessToken, [draftId], "trashMessages");
 }
 
-async function sendMessage(
+async function uploadAttachments(
   accessToken: string,
-  payload: DraftPayload,
-): Promise<{ id: string | null }> {
-  const acc = await loadAccount(accessToken);
-
+  accountId: string,
+  attachments: DraftPayload["attachments"],
+): Promise<{ storeName: string; attachmentName: string }[]> {
   const base = await zohoBaseUrl(accessToken);
   const uploads = await Promise.all(
-    (payload.attachments ?? []).map(async (att) => {
+    (attachments ?? []).map(async (att) => {
       const buffer = Buffer.from(att.contentBase64, "base64");
       const form = new FormData();
       form.append("file", new Blob([new Uint8Array(buffer)], { type: att.mimeType }), att.filename);
 
       const uploadRes = await fetch(
-        `${base}/accounts/${acc.accountId}/messages/attachments?fileName=${encodeURIComponent(att.filename)}&isInline=false`,
+        `${base}/accounts/${accountId}/messages/attachments?fileName=${encodeURIComponent(att.filename)}&isInline=false`,
         {
           method: "POST",
           headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
@@ -509,7 +516,16 @@ async function sendMessage(
         : null;
     }),
   );
-  const attachmentRefs = uploads.filter((ref) => ref !== null);
+  return uploads.filter((ref) => ref !== null);
+}
+
+async function sendMessage(
+  accessToken: string,
+  payload: DraftPayload,
+): Promise<{ id: string | null }> {
+  const acc = await loadAccount(accessToken);
+
+  const attachmentRefs = await uploadAttachments(accessToken, acc.accountId, payload.attachments);
 
   const body: Record<string, unknown> = {
     fromAddress: acc.fromAddress,
@@ -1100,4 +1116,96 @@ async function setProviderTags(
       body: JSON.stringify({ mode, labelId, messageId, isFolderSpecific: false }),
     });
   }
+}
+
+async function freshFolder(accessToken: string, ref: string): Promise<ProviderFolder> {
+  await forgetAccount(accessToken);
+  const folder = (await listProviderFolders(accessToken)).find((f) => f.ref === ref);
+  if (!folder) throw new Error(`Zoho folder "${ref}" is gone`);
+  return folder;
+}
+
+async function updateFolder(
+  accessToken: string,
+  ref: string,
+  body: Record<string, string>,
+): Promise<ProviderFolder> {
+  const acc = await loadAccount(accessToken);
+  requireCustomFolder(acc, ref);
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/folders/${ref}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return freshFolder(accessToken, ref);
+}
+
+async function renameProviderFolder(
+  accessToken: string,
+  ref: string,
+  name: string,
+): Promise<ProviderFolder> {
+  return updateFolder(accessToken, ref, { mode: "rename", folderName: name });
+}
+
+async function moveProviderFolder(
+  accessToken: string,
+  ref: string,
+  parentRef?: string,
+): Promise<ProviderFolder> {
+  const acc = await loadAccount(accessToken);
+  if (parentRef) requireCustomFolder(acc, parentRef);
+  if (parentRef === ref) throw new Error("A folder cannot move inside itself");
+  return updateFolder(accessToken, ref, { mode: "move", parentFolderId: parentRef ?? "0" });
+}
+
+async function deleteProviderFolder(accessToken: string, ref: string): Promise<void> {
+  const acc = await loadAccount(accessToken);
+  requireCustomFolder(acc, ref);
+  if (standardFolderIds(acc).has(ref)) throw new Error("Standard Zoho folders cannot be deleted");
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/folders/${ref}`, { method: "DELETE" });
+  await forgetAccount(accessToken);
+}
+
+async function requireTag(accessToken: string, ref: string): Promise<ProviderTag> {
+  const tags = await listProviderTags(accessToken);
+  const tag = tags.find((t) => t.ref === ref);
+  if (!tag) {
+    throw new Error(
+      `Unknown Zoho tag "${ref}". These are all of them: ${tags.map((t) => `${t.ref} (${t.name})`).join(", ")}`,
+    );
+  }
+  return tag;
+}
+
+async function renameProviderTag(
+  accessToken: string,
+  ref: string,
+  name: string,
+): Promise<ProviderTag> {
+  const tag = await requireTag(accessToken, ref);
+  const acc = await loadAccount(accessToken);
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/labels/${ref}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName: name, ...(tag.color ? { color: tag.color } : {}) }),
+  });
+  return { ...tag, name };
+}
+
+async function deleteProviderTag(accessToken: string, ref: string): Promise<void> {
+  await requireTag(accessToken, ref);
+  const acc = await loadAccount(accessToken);
+  await zohoFetch(accessToken, `/accounts/${acc.accountId}/labels/${ref}`, { method: "DELETE" });
+}
+
+async function getProviderTags(accessToken: string, id: string): Promise<string[]> {
+  const ref = decodeMessageId(id);
+  const acc = await loadAccount(accessToken);
+  const res = await zohoFetch(
+    accessToken,
+    `/accounts/${acc.accountId}/folders/${ref.folderId}/messages/${ref.messageId}/details`,
+  );
+  const data = await res.json();
+  return tagIds(isRecord(data?.data) ? data.data.labelId : undefined);
 }
