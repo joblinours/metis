@@ -36,7 +36,12 @@ export const draftFields = {
 
 export const threadTarget = { mailboxId: z.string(), threadId: z.string() };
 
-export const draftTarget = { mailboxId: z.string(), draftId: z.string() };
+export const draftTarget = {
+  mailboxId: z.string(),
+  draftId: z
+    .string()
+    .describe("The draftId from createDraft, or the id of an email in the Drafts folder"),
+};
 
 export const snoozeFields = {
   ...messageTarget,

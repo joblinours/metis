@@ -1,6 +1,7 @@
 import { auth, gmail as gmailApi, type gmail_v1 } from "@googleapis/gmail";
 
 import { bind } from "@/lib/bind";
+import { BadRequestError } from "@/lib/errors/bad-request";
 import { mapLimit } from "@/lib/map-limit";
 import { errorStatus } from "@/lib/token-map";
 import { isPlainTerm, type TagToken, tagKey, tagText } from "@/search/ast";
@@ -475,11 +476,37 @@ async function createDraft(accessToken: string, payload: DraftPayload): Promise<
   return { id: res.data.id };
 }
 
+async function resolveDraft(
+  accessToken: string,
+  id: string,
+): Promise<{ draftId: string; messageId: string }> {
+  const gmail = getGmailClient(accessToken);
+  try {
+    const res = await gmail.users.drafts.get({ userId: "me", id, format: "minimal" });
+    return { draftId: id, messageId: res.data.message?.id ?? id };
+  } catch (err) {
+    const status = errorStatus(err);
+    if (status !== 400 && status !== 404) throw err;
+  }
+  let pageToken: string | undefined;
+  do {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- drafts are paged until the one carrying this message is found
+    const res = await gmail.users.drafts.list({ userId: "me", maxResults: 500, pageToken });
+    const found = res.data.drafts?.find((d) => d.message?.id === id);
+    if (found?.id) return { draftId: found.id, messageId: id };
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  throw new BadRequestError(
+    `No draft "${id}" in this mailbox. Use the draftId from createDraft, or the id of an email in Drafts.`,
+  );
+}
+
 async function updateDraft(
   accessToken: string,
-  draftId: string,
+  id: string,
   payload: DraftPayload,
 ): Promise<{ id: string }> {
+  const { draftId } = await resolveDraft(accessToken, id);
   const gmail = getGmailClient(accessToken);
   const mime = buildGmailMime(payload);
   await gmail.users.drafts.update(
@@ -495,7 +522,8 @@ async function updateDraft(
   return { id: draftId };
 }
 
-async function deleteDraft(accessToken: string, draftId: string): Promise<void> {
+async function deleteDraft(accessToken: string, id: string): Promise<void> {
+  const { draftId } = await resolveDraft(accessToken, id);
   const gmail = getGmailClient(accessToken);
   await gmail.users.drafts.delete({ userId: "me", id: draftId });
 }
@@ -1053,10 +1081,5 @@ async function getProviderTags(accessToken: string, id: string): Promise<string[
 }
 
 async function draftMessageId(accessToken: string, draftId: string): Promise<string> {
-  const res = await getGmailClient(accessToken).users.drafts.get({
-    userId: "me",
-    id: draftId,
-    format: "minimal",
-  });
-  return res.data.message?.id ?? draftId;
+  return (await resolveDraft(accessToken, draftId)).messageId;
 }

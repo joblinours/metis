@@ -37,6 +37,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Whi
 - Gmail: an attachment's id stays the same between reads, so the assistant can open it and attach it to a draft.
 - Gmail and Outlook: drafts and sends with attachments over a few MB no longer fail.
 - Zoho: attached files are uploaded as the file itself.
+- Gmail: the assistant and MCP clients can update or delete a draft by the id of its email in Drafts.
 - A slow or unreachable account no longer holds the unified inbox: after 20 seconds it shows as unavailable and the others load.
 - Fewer "Internal Server Error" pages: requests that refresh an account's sign-in at the same moment share one refresh, and token refreshes time out after 10 seconds.
 - Pages that fail to load show a message and a Try again button, and opening a folder shows a placeholder right away.

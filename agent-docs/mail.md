@@ -89,6 +89,7 @@ See also [AGENTS.md](../AGENTS.md), [gateways.md](gateways.md), [mail-ai.md](mai
 - **Draft, send and schedule tools take `attachments`** (`draftFields` → `draftAttachmentInput`): an attachment of another email (`source: "email"`) or a file the model writes (`source: "inline"`, text or base64).
   - `resolveDraftAttachments` reads them server-side, with `MAX_INLINE_ATTACHMENT_BYTES` per written file and `MAX_DRAFT_ATTACHMENT_BYTES` in all; a refusal reaches the model as a `ToolRefusal` (`mastra/toolkit/attachments.ts`).
   - `updateDraft` replaces the attachments when given and keeps them when left out: Gmail and Zoho rebuild the draft, so the op re-reads them first (`currentDraftAttachments`, through `draftMessageId` on Gmail, whose draft id is not its message id); Outlook patches in place and replaces them only when given.
+  - A Gmail draft is addressed by its draft id or by the id of its message in Drafts (`resolveDraft` in `gmail.ts`), because listings only show message ids.
   - Zoho uploads draft attachments like it does on send (`uploadAttachments`), as the raw file with its name in `fileName`.
 
 ### Personal state and the list
