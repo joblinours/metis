@@ -1,9 +1,9 @@
 import { expect, test, uniqueName } from "../fixtures";
 import { workspacePath } from "../harness";
 import {
-  labelMap,
+  starredIds,
   nodeOf,
-  restoreLabels,
+  restoreStars,
   runWorkflow,
   waitForRun,
   workflowNamed,
@@ -31,9 +31,6 @@ export default function workflowSpecs() {
       await inspector
         .getByRole("textbox", { name: "Condition" })
         .fill('item.from == "nobody@discard.harness.test"');
-      await canvas.getByRole("group", { name: "Label", exact: true }).click();
-      await inspector.getByRole("combobox", { name: "Label" }).click();
-      await page.getByRole("option", { name: "Work", exact: true }).click();
       await page.getByRole("button", { name: "Create workflow", exact: true }).click();
       await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
       await expect(workflowName).toHaveValue(name);
@@ -174,7 +171,7 @@ export default function workflowSpecs() {
     rpc,
     account,
   }) => {
-    const before = await labelMap(rpc, account);
+    const before = await starredIds(rpc, account);
     try {
       const rebrand = await runWorkflow(rpc, account, "Label rebrand mail");
       expect(rebrand.status).toBe("completed");
@@ -212,7 +209,7 @@ export default function workflowSpecs() {
       await expect(step).toBeVisible();
       await expect(step.getByText("Merge", { exact: true })).toBeVisible();
     } finally {
-      await restoreLabels(rpc, account, before);
+      await restoreStars(rpc, account, before);
     }
   });
 

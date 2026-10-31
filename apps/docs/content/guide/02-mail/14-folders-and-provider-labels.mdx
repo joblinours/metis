@@ -1,0 +1,198 @@
+---
+title: Folders and provider labels
+description: Open, create, rename and delete the folders and labels of your Gmail, Outlook or Zoho Mail account, move mail into them, and add labels to an email.
+---
+
+Your Gmail, Outlook or Zoho Mail account has its own folders and labels. Metis Suite shows them in the sidebar, so you can open them, move mail into them, label mail with them, and create, rename or delete them.
+
+These folders and labels belong to your account at the provider. Metis Suite does not keep a copy. Every change you make happens at your provider, so you see it at once in Gmail, Outlook or Zoho Mail too.
+
+## What your provider calls them
+
+Each provider has its own name for labels:
+
+| Provider  | What it calls labels |
+| --------- | -------------------- |
+| Gmail     | Labels               |
+| Outlook   | Categories           |
+| Zoho Mail | Tags                 |
+
+An email can have as many labels as you like. These are the only labels in Metis Suite.
+
+## Which mailboxes have them
+
+Folders and provider labels work with **Gmail**, **Outlook** and **Zoho Mail** mailboxes.
+
+Mailboxes connected over IMAP, Cloudflare Email and Resend have no **Folders** section, no **Move** button and no **Labels** button. They have no labels.
+
+## The Folders section
+
+The **Folders** section is in the sidebar, below the **Mailboxes** section. It lists your account's own folders, sub-folders and labels.
+
+- Sub-folders are indented under their parent folder.
+- Point at a row to see its full path, such as "Clients/Acme".
+- Click a folder to list its emails.
+
+What you see depends on your provider:
+
+- **Gmail:** every label you created shows as a folder row, with a tag icon. A slash in a label name makes a nested row: a label named "Clients/Acme" shows as **Acme** under your **Clients** label. Gmail rows have no unread count.
+- **Outlook:** your own folders and sub-folders show, with the number of unread emails. Standard folders such as Inbox and Sent are not repeated here. Folders show up to six levels deep. Your Outlook categories follow as rows with a colored tag icon. You cannot open them.
+- **Zoho Mail:** your own folders and sub-folders show, with the number of unread emails when there are any. Standard folders such as Inbox and Sent are not repeated here, and neither are Outbox, Templates and Snoozed. Your Zoho tags follow as rows with a colored tag icon. You cannot open them.
+
+Outlook category and Zoho tag rows have the tooltip **Provider label**.
+
+The section does not show when none of the mailboxes you are viewing is a Gmail, Outlook or Zoho Mail mailbox.
+
+### In All inboxes
+
+In **All inboxes**, the section has one group for each mailbox, headed by its email address. Click the heading to fold or unfold the group. Every group starts open.
+
+When you are in a single mailbox, there is no group heading.
+
+### Notices in the section
+
+- "Reconnect this account to use its labels." shows under an Outlook or Zoho Mail account that needs a new permission for labels. Its folders still work. See [Reconnect to use labels](#reconnect-to-use-labels).
+- If Metis Suite cannot read an account's folders, an error line shows under that account.
+
+## Open a folder
+
+1. Click a folder in the **Folders** section.
+
+The list heading shows the folder's name. A banner above the list shows its full path. In **All inboxes**, the banner also names the mailbox, for example "Clients/Acme · you@example.com".
+
+While a folder is open:
+
+- The **All**, **Unread** and **Starred** tabs do not show.
+- More emails load as you scroll.
+- The list does not check for new mail on its own.
+
+To go back, click the **X** in the banner. Its tooltip says **Back to the inbox**.
+
+## Create a folder or label
+
+1. In the **Folders** section, click the last row of the account's group. It says **New label** for Gmail, and **New folder or label** for Outlook and Zoho Mail.
+2. Type a name in the box (it says "Label name" on Gmail and "Name" on Outlook and Zoho Mail). Names can be 1 to 200 characters long.
+3. On Outlook and Zoho Mail, pick **Folder** or **Label** in the **What to create** list. **Folder** is picked first. This list shows only when the account can use labels.
+4. To put a new folder inside another one, pick it in the **Inside** list. **Top level** is picked first. This list shows only when you create a folder and the account already has folders. On Gmail, this creates a nested label.
+5. Click **Create**, or press Enter.
+
+Press Esc, or click the **X**, to cancel.
+
+New Outlook categories and Zoho tags are blue. If the folder or label cannot be created, a message tells you why, or says "Could not create it".
+
+## Rename a folder or label
+
+1. In the **Folders** section, point at the row. A button with three dots shows on the right of it (its tooltip is **Actions for** and the name). On a touch screen, the button always shows.
+2. Click the button, then click **Rename**.
+3. Type the new name in the box. Names can be 1 to 200 characters long.
+4. Press Enter, or click anywhere else, to save. Press Esc to cancel.
+
+The new name shows at your provider too. If the rename fails, a message tells you why, or says "Could not rename the folder" or "Could not rename the label".
+
+Outlook does not let you rename a category, so Outlook category rows have no **Rename** item. To change one, create a new category and delete the old one.
+
+## Delete a folder or label
+
+1. In the **Folders** section, point at the row and click the button with three dots.
+2. Click **Delete**.
+3. A dialog asks "Delete (name)?" and says what happens to the mail. Click **Delete** to go ahead, or **Cancel** to keep it.
+
+What happens to the mail depends on what you delete:
+
+| You delete                       | What happens                                                                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| A Gmail label                    | The label is removed from every email that has it. The emails stay in All Mail.                       |
+| An Outlook folder                | The folder and the emails in it are deleted at Outlook. Outlook moves them to its **Deleted Items** folder. |
+| A Zoho Mail folder               | The folder and the emails in it are deleted at Zoho Mail.                                             |
+| An Outlook category or a Zoho tag | The label is removed from every email that has it. The emails stay where they are.                    |
+
+A message confirms it, for example "Deleted Clients". If the delete fails, a message tells you why, or says "Could not delete the folder" or "Could not delete the label".
+
+:::warning
+Deleting an Outlook or Zoho Mail folder also deletes the emails in it. Move any email you want to keep to another folder first.
+:::
+
+## Move an email to a folder
+
+You can move an open email in two ways.
+
+**With the Move button:**
+
+1. Open the email.
+2. Click **Move** in the toolbar. It is on the right side, just before the **Labels** button. You can also press **m** then **o**.
+3. Pick a folder. Sub-folders are indented.
+
+**By dragging:**
+
+1. Drag an email row from the list.
+2. Drop it on a folder in the **Folders** section. The folder gets a ring around it while you hold the email over it.
+
+The email leaves the list at once. A message confirms it, for example "Moved to Clients". If the move fails, you see "Could not move the email to Clients", with the folder's name.
+
+In **All inboxes**, you can only drop an email on a folder of its own mailbox. If you drop it on another mailbox's folder, you see "Drop the email on a folder of its own mailbox", and nothing moves.
+
+What a move does depends on your provider:
+
+- **Gmail:** the email gets that label and leaves the Inbox (and Spam). It keeps its other labels.
+- **Outlook and Zoho Mail:** the email really moves to the folder. Its **Read later** mark moves with it.
+
+The **Move** button does not show when the account has no folders.
+
+## Move many emails at once
+
+1. Tick the checkbox on each email you want to move. A bar appears with the number selected.
+2. Click **Move** in the bar. It sits between **Unread** and **Delete**.
+3. Pick a folder.
+
+A message confirms it, for example "Moved 3 to Clients". If some emails fail, you see "Some emails could not move to Clients", with the folder's name.
+
+**Move** shows in the bar only when every selected email is in the same mailbox, and that mailbox has folders.
+
+## Add provider labels to an email
+
+1. Open the email.
+2. Click **Labels** in the toolbar (the button with a tag icon). You can also press **m** then **l**.
+3. Tick a label to add it. Untick it to remove it. You can tick as many as you like.
+
+The list shows:
+
+- **Gmail:** every label you created, by its full path.
+- **Outlook:** your categories, with their colors.
+- **Zoho Mail:** your tags, with their colors.
+
+Each change takes effect right away. If a change fails, it is undone and you see "Could not add the label Clients" or "Could not remove the label Clients", with the label's name.
+
+The **Labels** button does not show when the account has no labels, or when an Outlook or Zoho Mail account needs to be reconnected to use labels.
+
+### Where provider labels show
+
+Provider labels show as small rounded chips with a colored dot:
+
+- On the message row in the list. A row shows at most three, then a count such as **+2**.
+- Under the subject of the open email. All of them show there.
+
+## Who can use them
+
+Anyone who can see the mailbox can open its folders, move its mail, change its labels, and create, rename or delete its folders and labels. The changes happen at your provider, so everyone who shares the mailbox sees them.
+
+## Reconnect to use labels
+
+Outlook categories and Zoho tags need a permission that some older connections do not have. If an Outlook or Zoho Mail account needs a new permission for labels:
+
+- Its folders work as before.
+- Its labels are not available. The **Folders** section shows "Reconnect this account to use its labels." and the **Labels** button does not show.
+
+To fix it, connect the same account again. See [Fix an account that stops working](/guide/workspaces/fix-an-account). Gmail accounts do not need to be reconnected.
+
+## The assistant and MCP clients
+
+The Workspace Assistant can list a mailbox's folders and labels, list the emails in a folder, move emails, and add or remove labels. After you approve, it can also create, rename, move and delete folders and labels. See [What the assistant can do](/guide/assistant/what-the-assistant-can-do). MCP clients have the same tools in the **Mail folders** group. See [What an MCP client can do](/guide/assistant/what-an-mcp-client-can-do).
+
+## Keyboard shortcuts
+
+| Keys             | What it does                                   |
+| ---------------- | ---------------------------------------------- |
+| **m** then **o** | With an email open, opens the **Move** menu.   |
+| **m** then **l** | With an email open, opens the **Labels** menu. |
+
+See [Keyboard shortcuts for mail](/guide/mail/keyboard-shortcuts).
