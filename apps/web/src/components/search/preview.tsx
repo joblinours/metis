@@ -333,16 +333,6 @@ function LocalPreview({
           </dl>
         </div>
       );
-    case "label":
-      return (
-        <div className="flex flex-col gap-4">
-          <Title>{hit.name}</Title>
-          <dl className="flex flex-col gap-1.5">
-            <Field label="Key">{hit.key}</Field>
-            <Field label="Where">{hit.subtitle}</Field>
-          </dl>
-        </div>
-      );
     case "connection":
       return (
         <div className="flex flex-col gap-4">

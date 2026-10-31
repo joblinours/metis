@@ -16,7 +16,6 @@ export const SEARCH_KINDS = [
   "calendar",
   "drive",
   "mail-folder",
-  "label",
   "connection",
   "subscription",
   "command",
@@ -90,7 +89,7 @@ export const SEARCH_FIELDS: readonly SearchField[] = [
   {
     key: "mailbox",
     type: "slug",
-    kinds: ["mail", "mail-folder", "label", "mailbox"],
+    kinds: ["mail", "mail-folder", "mailbox"],
     description: "In one mailbox",
   },
   {
@@ -181,7 +180,6 @@ export const SEARCH_FIELDS: readonly SearchField[] = [
       "calendar",
       "drive",
       "mail-folder",
-      "label",
       "subscription",
     ],
     description: "Name",

@@ -9,8 +9,6 @@ import { listWorkspaceCalendars, listWorkspaceDrives, listWorkspaceMailboxes } f
 import { searchFiles } from "@/drive/search";
 import { workspaceDrives } from "@/drive/session";
 import { suggestContacts } from "@/mail/contacts";
-import { listCustomLabels } from "@/mail/custom-labels";
-import { LABEL_OPTIONS } from "@/mail/label-meta";
 import { searchMail } from "@/mail/search";
 import { mailSessionFor } from "@/mail/session";
 import type { ParserAst } from "@/search/ast";
@@ -108,13 +106,6 @@ async function suggest(
       return calendars
         .filter((c) => c.visible && contains(prefix, c.name))
         .map((c) => ({ value: c.name, label: c.name, detail: c.accountEmail }));
-    }
-    case "label": {
-      const boxes = await listWorkspaceMailboxes(workspaceId);
-      const custom = await listCustomLabels(boxes.map((b) => b.id));
-      return [...LABEL_OPTIONS, ...custom]
-        .filter((l) => contains(prefix, l.key, l.name))
-        .map((l) => ({ value: l.key, label: l.name }));
     }
     case "workflow": {
       const scope = await workflowScopeFor(appUser);
