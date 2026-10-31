@@ -72,7 +72,7 @@ See also [AGENTS.md](../AGENTS.md), [ai-agents.md](ai-agents.md), [auth.md](auth
 
 ### The server
 
-- **A tool that returns an image sends an envelope `{ structuredContent, content }` and declares it in its `outputSchema`** (`getAttachment` in `src/mastra/mcp/tools/mail.ts`).
+- **A tool that returns an image sends an envelope `{ structuredContent, content }` and declares it in its `outputSchema`** (`getAttachment` in `src/mastra/mcp/tools/mail.ts`); that schema is loose, because clients cache it and reject any field a newer release adds to a strict one.
   - Mastra returns the parsed output when it validates, so the schema must describe `content` or the image block is stripped; the MCP server then validates `structuredContent` against the same schema and sends `content` as is.
   - The schema stays one object (fields optional, `strict`), because an MCP `outputSchema` must have `type: "object"` at its root.
 

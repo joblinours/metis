@@ -44,7 +44,7 @@ export const getAttachmentText = createTool({
     }),
 });
 
-const previewOutput = getAttachmentOutput.omit({ images: true }).strict();
+const previewOutput = getAttachmentOutput.omit({ images: true }).loose();
 
 const previewContent = z.array(
   z.union([
