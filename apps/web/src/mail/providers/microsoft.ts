@@ -289,9 +289,11 @@ async function addDraftAttachments(
 }
 
 async function createDraft(accessToken: string, payload: DraftPayload): Promise<{ id: string }> {
-  const data: Message = await getGraphClient(accessToken)
-    .api("/me/messages")
-    .post(msMessageBody(payload));
+  const data: Message = payload.replyToMessageId
+    ? await getGraphClient(accessToken)
+        .api(`/me/messages/${payload.replyToMessageId}/createReply`)
+        .post({ message: msMessageBody(payload) })
+    : await getGraphClient(accessToken).api("/me/messages").post(msMessageBody(payload));
 
   if (!data.id) throw new Error("Microsoft Graph returned no draft id");
   if (payload.attachments?.length) {
@@ -351,7 +353,7 @@ async function sendMessage(
   accessToken: string,
   payload: DraftPayload,
 ): Promise<{ id: string | null }> {
-  if (payload.attachments?.length) {
+  if (payload.attachments?.length || payload.replyToMessageId) {
     const { id } = await createDraft(accessToken, payload);
     await getGraphClient(accessToken).api(`/me/messages/${id}/send`).post({});
     return { id: null };

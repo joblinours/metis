@@ -458,11 +458,26 @@ async function createDraft(accessToken: string, payload: DraftPayload): Promise<
   const attachmentRefs = await uploadAttachments(accessToken, acc.accountId, payload.attachments);
   if (attachmentRefs.length > 0) body.attachments = attachmentRefs;
 
-  const res = await zohoFetch(accessToken, `/accounts/${acc.accountId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const post = (path: string, fields: Record<string, unknown>) =>
+    zohoFetch(accessToken, path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+  const replyTarget = payload.replyToMessageId
+    ? decodeMessageId(payload.replyToMessageId).messageId
+    : null;
+  const res = replyTarget
+    ? await post(`/accounts/${acc.accountId}/messages/${replyTarget}`, {
+        ...body,
+        action: "reply",
+      }).catch((err: unknown) => {
+        if (err instanceof ProviderError && err.status >= 400 && err.status < 500) {
+          return post(`/accounts/${acc.accountId}/messages`, body);
+        }
+        throw err;
+      })
+    : await post(`/accounts/${acc.accountId}/messages`, body);
   const data = await res.json().catch(() => ({}));
   const messageId = String(data?.data?.messageId ?? data?.data?.id ?? data?.messageId ?? "");
   if (!messageId) throw new Error("Zoho returned no draft id");

@@ -5,7 +5,7 @@ import { z } from "zod";
 import * as inbox from "@/ops/inbox";
 
 import { getWorkspaceCtx } from "../runtime-context";
-import { draftAttachments } from "../toolkit/attachments";
+import { draftPayload } from "../toolkit/attachments";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
   mailboxTarget,
@@ -84,7 +84,7 @@ const scheduleEmailTool = createTool({
   }),
   requireApproval: true,
   execute: async (
-    { mailboxId, to, cc, bcc, subject, bodyHtml, attachments, scheduledFor },
+    { mailboxId, to, cc, bcc, subject, bodyHtml, attachments, replyTo, scheduledFor },
     { requestContext },
   ) =>
     withToolErrors(async () => {
@@ -92,14 +92,15 @@ const scheduleEmailTool = createTool({
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
       return inbox.scheduleEmail(ctx, r.mailbox, {
-        payload: {
+        payload: await draftPayload(ctx, r.mailbox, {
           to,
           cc,
           bcc,
           subject,
           bodyHtml,
-          attachments: await draftAttachments(ctx, r.mailbox, attachments),
-        },
+          attachments,
+          replyTo,
+        }),
         scheduledFor,
       });
     }),

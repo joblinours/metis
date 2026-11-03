@@ -464,26 +464,35 @@ function mimeToBase64Url(mime: string): string {
     .replace(/=+$/, "");
 }
 
-async function createDraft(accessToken: string, payload: DraftPayload): Promise<{ id: string }> {
-  const gmail = getGmailClient(accessToken);
-  const mime = buildGmailMime(payload);
-  const res = await gmail.users.drafts.create(
-    payload.attachments?.length
-      ? { userId: "me", requestBody: {}, media: { mimeType: "message/rfc822", body: mime } }
-      : { userId: "me", requestBody: { message: { raw: mimeToBase64Url(mime) } } },
-  );
-  if (!res.data.id) throw new Error("Gmail returned no draft id");
-  return { id: res.data.id };
+type GmailDraft = {
+  draftId: string;
+  messageId: string;
+  threadId?: string;
+  inReplyTo?: string;
+  references?: string;
+};
+
+async function readDraft(accessToken: string, draftId: string): Promise<GmailDraft> {
+  const res = await getGmailClient(accessToken).users.drafts.get({
+    userId: "me",
+    id: draftId,
+    format: "metadata",
+  });
+  const message = res.data.message;
+  const headers = pickHeaders(message?.payload?.headers ?? [], ["In-Reply-To", "References"]);
+  return {
+    draftId,
+    messageId: message?.id ?? draftId,
+    ...(message?.threadId ? { threadId: message.threadId } : {}),
+    ...(headers["in-reply-to"] ? { inReplyTo: headers["in-reply-to"] } : {}),
+    ...(headers.references ? { references: headers.references } : {}),
+  };
 }
 
-async function resolveDraft(
-  accessToken: string,
-  id: string,
-): Promise<{ draftId: string; messageId: string }> {
+async function resolveDraft(accessToken: string, id: string): Promise<GmailDraft> {
   const gmail = getGmailClient(accessToken);
   try {
-    const res = await gmail.users.drafts.get({ userId: "me", id, format: "minimal" });
-    return { draftId: id, messageId: res.data.message?.id ?? id };
+    return await readDraft(accessToken, id);
   } catch (err) {
     const status = errorStatus(err);
     if (status !== 400 && status !== 404) throw err;
@@ -493,7 +502,7 @@ async function resolveDraft(
     // oxlint-disable-next-line eslint/no-await-in-loop -- drafts are paged until the one carrying this message is found
     const res = await gmail.users.drafts.list({ userId: "me", maxResults: 500, pageToken });
     const found = res.data.drafts?.find((d) => d.message?.id === id);
-    if (found?.id) return { draftId: found.id, messageId: id };
+    if (found?.id) return readDraft(accessToken, found.id);
     pageToken = res.data.nextPageToken ?? undefined;
   } while (pageToken);
   throw new BadRequestError(
@@ -501,25 +510,67 @@ async function resolveDraft(
   );
 }
 
+async function replyThreadId(
+  accessToken: string,
+  payload: DraftPayload,
+): Promise<string | undefined> {
+  if (!payload.replyToMessageId) return undefined;
+  const res = await getGmailClient(accessToken).users.messages.get({
+    userId: "me",
+    id: payload.replyToMessageId,
+    format: "minimal",
+  });
+  return res.data.threadId ?? undefined;
+}
+
+async function createDraft(accessToken: string, payload: DraftPayload): Promise<{ id: string }> {
+  const gmail = getGmailClient(accessToken);
+  const threadId = await replyThreadId(accessToken, payload);
+  const mime = buildGmailMime(payload);
+  const res = await gmail.users.drafts.create(
+    payload.attachments?.length
+      ? {
+          userId: "me",
+          requestBody: threadId ? { message: { threadId } } : {},
+          media: { mimeType: "message/rfc822", body: mime },
+        }
+      : { userId: "me", requestBody: { message: { raw: mimeToBase64Url(mime), threadId } } },
+  );
+  if (!res.data.id) throw new Error("Gmail returned no draft id");
+  return { id: res.data.id };
+}
+
 async function updateDraft(
   accessToken: string,
   id: string,
   payload: DraftPayload,
 ): Promise<{ id: string }> {
-  const { draftId } = await resolveDraft(accessToken, id);
+  const draft = await resolveDraft(accessToken, id);
+  const threadId = (await replyThreadId(accessToken, payload)) ?? draft.threadId;
+  const threaded: DraftPayload = payload.inReplyTo
+    ? payload
+    : {
+        ...payload,
+        ...(draft.inReplyTo ? { inReplyTo: draft.inReplyTo } : {}),
+        ...(draft.references ? { references: draft.references } : {}),
+      };
   const gmail = getGmailClient(accessToken);
-  const mime = buildGmailMime(payload);
+  const mime = buildGmailMime(threaded);
   await gmail.users.drafts.update(
-    payload.attachments?.length
+    threaded.attachments?.length
       ? {
           userId: "me",
-          id: draftId,
-          requestBody: { id: draftId },
+          id: draft.draftId,
+          requestBody: { id: draft.draftId, ...(threadId ? { message: { threadId } } : {}) },
           media: { mimeType: "message/rfc822", body: mime },
         }
-      : { userId: "me", id: draftId, requestBody: { message: { raw: mimeToBase64Url(mime) } } },
+      : {
+          userId: "me",
+          id: draft.draftId,
+          requestBody: { message: { raw: mimeToBase64Url(mime), threadId } },
+        },
   );
-  return { id: draftId };
+  return { id: draft.draftId };
 }
 
 async function deleteDraft(accessToken: string, id: string): Promise<void> {
@@ -579,10 +630,15 @@ async function sendMessage(
     mime = `${headers}\r\n\r\n${parts.join("\r\n")}`;
   }
 
+  const threadId = await replyThreadId(accessToken, payload);
   const res = await gmail.users.messages.send(
     hasAttachments
-      ? { userId: "me", requestBody: {}, media: { mimeType: "message/rfc822", body: mime } }
-      : { userId: "me", requestBody: { raw: mimeToBase64Url(mime) } },
+      ? {
+          userId: "me",
+          requestBody: threadId ? { threadId } : {},
+          media: { mimeType: "message/rfc822", body: mime },
+        }
+      : { userId: "me", requestBody: { raw: mimeToBase64Url(mime), threadId } },
   );
   return { id: res.data.id ?? null };
 }

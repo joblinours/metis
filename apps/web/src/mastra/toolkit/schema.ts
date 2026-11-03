@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { draftAttachmentInput } from "@/ops/attachments";
+import { replyToInput } from "@/ops/reply";
 import { THEME_BRAND_IDS } from "@/theme/brand";
 import { WRITABLE_ATTENDEE_RESPONSES } from "@/types/calendar";
 import { MAIL_FOLDERS } from "@/types/mail";
@@ -20,11 +21,24 @@ export const listEmailsFields = {
 };
 
 export const draftFields = {
-  to: z.array(z.string()).min(1),
+  replyTo: replyToInput
+    .optional()
+    .describe(
+      "Answer an email as a real reply, in its conversation at the provider (Reply, or Reply all with all). Leave to, cc and subject out to use the sender (or everyone), and Re: with its subject. Pass it again on updateDraft.",
+    ),
+  to: z
+    .array(z.string())
+    .min(1)
+    .optional()
+    .describe("Recipients; required unless replyTo is given"),
   cc: z.array(z.string()).optional(),
   bcc: z.array(z.string()).optional(),
-  subject: z.string(),
-  bodyHtml: z.string(),
+  subject: z.string().optional().describe("Required unless replyTo is given"),
+  bodyHtml: z
+    .string()
+    .describe(
+      "The message as HTML. A reply quotes nothing by itself; include a quote if you want one",
+    ),
   attachments: z
     .array(draftAttachmentInput)
     .max(10)

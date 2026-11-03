@@ -25,6 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Whi
 
 - Mail: Metis's own labels (Work, Newsletter, custom labels, AI sorting) are gone from the app and from MCP; only the account's own labels remain. The inbox tabs are All, Unread and Starred. Existing workflows that use the Label step or the label triggers keep running, but these are no longer offered, and the "Label mail from a sender" template is now "Star mail from a sender".
 - Mail: Outlook drafts keep the attachments given on update, and Zoho drafts keep their attachments.
+- Workspace AI and MCP: drafts, sends and scheduled sends can answer an email with `replyTo` (Reply or Reply all), threaded in its conversation at Gmail, Outlook and Zoho.
 - Workspace AI and MCP: `getAttachment` reads a PDF page by page and shows scanned pages as images; attachments may total 25 MB.
 
 - Mail: mailboxes open much faster. Gmail reads at most 10 messages at a time instead of a whole page at once, the first page holds 50 messages, and the unified inbox asks each account for its share of a page instead of a full page each.
@@ -38,6 +39,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Whi
 - Gmail and Outlook: drafts and sends with attachments over a few MB no longer fail.
 - Zoho: attached files are uploaded as the file itself.
 - Gmail: the assistant and MCP clients can update or delete a draft by the id of its email in Drafts.
+- Gmail and Outlook: replies written in the app join the original conversation instead of starting a new one.
 - A slow or unreachable account no longer holds the unified inbox: after 20 seconds it shows as unavailable and the others load.
 - Fewer "Internal Server Error" pages: requests that refresh an account's sign-in at the same moment share one refresh, and token refreshes time out after 10 seconds.
 - Pages that fail to load show a message and a Try again button, and opening a folder shows a placeholder right away.

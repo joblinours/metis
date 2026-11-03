@@ -2,7 +2,7 @@ import "server-only";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
-import { draftAttachments } from "@/mastra/toolkit/attachments";
+import { draftPayload } from "@/mastra/toolkit/attachments";
 import { requireMailbox, withToolErrors } from "@/mastra/toolkit/resolve";
 import { draftFields, draftTarget, mailboxTarget } from "@/mastra/toolkit/schema";
 import * as mail from "@/ops/mail";
@@ -16,21 +16,25 @@ export const createDraft = createTool({
     "Create a draft email in a specific mailbox. The draft is saved to the provider's Drafts folder — nothing is sent. Returns the draft id for later updates.",
   inputSchema: inWorkspace({ ...mailboxTarget, ...draftFields }),
   execute: async (
-    { workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml, attachments },
+    { workspaceId, mailboxId, to, cc, bcc, subject, bodyHtml, attachments, replyTo },
     { requestContext },
   ) =>
     withToolErrors(async () => {
       const ctx = await mcpScopeFromCall(requestContext, workspaceId);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.createDraft(r.mailbox, {
-        to,
-        cc,
-        bcc,
-        subject,
-        bodyHtml,
-        attachments: await draftAttachments(ctx, r.mailbox, attachments),
-      });
+      return mail.createDraft(
+        r.mailbox,
+        await draftPayload(ctx, r.mailbox, {
+          to,
+          cc,
+          bcc,
+          subject,
+          bodyHtml,
+          attachments,
+          replyTo,
+        }),
+      );
     }),
 });
 
@@ -43,21 +47,26 @@ export const updateDraft = createTool({
     ...draftFields,
   }),
   execute: async (
-    { workspaceId, mailboxId, draftId, to, cc, bcc, subject, bodyHtml, attachments },
+    { workspaceId, mailboxId, draftId, to, cc, bcc, subject, bodyHtml, attachments, replyTo },
     { requestContext },
   ) =>
     withToolErrors(async () => {
       const ctx = await mcpScopeFromCall(requestContext, workspaceId);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.updateDraft(r.mailbox, draftId, {
-        to,
-        cc,
-        bcc,
-        subject,
-        bodyHtml,
-        attachments: await draftAttachments(ctx, r.mailbox, attachments),
-      });
+      return mail.updateDraft(
+        r.mailbox,
+        draftId,
+        await draftPayload(ctx, r.mailbox, {
+          to,
+          cc,
+          bcc,
+          subject,
+          bodyHtml,
+          attachments,
+          replyTo,
+        }),
+      );
     }),
 });
 

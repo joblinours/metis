@@ -9,7 +9,7 @@ import * as mail from "@/ops/mail";
 import { analyzePhishing } from "@/ops/phishing";
 
 import { actorHeaders, getWorkspaceCtx } from "../runtime-context";
-import { draftAttachments } from "../toolkit/attachments";
+import { draftPayload } from "../toolkit/attachments";
 import { LABEL_TOOL_TEXT } from "../toolkit/label-text";
 import { requireMailbox, withToolErrors } from "../toolkit/resolve";
 import {
@@ -216,19 +216,26 @@ const sendEmailTool = createTool({
     ...draftFields,
     summary: z.string().describe("Short description of the mail that will go out, and to whom"),
   }),
-  execute: async ({ mailboxId, to, cc, bcc, subject, bodyHtml, attachments }, { requestContext }) =>
+  execute: async (
+    { mailboxId, to, cc, bcc, subject, bodyHtml, attachments, replyTo },
+    { requestContext },
+  ) =>
     withToolErrors(async () => {
       const ctx = getWorkspaceCtx(requestContext);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.send(r.mailbox, {
-        to,
-        cc,
-        bcc,
-        subject,
-        bodyHtml,
-        attachments: await draftAttachments(ctx, r.mailbox, attachments),
-      });
+      return mail.send(
+        r.mailbox,
+        await draftPayload(ctx, r.mailbox, {
+          to,
+          cc,
+          bcc,
+          subject,
+          bodyHtml,
+          attachments,
+          replyTo,
+        }),
+      );
     }),
   requireApproval: true,
 });
@@ -238,19 +245,26 @@ const createDraftTool = createTool({
   description:
     "Create a draft email in a specific mailbox. The draft is saved to the provider's Drafts folder — nothing is sent. Returns the draft id for later updates.",
   inputSchema: z.object({ ...mailboxTarget, ...draftFields }),
-  execute: async ({ mailboxId, to, cc, bcc, subject, bodyHtml, attachments }, { requestContext }) =>
+  execute: async (
+    { mailboxId, to, cc, bcc, subject, bodyHtml, attachments, replyTo },
+    { requestContext },
+  ) =>
     withToolErrors(async () => {
       const ctx = getWorkspaceCtx(requestContext);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.createDraft(r.mailbox, {
-        to,
-        cc,
-        bcc,
-        subject,
-        bodyHtml,
-        attachments: await draftAttachments(ctx, r.mailbox, attachments),
-      });
+      return mail.createDraft(
+        r.mailbox,
+        await draftPayload(ctx, r.mailbox, {
+          to,
+          cc,
+          bcc,
+          subject,
+          bodyHtml,
+          attachments,
+          replyTo,
+        }),
+      );
     }),
 });
 
@@ -263,21 +277,26 @@ const updateDraftTool = createTool({
     ...draftFields,
   }),
   execute: async (
-    { mailboxId, draftId, to, cc, bcc, subject, bodyHtml, attachments },
+    { mailboxId, draftId, to, cc, bcc, subject, bodyHtml, attachments, replyTo },
     { requestContext },
   ) =>
     withToolErrors(async () => {
       const ctx = getWorkspaceCtx(requestContext);
       const r = requireMailbox(ctx, mailboxId);
       if ("error" in r) return r;
-      return mail.updateDraft(r.mailbox, draftId, {
-        to,
-        cc,
-        bcc,
-        subject,
-        bodyHtml,
-        attachments: await draftAttachments(ctx, r.mailbox, attachments),
-      });
+      return mail.updateDraft(
+        r.mailbox,
+        draftId,
+        await draftPayload(ctx, r.mailbox, {
+          to,
+          cc,
+          bcc,
+          subject,
+          bodyHtml,
+          attachments,
+          replyTo,
+        }),
+      );
     }),
 });
 
